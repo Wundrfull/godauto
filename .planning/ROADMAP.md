@@ -83,7 +83,7 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 04-01-PLAN.md -- Scene builder, lister, and scene list/create CLI commands with unit tests
+- [x] 04-01-PLAN.md -- Scene builder, lister, and scene list/create CLI commands with unit tests
 - [ ] 04-02-PLAN.md -- SKILL.md auto-generation from Click CLI introspection
 - [ ] 04-03-PLAN.md -- E2E test suite with headless Godot validation and golden file comparison
 

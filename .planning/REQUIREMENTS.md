@@ -71,8 +71,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Scene
 
-- [ ] **SCEN-01**: `gdauto scene list` enumerates all scenes in a project, dumps node trees, shows dependencies between scenes and scripts
-- [ ] **SCEN-02**: `gdauto scene create` creates .tscn scene files from JSON/YAML node tree definitions with node hierarchy, property assignments, script references
+- [x] **SCEN-01**: `gdauto scene list` enumerates all scenes in a project, dumps node trees, shows dependencies between scenes and scripts
+- [x] **SCEN-02**: `gdauto scene create` creates .tscn scene files from JSON/YAML node tree definitions with node hierarchy, property assignments, script references
 
 ### Testing
 
@@ -155,8 +155,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TILE-07 | Phase 3 | Complete |
 | TILE-08 | Phase 3 | Complete (03-01) |
 | TILE-09 | Phase 3 | Complete |
-| SCEN-01 | Phase 4 | Pending |
-| SCEN-02 | Phase 4 | Pending |
+| SCEN-01 | Phase 4 | Complete |
+| SCEN-02 | Phase 4 | Complete |
 | TEST-01 | Phase 1 | Complete |
 | TEST-02 | Phase 4 | Pending |
 | TEST-03 | Phase 4 | Pending |
