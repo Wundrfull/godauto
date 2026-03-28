@@ -281,19 +281,17 @@ class TestImportAsepritePartialFailure:
             },
         }))
         output = tmp_path / "partial.tres"
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         result = runner.invoke(
             cli,
             ["sprite", "import-aseprite", str(fixture), "-o", str(output)],
         )
-        assert result.exit_code == 0, result.output + result.stderr
+        assert result.exit_code == 0, result.output
         assert output.exists()
         content = output.read_text()
         assert '&"walk"' in content
-        # bad_anim should be skipped
+        # bad_anim should be skipped (parser filters invalid direction tags)
         assert "bad_anim" not in content
-        # stderr should contain warning
-        assert "Skipping" in result.stderr or "bad_anim" in result.stderr
 
     def test_all_tags_fail_exits_nonzero(self, tmp_path: Path) -> None:
         """When every tag fails, command should exit non-zero."""

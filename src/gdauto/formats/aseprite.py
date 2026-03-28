@@ -177,10 +177,23 @@ def _parse_frame(raw_frame: dict, filename: str) -> AsepriteFrame:
 
 
 def _parse_meta(raw_meta: dict) -> AsepriteMeta:
-    """Parse the meta section into an AsepriteMeta."""
+    """Parse the meta section into an AsepriteMeta.
+
+    Invalid tags are skipped with a warning rather than raising, so
+    downstream consumers can implement partial failure (D-17).
+    """
     size = raw_meta.get("size", {"w": 0, "h": 0})
     raw_tags = raw_meta.get("frameTags", [])
-    tags = [_parse_tag(t) for t in raw_tags]
+    tags: list[AsepriteTag] = []
+    for raw_tag in raw_tags:
+        try:
+            tags.append(_parse_tag(raw_tag))
+        except ValidationError as exc:
+            tag_name = raw_tag.get("name", "<unknown>")
+            warnings.warn(
+                f"Skipping tag '{tag_name}': {exc.message}",
+                stacklevel=2,
+            )
     slices = raw_meta.get("slices", [])
 
     return AsepriteMeta(
