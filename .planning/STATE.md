@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Aseprite-to-SpriteFrames bridge: read Aseprite's JSON export and generate valid Godot .tres SpriteFrames resources with named animations, correct frame durations, atlas texture regions, and loop settings, entirely in Python with no Godot binary required.
-**Current focus:** Phase 1: Foundation and CLI Infrastructure
+**Current focus:** Phase 02 — aseprite-to-spriteframes-bridge
 
 ## Current Position
 
 Phase: 2 of 4 (aseprite to spriteframes bridge)
 Plan: 2 of 4
-Status: Ready to execute
+Status: Executing
 Last activity: 2026-03-28
 
 Progress: [░░░░░░░░░░] 0%
