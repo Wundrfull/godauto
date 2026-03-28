@@ -22,6 +22,7 @@ from gdauto.tileset.terrain import (
     apply_terrain_to_atlas,
 )
 from gdauto.tileset.tiled import parse_tiled_file
+from gdauto.tileset.validator import validate_tileset, validate_tileset_headless
 
 
 @click.group(invoke_without_command=True)
@@ -658,3 +659,72 @@ def import_tiled(
         _human,
         ctx,
     )
+
+
+# ---------------------------------------------------------------------------
+# tileset validate
+# ---------------------------------------------------------------------------
+
+
+@tileset.command("validate")
+@click.argument("tres_file", type=click.Path(exists=False))
+@click.option(
+    "--godot",
+    is_flag=True,
+    default=False,
+    help="Also validate by loading in headless Godot (requires Godot binary).",
+)
+@click.pass_context
+def validate(ctx: click.Context, tres_file: str, godot: bool) -> None:
+    """Validate a TileSet .tres resource file.
+
+    Checks resource type, tile_size, atlas sources, texture references,
+    and terrain_set consistency. With --godot, also loads the resource
+    in headless Godot to confirm it is valid.
+    """
+    tres_path = Path(tres_file)
+    if not tres_path.exists():
+        emit_error(
+            GdautoError(
+                message=f"File not found: {tres_file}",
+                code="FILE_NOT_FOUND",
+                fix="Check the path to your .tres file",
+            ),
+            ctx,
+        )
+        return
+
+    result = validate_tileset(tres_path)
+
+    if godot:
+        from gdauto.backend import GodotBackend
+
+        config: GlobalConfig = ctx.obj
+        backend = GodotBackend(
+            binary_path=config.godot_path if config else None
+        )
+        result = validate_tileset_headless(tres_path, backend)
+
+    emit(result, _print_validate_result, ctx)
+
+    if not result["valid"]:
+        ctx.exit(1)
+
+
+def _print_validate_result(data: dict[str, Any], verbose: bool = False) -> None:
+    """Display TileSet validation result in human-readable format."""
+    if data["valid"]:
+        sources = data.get("atlas_sources", [])
+        total_tiles = sum(s.get("tile_count", 0) for s in sources)
+        terrain_tiles = sum(s.get("terrain_tiles", 0) for s in sources)
+        physics_tiles = sum(s.get("physics_tiles", 0) for s in sources)
+        click.echo(
+            f"Valid TileSet: {total_tiles} tiles, "
+            f"{terrain_tiles} with terrain, {physics_tiles} with physics"
+        )
+    else:
+        click.echo(
+            f"Invalid TileSet: {len(data['issues'])} issue(s)"
+        )
+        for issue in data["issues"]:
+            click.echo(f"  - {issue}")

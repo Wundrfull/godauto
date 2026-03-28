@@ -21,7 +21,9 @@ from gdauto.formats.values import parse_value, serialize_value
 _HEADER_RE = re.compile(r"^\[(\w+)(.*)?\]\s*$")
 
 # Pattern matching a key = value property line
-_PROPERTY_RE = re.compile(r"^(\w+)\s*=\s*(.*)$")
+# Keys may contain word chars, colons, and slashes for Godot's tile
+# coordinate properties (e.g., "0:0/terrain_set", "sources/0")
+_PROPERTY_RE = re.compile(r"^([\w:/]+)\s*=\s*(.*)$")
 
 # Pattern for quoted attribute values in headers: key="value"
 _ATTR_QUOTED_RE = re.compile(r'(\w+)\s*=\s*"([^"]*)"')
