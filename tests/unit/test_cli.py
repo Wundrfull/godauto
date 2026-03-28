@@ -6,7 +6,6 @@ import json
 from io import StringIO
 from unittest.mock import patch
 
-import pytest
 from click.testing import CliRunner
 
 from gdauto.cli import cli
@@ -146,14 +145,6 @@ class TestEmit:
     """Verify emit() dispatches to JSON or human output correctly."""
 
     def test_emit_json_mode(self) -> None:
-        runner = CliRunner()
-
-        @cli.command("_test_emit_json")
-        @_pass_context
-        def _test_cmd(ctx: object) -> None:
-            pass
-
-        # Instead, test emit function directly with a mock context
         import types
 
         ctx = types.SimpleNamespace()
@@ -241,9 +232,3 @@ class TestEmitError:
         assert "file missing" in output
         assert "check the path" in output
         assert exit_called_with == [1]
-
-
-# Remove the unused import helper used in TestEmit
-def _pass_context(f):  # type: ignore[no-untyped-def]
-    """Placeholder; not actually used in final tests."""
-    return f
