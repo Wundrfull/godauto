@@ -129,15 +129,15 @@ image = [
 
 [package.metadata]
 requires-dist = [
-    { name = "click", specifier = ">=8.0" },
-    { name = "mypy", marker = "extra == 'dev'" },
+    { name = "click", specifier = ">=8.3" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.19" },
     { name = "pillow", marker = "extra == 'image'", specifier = ">=12.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=7.0" },
-    { name = "rich-click", specifier = ">=1.8" },
+    { name = "rich-click", specifier = ">=1.9" },
     { name = "ruff", marker = "extra == 'dev'" },
 ]
-provides-extras = ["dev", "image"]
+provides-extras = ["image", "dev"]
 
 [[package]]
 name = "iniconfig"
