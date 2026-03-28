@@ -515,13 +515,16 @@ def _find_matching_paren(text: str, start: int) -> int:
 
 
 def _split_args(text: str) -> list[str]:
-    """Split a comma-separated argument list, respecting nested parens and strings."""
+    """Split a comma-separated argument list, respecting nested delimiters and strings."""
     args: list[str] = []
     depth = 0
     current: list[str] = []
     in_string = False
     i = 0
     length = len(text)
+    # Track nesting for parens, brackets, and braces
+    _OPENERS = frozenset("([{")
+    _CLOSERS = frozenset(")]}")
 
     while i < length:
         ch = text[i]
@@ -535,10 +538,10 @@ def _split_args(text: str) -> list[str]:
         elif ch == '"':
             in_string = True
             current.append(ch)
-        elif ch == '(':
+        elif ch in _OPENERS:
             depth += 1
             current.append(ch)
-        elif ch == ')':
+        elif ch in _CLOSERS:
             depth -= 1
             current.append(ch)
         elif ch == ',' and depth == 0:
@@ -610,7 +613,7 @@ def _parse_dict(text: str) -> dict[Any, Any]:
 
 
 def _find_colon(text: str) -> int:
-    """Find the index of the first colon not inside quotes or parens."""
+    """Find the index of the first colon not inside quotes or nested delimiters."""
     depth = 0
     in_string = False
     for i, ch in enumerate(text):
@@ -622,9 +625,9 @@ def _find_colon(text: str) -> int:
             continue
         if ch == '"':
             in_string = True
-        elif ch == '(':
+        elif ch in "([{":
             depth += 1
-        elif ch == ')':
+        elif ch in ")]}":
             depth -= 1
         elif ch == ':' and depth == 0:
             return i

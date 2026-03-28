@@ -472,3 +472,76 @@ def create_atlas_cmd(
         _human,
         ctx,
     )
+
+
+@sprite.command("validate")
+@click.argument("tres_file", type=click.Path(exists=False))
+@click.option(
+    "--godot",
+    is_flag=True,
+    default=False,
+    help="Also validate by loading in headless Godot (requires Godot binary).",
+)
+@click.pass_context
+def validate(ctx: click.Context, tres_file: str, godot: bool) -> None:
+    """Validate a SpriteFrames .tres resource file.
+
+    Checks structure, animation definitions, frame references, and texture
+    references. With --godot, also loads the resource in headless Godot
+    to confirm it is valid.
+    """
+    tres_path = Path(tres_file)
+    if not tres_path.exists():
+        emit_error(
+            GdautoError(
+                message=f"File not found: {tres_file}",
+                code="FILE_NOT_FOUND",
+                fix="Check the path to your .tres file",
+            ),
+            ctx,
+        )
+        return
+
+    from gdauto.sprite.validator import (
+        validate_spriteframes,
+        validate_spriteframes_headless,
+    )
+
+    result = validate_spriteframes(tres_path)
+
+    if godot:
+        from gdauto.backend import GodotBackend
+
+        config = ctx.obj
+        backend = GodotBackend(
+            binary_path=config.godot_path if config else None
+        )
+        result = validate_spriteframes_headless(tres_path, backend)
+
+    emit(result, _print_validate_result, ctx)
+
+    if not result["valid"]:
+        ctx.exit(1)
+
+
+def _print_validate_result(data: dict[str, Any], verbose: bool = False) -> None:
+    """Display validation result in human-readable format."""
+    if data["valid"]:
+        anims = data.get("animations", [])
+        total_frames = sum(a.get("frames", 0) for a in anims)
+        click.echo(
+            f"Valid SpriteFrames with {len(anims)} animation(s) "
+            f"({total_frames} frames)"
+        )
+        if verbose:
+            for anim in anims:
+                click.echo(
+                    f"  {anim['name']}: {anim['frames']} frames, "
+                    f"{anim['speed']} FPS, loop={anim['loop']}"
+                )
+    else:
+        click.echo(
+            f"Invalid SpriteFrames: {len(data['issues'])} issue(s)"
+        )
+        for issue in data["issues"]:
+            click.echo(f"  - {issue}")
