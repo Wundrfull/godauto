@@ -64,12 +64,13 @@ Plans:
   2. User can run `gdauto tileset assign-physics` to batch assign collision shapes to tile ranges, and `gdauto tileset inspect` to dump any TileSet as JSON
   3. User can run `gdauto export release|debug|pack` with a named preset and get structured error reporting; export auto-runs import when cache is missing
   4. User can run `gdauto import` to force re-import with retry logic that handles known Godot timing bugs, and generated TileSets pass validation in headless Godot with correct terrain painting behavior
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
 - [x] 03-01-PLAN.md -- TileSet builder, PackedVector2Array, tileset create and inspect CLI commands
-- [ ] 03-02: TBD
-- [ ] 03-03: TBD
+- [ ] 03-02-PLAN.md -- Terrain peering bit lookup tables, auto-terrain and assign-physics commands
+- [x] 03-03-PLAN.md -- Export/import pipeline with retry logic, release/debug/pack CLI, root import command
+- [ ] 03-04-PLAN.md -- Tiled .tmx/.tmj import and TileSet validation
 
 ### Phase 4: Scene Commands, Test Suite, and Agent Discoverability
 **Goal**: The tool is feature-complete with scene manipulation commands, has comprehensive test coverage validating all generated resources, and is fully discoverable by AI agents via SKILL.md
@@ -94,5 +95,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 |-------|----------------|--------|-----------|
 | 1. Foundation and CLI Infrastructure | 5/5 | Complete |  |
 | 2. Aseprite-to-SpriteFrames Bridge | 4/4 | Complete   | 2026-03-28 |
-| 3. TileSet Automation and Export Pipeline | 1/3 | In progress | - |
+| 3. TileSet Automation and Export Pipeline | 2/4 | In progress | - |
 | 4. Scene Commands, Test Suite, and Agent Discoverability | 0/2 | Not started | - |

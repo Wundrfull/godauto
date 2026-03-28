@@ -36,11 +36,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Export Pipeline
 
-- [ ] **EXPT-01**: `gdauto export release` exports using a named preset with structured error reporting
-- [ ] **EXPT-02**: `gdauto export debug` exports a debug build using a named preset
-- [ ] **EXPT-03**: `gdauto export pack` exports .pck files using a named preset
-- [ ] **EXPT-04**: `gdauto import` forces re-import with retry logic (exponential backoff) to handle known Godot `--import` timing bugs, uses `--quit-after` instead of `--quit` to avoid race condition
-- [ ] **EXPT-05**: Export commands auto-run import first if import cache is missing (handles "never opened in editor" gotcha)
+- [x] **EXPT-01**: `gdauto export release` exports using a named preset with structured error reporting
+- [x] **EXPT-02**: `gdauto export debug` exports a debug build using a named preset
+- [x] **EXPT-03**: `gdauto export pack` exports .pck files using a named preset
+- [x] **EXPT-04**: `gdauto import` forces re-import with retry logic (exponential backoff) to handle known Godot `--import` timing bugs, uses `--quit-after` instead of `--quit` to avoid race condition
+- [x] **EXPT-05**: Export commands auto-run import first if import cache is missing (handles "never opened in editor" gotcha)
 
 ### Sprite and Animation
 
@@ -129,11 +129,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROJ-03 | Phase 1 | Complete |
 | PROJ-04 | Phase 1 | Complete |
 | PROJ-05 | Phase 1 | Complete |
-| EXPT-01 | Phase 3 | Pending |
-| EXPT-02 | Phase 3 | Pending |
-| EXPT-03 | Phase 3 | Pending |
-| EXPT-04 | Phase 3 | Pending |
-| EXPT-05 | Phase 3 | Pending |
+| EXPT-01 | Phase 3 | Complete |
+| EXPT-02 | Phase 3 | Complete |
+| EXPT-03 | Phase 3 | Complete |
+| EXPT-04 | Phase 3 | Complete |
+| EXPT-05 | Phase 3 | Complete |
 | SPRT-01 | Phase 2 | Complete |
 | SPRT-02 | Phase 2 | Complete |
 | SPRT-03 | Phase 2 | Complete |
