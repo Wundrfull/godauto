@@ -65,9 +65,9 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **TILE-04**: `gdauto tileset auto-terrain` auto-assigns terrain peering bits for the RPG Maker layout
 - [x] **TILE-05**: `gdauto tileset assign-physics` batch assigns collision shapes (full, half-top, half-bottom, none) to tile ranges by pattern
 - [x] **TILE-06**: `gdauto tileset inspect` dumps an existing TileSet resource as structured JSON: atlas sources, terrain sets, peering bit configurations, physics layers
-- [ ] **TILE-07**: TileSet validation: verifies generated TileSets load in headless Godot, terrain painting produces correct tile selection
+- [x] **TILE-07**: TileSet validation: verifies generated TileSets load in headless Godot, terrain painting produces correct tile selection
 - [x] **TILE-08**: Researched common tileset import failures and built preventions into the tool (wrong tile size, misaligned grid, incorrect peering bits)
-- [ ] **TILE-09**: `gdauto tileset import-tiled` reads Tiled .tmx (XML) and .tmj (JSON) files and converts to Godot TileSet/TileMap resources
+- [x] **TILE-09**: `gdauto tileset import-tiled` reads Tiled .tmx (XML) and .tmj (JSON) files and converts to Godot TileSet/TileMap resources
 
 ### Scene
 
@@ -152,9 +152,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TILE-04 | Phase 3 | Complete |
 | TILE-05 | Phase 3 | Complete |
 | TILE-06 | Phase 3 | Complete (03-01) |
-| TILE-07 | Phase 3 | Pending |
+| TILE-07 | Phase 3 | Complete |
 | TILE-08 | Phase 3 | Complete (03-01) |
-| TILE-09 | Phase 3 | Pending |
+| TILE-09 | Phase 3 | Complete |
 | SCEN-01 | Phase 4 | Pending |
 | SCEN-02 | Phase 4 | Pending |
 | TEST-01 | Phase 1 | Complete |
