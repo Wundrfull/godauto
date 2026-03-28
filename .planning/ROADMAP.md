@@ -29,12 +29,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User can run `gdauto project info` in a Godot project and get project name, version, autoloads, and settings as JSON
   4. User can run `gdauto project validate` and get a report of missing resources, broken references, and (with Godot binary) script syntax errors
   5. All commands produce structured JSON errors with `--json` flag, non-zero exit codes on failure, and the parser round-trips .tres/.tscn files without introducing spurious diffs
-**Plans:** 5 plans
+**Plans:** 3/5 plans executed
 
 Plans:
 - [x] 01-01-PLAN.md -- Python package scaffolding, CLI skeleton with global flags, error handling, output abstraction
 - [x] 01-02-PLAN.md -- Godot value type dataclasses with parsing, serialization, and arithmetic
-- [ ] 01-03-PLAN.md -- Custom .tscn/.tres parser with round-trip fidelity, UID and resource ID generation
+- [x] 01-03-PLAN.md -- Custom .tscn/.tres parser with round-trip fidelity, UID and resource ID generation
 - [ ] 01-04-PLAN.md -- project.godot parser and Godot backend wrapper
 - [ ] 01-05-PLAN.md -- Project commands (info, validate, create), resource inspect, integration tests
 
@@ -91,7 +91,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation and CLI Infrastructure | 0/5 | Planning complete | - |
+| 1. Foundation and CLI Infrastructure | 3/5 | In Progress|  |
 | 2. Aseprite-to-SpriteFrames Bridge | 0/3 | Not started | - |
 | 3. TileSet Automation and Export Pipeline | 0/3 | Not started | - |
 | 4. Scene Commands, Test Suite, and Agent Discoverability | 0/2 | Not started | - |

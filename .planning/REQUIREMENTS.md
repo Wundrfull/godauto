@@ -18,12 +18,12 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### File Format Parser
 
-- [ ] **FMT-01**: Custom state-machine parser for Godot 4.x .tscn files (format=3), handling bracket sections, nested structures, multi-line values
-- [ ] **FMT-02**: Custom state-machine parser for Godot 4.x .tres files (format=3), handling sub_resources, ext_resources, and the resource section
+- [x] **FMT-01**: Custom state-machine parser for Godot 4.x .tscn files (format=3), handling bracket sections, nested structures, multi-line values
+- [x] **FMT-02**: Custom state-machine parser for Godot 4.x .tres files (format=3), handling sub_resources, ext_resources, and the resource section
 - [x] **FMT-03**: Godot value type serializer/deserializer covering Vector2, Vector2i, Vector3, Rect2, Color, Transform2D, StringName, arrays, dictionaries
-- [ ] **FMT-04**: Resource ID generation matching Godot 4.x format (string-based alphanumeric IDs like `Type_xxxxx`)
-- [ ] **FMT-05**: UID generation and .uid companion file support for Godot 4.4+
-- [ ] **FMT-06**: Round-trip fidelity: parse a .tres/.tscn and re-serialize it without introducing spurious diffs
+- [x] **FMT-04**: Resource ID generation matching Godot 4.x format (string-based alphanumeric IDs like `Type_xxxxx`)
+- [x] **FMT-05**: UID generation and .uid companion file support for Godot 4.4+
+- [x] **FMT-06**: Round-trip fidelity: parse a .tres/.tscn and re-serialize it without introducing spurious diffs
 - [ ] **FMT-07**: `gdauto resource inspect` dumps any .tres or .tscn file as structured JSON
 
 ### Project Management
@@ -117,12 +117,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLI-04 | Phase 1 | Complete |
 | CLI-05 | Phase 1 | Complete |
 | CLI-06 | Phase 4 | Pending |
-| FMT-01 | Phase 1 | Pending |
-| FMT-02 | Phase 1 | Pending |
+| FMT-01 | Phase 1 | Complete |
+| FMT-02 | Phase 1 | Complete |
 | FMT-03 | Phase 1 | Complete |
-| FMT-04 | Phase 1 | Pending |
-| FMT-05 | Phase 1 | Pending |
-| FMT-06 | Phase 1 | Pending |
+| FMT-04 | Phase 1 | Complete |
+| FMT-05 | Phase 1 | Complete |
+| FMT-06 | Phase 1 | Complete |
 | FMT-07 | Phase 1 | Pending |
 | PROJ-01 | Phase 1 | Pending |
 | PROJ-02 | Phase 1 | Pending |
