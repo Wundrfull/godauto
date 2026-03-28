@@ -53,8 +53,8 @@ class TestProjectInfo:
             cli, ["-j", "project", "info", "/nonexistent/path"]
         )
         assert result.exit_code != 0
-        # JSON error on stderr
-        err_data = json.loads(result.output or result.stderr or "")
+        # CliRunner mixes stderr into output
+        err_data = json.loads(result.output)
         assert "code" in err_data
 
     def test_info_verbose_extra_detail(self) -> None:
