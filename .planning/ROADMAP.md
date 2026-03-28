@@ -29,7 +29,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User can run `gdauto project info` in a Godot project and get project name, version, autoloads, and settings as JSON
   4. User can run `gdauto project validate` and get a report of missing resources, broken references, and (with Godot binary) script syntax errors
   5. All commands produce structured JSON errors with `--json` flag, non-zero exit codes on failure, and the parser round-trips .tres/.tscn files without introducing spurious diffs
-**Plans:** 4/5 plans executed
+**Plans:** 5 plans
 
 Plans:
 - [x] 01-01-PLAN.md -- Python package scaffolding, CLI skeleton with global flags, error handling, output abstraction
@@ -47,12 +47,13 @@ Plans:
   2. Variable-duration animations convert correctly: per-frame timing is preserved via GCD-based base FPS with duration multipliers, and all four Aseprite directions (forward, reverse, ping-pong, ping-pong reverse) work
   3. User can run `gdauto sprite split` on a sprite sheet (with or without JSON metadata) and get a valid SpriteFrames resource, and `gdauto sprite create-atlas` batches multiple images into an atlas
   4. Generated SpriteFrames pass validation in headless Godot: animation names exist, frame counts match source, no broken texture references
-**Plans**: TBD
+**Plans:** 4 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
-- [ ] 02-03: TBD
+- [ ] 02-01-PLAN.md -- Aseprite JSON parser, SpriteFrames GdResource builder, and core data pipeline
+- [ ] 02-02-PLAN.md -- import-aseprite CLI command with .tres writing and import guide help text
+- [ ] 02-03-PLAN.md -- sprite split (grid-based sheet splitting) and create-atlas (shelf-packing compositor)
+- [ ] 02-04-PLAN.md -- sprite validate command (structural and headless Godot validation)
 
 ### Phase 3: TileSet Automation and Export Pipeline
 **Goal**: Users can automate TileSet creation and terrain configuration from the command line, and export Godot projects headlessly for CI/CD pipelines
@@ -91,7 +92,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation and CLI Infrastructure | 4/5 | In Progress|  |
-| 2. Aseprite-to-SpriteFrames Bridge | 0/3 | Not started | - |
+| 1. Foundation and CLI Infrastructure | 5/5 | Complete |  |
+| 2. Aseprite-to-SpriteFrames Bridge | 0/4 | Not started | - |
 | 3. TileSet Automation and Export Pipeline | 0/3 | Not started | - |
 | 4. Scene Commands, Test Suite, and Agent Discoverability | 0/2 | Not started | - |
