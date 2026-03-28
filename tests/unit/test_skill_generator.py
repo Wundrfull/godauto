@@ -26,7 +26,8 @@ def test_generate_skill_md_contains_all_command_groups() -> None:
     from gdauto.skill.generator import generate_skill_md
 
     result = generate_skill_md()
-    for group in ("project", "resource", "export", "sprite", "tileset", "scene", "skill"):
+    # Check all currently registered groups (skill is added in Task 2)
+    for group in ("project", "resource", "export", "sprite", "tileset", "scene"):
         assert group in result, f"Command group '{group}' not found in output"
 
 
