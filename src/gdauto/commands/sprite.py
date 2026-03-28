@@ -7,7 +7,7 @@ from pathlib import Path
 import rich_click as click
 
 from gdauto.errors import GdautoError, ValidationError
-from gdauto.formats.tres import serialize_tres_file
+from gdauto.formats.tres import GdResource, serialize_tres_file
 from gdauto.output import emit, emit_error
 
 
@@ -154,3 +154,91 @@ def _parse_frame_size(frame_size: str) -> tuple[int, int]:
             code="INVALID_FRAME_SIZE",
             fix="Width and height must be integers (e.g., 32x32)",
         )
+
+
+@sprite.command("create-atlas")
+@click.argument("image_files", nargs=-1, required=True, type=click.Path(exists=False))
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(),
+    required=True,
+    help="Output atlas image path (e.g., atlas.png).",
+)
+@click.option(
+    "--tres-output",
+    type=click.Path(),
+    default=None,
+    help="Output .tres path. Default: <output>.tres (e.g., atlas.tres).",
+)
+@click.option(
+    "--res-path",
+    type=str,
+    default=None,
+    help="Godot res:// path for the atlas texture.",
+)
+@click.option(
+    "--no-pot",
+    is_flag=True,
+    default=False,
+    help="Disable power-of-two atlas dimensions.",
+)
+@click.pass_context
+def create_atlas_cmd(
+    ctx: click.Context,
+    image_files: tuple[str, ...],
+    output: str,
+    tres_output: str | None,
+    res_path: str | None,
+    no_pot: bool,
+) -> None:
+    """Composite multiple sprite images into a single atlas texture."""
+    image_paths = [Path(f) for f in image_files]
+    missing = [p for p in image_paths if not p.exists()]
+    if missing:
+        emit_error(
+            GdautoError(
+                message=f"Image file(s) not found: {', '.join(str(m) for m in missing)}",
+                code="FILE_NOT_FOUND",
+                fix="Check file paths and try again",
+            ),
+            ctx,
+        )
+        return
+
+    output_path = Path(output)
+    tres_path = Path(tres_output) if tres_output else output_path.with_suffix(".tres")
+    atlas_res = res_path or f"res://{output_path.name}"
+
+    try:
+        from gdauto.sprite.atlas import create_atlas
+
+        atlas_img, resource = create_atlas(
+            image_paths, atlas_res, power_of_two=not no_pot
+        )
+    except (GdautoError, ValidationError) as exc:
+        emit_error(exc, ctx)
+        return
+
+    atlas_img.save(output_path)
+    serialize_tres_file(resource, tres_path)
+
+    def _human(data: dict, verbose: bool = False) -> None:  # type: ignore[type-arg]
+        click.echo(
+            f"Created atlas {data['atlas_output']} "
+            f"({data['atlas_width']}x{data['atlas_height']}) "
+            f"with {data['image_count']} images, "
+            f"tres: {data['tres_output']}"
+        )
+
+    emit(
+        {
+            "atlas_output": str(output_path),
+            "tres_output": str(tres_path),
+            "image_count": len(image_paths),
+            "atlas_width": atlas_img.width,
+            "atlas_height": atlas_img.height,
+        },
+        _human,
+        ctx,
+    )

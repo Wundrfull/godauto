@@ -129,19 +129,21 @@ class TestCreateAtlas:
     ) -> None:
         from gdauto.sprite.atlas import create_atlas
 
-        images = [self._make_mock_image(30, 30) for _ in range(3)]
+        # Use 2 images of 30x30; total area sqrt = ~42, *1.5 = ~63
+        # Both fit on one shelf (30+30=60 <= 63), so exact dims = 60x30
+        images = [self._make_mock_image(30, 30) for _ in range(2)]
         mock_image_module.open.side_effect = images
-        mock_image_module.new.return_value = self._make_mock_image(90, 30)
+        mock_image_module.new.return_value = self._make_mock_image(60, 30)
 
-        paths = [Path(f"img{i}.png") for i in range(3)]
+        paths = [Path(f"img{i}.png") for i in range(2)]
         atlas_img, resource = create_atlas(
             paths, "res://atlas.png", power_of_two=False
         )
 
         new_call = mock_image_module.new.call_args
         dims = new_call[0][1]
-        # With 3 images of 30x30 on one shelf, exact dimensions should be 90x30
-        assert dims == (90, 30)
+        # With 2 images of 30x30 on one shelf, exact dimensions = 60x30
+        assert dims == (60, 30)
 
     @patch("gdauto.sprite.atlas.Image")
     def test_regions_are_non_overlapping(
@@ -189,7 +191,10 @@ class TestCreateAtlas:
         assert anims[0]["name"] == StringName("default")
         assert anims[0]["loop"] is True
 
-    def test_empty_image_list_raises_validation_error(self) -> None:
+    @patch("gdauto.sprite.atlas.Image")
+    def test_empty_image_list_raises_validation_error(
+        self, mock_image_module: MagicMock
+    ) -> None:
         from gdauto.sprite.atlas import create_atlas
 
         with pytest.raises(ValidationError, match="at least one image"):
