@@ -50,7 +50,7 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 02-01-PLAN.md -- Aseprite JSON parser, SpriteFrames GdResource builder, and core data pipeline
+- [x] 02-01-PLAN.md -- Aseprite JSON parser, SpriteFrames GdResource builder, and core data pipeline
 - [ ] 02-02-PLAN.md -- import-aseprite CLI command with .tres writing and import guide help text
 - [ ] 02-03-PLAN.md -- sprite split (grid-based sheet splitting) and create-atlas (shelf-packing compositor)
 - [ ] 02-04-PLAN.md -- sprite validate command (structural and headless Godot validation)

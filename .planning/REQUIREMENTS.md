@@ -44,18 +44,18 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Sprite and Animation
 
-- [ ] **SPRT-01**: `gdauto sprite import-aseprite` parses Aseprite JSON metadata (frame regions, durations, animation tags, slices)
-- [ ] **SPRT-02**: Computes atlas texture regions (Rect2) from Aseprite frame x, y, w, h data
-- [ ] **SPRT-03**: Converts Aseprite per-frame duration (milliseconds) to Godot animation speed (FPS), handling variable-duration frames via GCD-based base FPS with per-frame duration multipliers
-- [ ] **SPRT-04**: Handles all four Aseprite animation directions: forward, reverse, ping-pong, ping-pong reverse
-- [ ] **SPRT-05**: Handles loop settings from Aseprite repeat counts (0 = loop forever, N = play N times)
-- [ ] **SPRT-06**: Handles trimmed sprites with spriteSourceSize offsets
+- [x] **SPRT-01**: `gdauto sprite import-aseprite` parses Aseprite JSON metadata (frame regions, durations, animation tags, slices)
+- [x] **SPRT-02**: Computes atlas texture regions (Rect2) from Aseprite frame x, y, w, h data
+- [x] **SPRT-03**: Converts Aseprite per-frame duration (milliseconds) to Godot animation speed (FPS), handling variable-duration frames via GCD-based base FPS with per-frame duration multipliers
+- [x] **SPRT-04**: Handles all four Aseprite animation directions: forward, reverse, ping-pong, ping-pong reverse
+- [x] **SPRT-05**: Handles loop settings from Aseprite repeat counts (0 = loop forever, N = play N times)
+- [x] **SPRT-06**: Handles trimmed sprites with spriteSourceSize offsets
 - [ ] **SPRT-07**: Writes valid .tres SpriteFrames resource with named animations, AtlasTexture sub-resources, correct speed and loop settings
 - [ ] **SPRT-08**: `gdauto sprite split` takes a sprite sheet image + optional JSON metadata and generates SpriteFrames (grid-based or JSON-defined regions)
 - [ ] **SPRT-09**: `gdauto sprite create-atlas` batches multiple sprite images into a single atlas texture with companion metadata (bin-packing, power-of-two sizes)
 - [ ] **SPRT-10**: Sprite validation pipeline: verifies generated SpriteFrames load in headless Godot, checks animation names exist, frame counts match, no broken texture references
 - [ ] **SPRT-11**: Import guide documentation for users and AI agents: correct Aseprite export settings (grid size, pixel size, frame ordering, JSON format), common pitfalls, and recommended workflows
-- [ ] **SPRT-12**: Researched common Aseprite-to-Godot import failures and built preventions into the tool (wrong frame order, mismatched dimensions, missing tags, incorrect trim data)
+- [x] **SPRT-12**: Researched common Aseprite-to-Godot import failures and built preventions into the tool (wrong frame order, mismatched dimensions, missing tags, incorrect trim data)
 
 ### TileSet
 
@@ -134,18 +134,18 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EXPT-03 | Phase 3 | Pending |
 | EXPT-04 | Phase 3 | Pending |
 | EXPT-05 | Phase 3 | Pending |
-| SPRT-01 | Phase 2 | Pending |
-| SPRT-02 | Phase 2 | Pending |
-| SPRT-03 | Phase 2 | Pending |
-| SPRT-04 | Phase 2 | Pending |
-| SPRT-05 | Phase 2 | Pending |
-| SPRT-06 | Phase 2 | Pending |
+| SPRT-01 | Phase 2 | Complete |
+| SPRT-02 | Phase 2 | Complete |
+| SPRT-03 | Phase 2 | Complete |
+| SPRT-04 | Phase 2 | Complete |
+| SPRT-05 | Phase 2 | Complete |
+| SPRT-06 | Phase 2 | Complete |
 | SPRT-07 | Phase 2 | Pending |
 | SPRT-08 | Phase 2 | Pending |
 | SPRT-09 | Phase 2 | Pending |
 | SPRT-10 | Phase 2 | Pending |
 | SPRT-11 | Phase 2 | Pending |
-| SPRT-12 | Phase 2 | Pending |
+| SPRT-12 | Phase 2 | Complete |
 | TILE-01 | Phase 3 | Pending |
 | TILE-02 | Phase 3 | Pending |
 | TILE-03 | Phase 3 | Pending |
