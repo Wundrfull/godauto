@@ -79,8 +79,9 @@ class TestSplitSheetGrid:
         from gdauto.sprite.splitter import split_sheet_grid
 
         mock_image_module.open.return_value = self._make_mock_image(64, 64)
-        with pytest.raises(ValidationError, match="SPRITE_FRAME_TOO_LARGE"):
+        with pytest.raises(ValidationError, match="exceeds image size") as exc_info:
             split_sheet_grid(Path("sheet.png"), 128, 128, "res://sheet.png")
+        assert exc_info.value.code == "SPRITE_FRAME_TOO_LARGE"
 
     @patch("gdauto.sprite.splitter.Image")
     def test_non_divisible_size_warns(
