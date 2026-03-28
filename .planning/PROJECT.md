@@ -12,31 +12,34 @@ The Aseprite-to-SpriteFrames bridge: read Aseprite's JSON export and generate va
 
 ### Validated
 
-(None yet -- ship to validate)
+Validated in Phase 1: Foundation and CLI Infrastructure
+- [x] Click-based CLI with command groups: project, export, sprite, tileset, scene, resource
+- [x] --json flag on every command for structured output (agent-native)
+- [x] --help on every command with descriptions AI agents can parse
+- [x] godot_backend.py wrapper for all headless Godot invocations (binary discovery, timeout, error handling)
+- [x] project info: dump project.godot metadata as JSON
+- [x] project validate: check project structure, missing resources, script syntax errors
+- [x] project create: scaffold new projects from templates
+- [x] resource inspect: dump any .tres/.tscn as JSON
+- [x] Unit tests for all pure Python logic (no Godot binary needed)
+
+Validated in Phase 2: Aseprite-to-SpriteFrames Bridge
+- [x] sprite import-aseprite: parse Aseprite JSON, compute atlas regions, convert frame durations, handle animation directions and loop settings, write valid .tres SpriteFrames
+- [x] sprite split: sprite sheet + optional JSON metadata to SpriteFrames
+- [x] sprite create-atlas: batch multiple sprite images into atlas textures
+- [x] sprite validate: verify generated SpriteFrames .tres files are valid and loadable
 
 ### Active
 
-- [ ] Click-based CLI with command groups: project, export, sprite, tileset, scene, resource
-- [ ] --json flag on every command for structured output (agent-native)
-- [ ] --help on every command with descriptions AI agents can parse
-- [ ] godot_backend.py wrapper for all headless Godot invocations (binary discovery, timeout, error handling)
-- [ ] project info: dump project.godot metadata as JSON
-- [ ] project validate: check project structure, missing resources, script syntax errors
-- [ ] project create: scaffold new projects from templates
 - [ ] export release/debug/pack with named presets, structured error reporting, exit codes
 - [ ] import: force re-import with retry logic for known timing bugs
-- [ ] sprite import-aseprite: parse Aseprite JSON, compute atlas regions, convert frame durations, handle animation directions and loop settings, write valid .tres SpriteFrames
-- [ ] sprite split: sprite sheet + optional JSON metadata to SpriteFrames
-- [ ] sprite create-atlas: batch multiple sprite images into atlas textures
 - [ ] tileset create: sprite sheet + tile size to TileSetAtlasSource
 - [ ] tileset auto-terrain: auto-assign terrain peering bits for standard layouts (47-tile blob, 16-tile minimal, RPG Maker)
 - [ ] tileset assign-physics: batch assign collision shapes to tile ranges by pattern
 - [ ] tileset inspect: dump existing TileSet resource as structured JSON
 - [ ] scene list: enumerate scenes, node trees, dependencies
 - [ ] scene create: create scenes from JSON/YAML definitions
-- [ ] resource inspect: dump any .tres/.tscn as JSON
 - [ ] All generated .tres/.tscn files loadable by Godot without modification
-- [ ] Unit tests for all pure Python logic (no Godot binary needed)
 - [ ] E2E tests that load generated resources in headless Godot
 
 ### Out of Scope
@@ -104,4 +107,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-27 after initialization*
+*Last updated: 2026-03-28 after Phase 2 completion*
