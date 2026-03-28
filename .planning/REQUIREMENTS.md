@@ -32,7 +32,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **PROJ-02**: `gdauto project validate` checks project structure: verifies all `res://` paths resolve, detects missing resources, reports orphan scripts
 - [ ] **PROJ-03**: `gdauto project validate` optionally runs Godot `--check-only` for script syntax validation when Godot binary is available
 - [ ] **PROJ-04**: `gdauto project create` scaffolds new projects from built-in templates with project.godot, default scene, folder structure
-- [ ] **PROJ-05**: Godot backend wrapper: discovers binary on PATH or via `--godot-path`, validates version >= 4.5, manages timeouts, parses stderr for structured error reporting
+- [x] **PROJ-05**: Godot backend wrapper: discovers binary on PATH or via `--godot-path`, validates version >= 4.5, manages timeouts, parses stderr for structured error reporting
 
 ### Export Pipeline
 
@@ -128,7 +128,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROJ-02 | Phase 1 | Pending |
 | PROJ-03 | Phase 1 | Pending |
 | PROJ-04 | Phase 1 | Pending |
-| PROJ-05 | Phase 1 | Pending |
+| PROJ-05 | Phase 1 | Complete |
 | EXPT-01 | Phase 3 | Pending |
 | EXPT-02 | Phase 3 | Pending |
 | EXPT-03 | Phase 3 | Pending |

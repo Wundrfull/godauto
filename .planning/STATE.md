@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-03-28T01:17:43.273Z"
+stopped_at: Completed Wave 2 (01-03, 01-04)
+last_updated: "2026-03-28T01:18:00.000Z"
 last_activity: 2026-03-28
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -55,6 +55,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P01 | 5min | 1 tasks | 18 files |
 | Phase 01 P02 | 6min | 1 tasks | 8 files |
 | Phase 01 P03 | 8min | 2 tasks | 9 files |
+| Phase 01 P04 | 6min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,9 @@ Recent decisions affecting current work:
 - [Phase 01]: UID encoding uses prepend algorithm matching Godot C++ source (not append from research docs)
 - [Phase 01]: Raw header line storage in HeaderAttributes for byte-identical round-trip serialization
 - [Phase 01]: Dual property storage: (key, parsed_value) + (key, raw_string) for typed access + round-trip fidelity
+- [Phase 01]: Custom line-based state machine parser for project.godot over configparser (handles global keys, Godot constructors, multi-line values)
+- [Phase 01]: Raw string value storage in project_cfg.py; Godot constructor interpretation deferred to command layer (D-04)
+- [Phase 01]: Lazy binary discovery in GodotBackend: PATH/env lookup on first ensure_binary(), not at init time
 
 ### Pending Todos
 
@@ -84,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T01:17:43.270Z
-Stopped at: Completed 01-03-PLAN.md
+Last session: 2026-03-28T01:18:00.000Z
+Stopped at: Completed Wave 2 (01-03, 01-04)
 Resume file: None
