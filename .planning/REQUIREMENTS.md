@@ -9,11 +9,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### CLI Foundation
 
-- [ ] **CLI-01**: Click-based CLI entry point with command groups: project, export, sprite, tileset, scene, resource
-- [ ] **CLI-02**: Every command supports `--json` flag that switches output from human-readable to structured JSON
-- [ ] **CLI-03**: Every command has `--help` with descriptions that AI agents can parse for command discovery
-- [ ] **CLI-04**: All errors produce non-zero exit codes
-- [ ] **CLI-05**: With `--json`, errors produce `{"error": "message", "code": "ERROR_CODE"}` with actionable fix suggestions
+- [x] **CLI-01**: Click-based CLI entry point with command groups: project, export, sprite, tileset, scene, resource
+- [x] **CLI-02**: Every command supports `--json` flag that switches output from human-readable to structured JSON
+- [x] **CLI-03**: Every command has `--help` with descriptions that AI agents can parse for command discovery
+- [x] **CLI-04**: All errors produce non-zero exit codes
+- [x] **CLI-05**: With `--json`, errors produce `{"error": "message", "code": "ERROR_CODE"}` with actionable fix suggestions
 - [ ] **CLI-06**: SKILL.md auto-generated from CLI command tree (names, arguments, options, help text)
 
 ### File Format Parser
@@ -76,7 +76,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Testing
 
-- [ ] **TEST-01**: Unit tests for all pure Python logic (parser, value types, Aseprite conversion, peering bit calculation) run without Godot binary
+- [x] **TEST-01**: Unit tests for all pure Python logic (parser, value types, Aseprite conversion, peering bit calculation) run without Godot binary
 - [ ] **TEST-02**: E2E tests marked with `@pytest.mark.requires_godot` that load generated .tres/.tscn in headless Godot
 - [ ] **TEST-03**: Validation tests that verify peering bit assignments match expected patterns for all supported layouts
 - [ ] **TEST-04**: Generated .tres/.tscn files validated against known-good reference outputs
@@ -111,11 +111,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CLI-01 | Phase 1 | Pending |
-| CLI-02 | Phase 1 | Pending |
-| CLI-03 | Phase 1 | Pending |
-| CLI-04 | Phase 1 | Pending |
-| CLI-05 | Phase 1 | Pending |
+| CLI-01 | Phase 1 | Complete |
+| CLI-02 | Phase 1 | Complete |
+| CLI-03 | Phase 1 | Complete |
+| CLI-04 | Phase 1 | Complete |
+| CLI-05 | Phase 1 | Complete |
 | CLI-06 | Phase 4 | Pending |
 | FMT-01 | Phase 1 | Pending |
 | FMT-02 | Phase 1 | Pending |
@@ -157,7 +157,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TILE-09 | Phase 3 | Pending |
 | SCEN-01 | Phase 4 | Pending |
 | SCEN-02 | Phase 4 | Pending |
-| TEST-01 | Phase 1 | Pending |
+| TEST-01 | Phase 1 | Complete |
 | TEST-02 | Phase 4 | Pending |
 | TEST-03 | Phase 4 | Pending |
 | TEST-04 | Phase 4 | Pending |
