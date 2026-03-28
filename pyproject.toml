@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gdauto"
+version = "0.1.0"
+description = "Agent-native CLI tool for the Godot game engine"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+dependencies = [
+    "click>=8.0",
+    "rich-click>=1.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0",
+    "pytest-cov>=7.0",
+    "ruff",
+    "mypy",
+]
+image = [
+    "Pillow>=12.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "requires_godot: marks tests that need Godot binary on PATH",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 99
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "TCH"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
