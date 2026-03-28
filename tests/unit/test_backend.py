@@ -176,7 +176,7 @@ class TestRunCommand:
             backend.run(["--check-only"], project_path=Path("/my/project"))
             cmd = mock_run.call_args[0][0]
             assert "--path" in cmd
-            assert "/my/project" in cmd
+            assert str(Path("/my/project")) in cmd
 
 
 class TestCheckOnly:
