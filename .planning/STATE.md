@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-03-28T06:21:59.068Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-28T06:33:08.757Z"
 last_activity: 2026-03-28
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 9
-  completed_plans: 6
+  completed_plans: 7
   percent: 0
 ---
 
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 ## Current Position
 
 Phase: 2 of 4 (aseprite to spriteframes bridge)
-Plan: 2 of 4
-Status: Executing
+Plan: 3 of 4
+Status: Ready to execute
 Last activity: 2026-03-28
 
 Progress: [░░░░░░░░░░] 0%
@@ -58,6 +58,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P04 | 6min | 2 tasks | 6 files |
 | Phase 01 P05 | 7min | 3 tasks | 7 files |
 | Phase 02 P01 | 7min | 2 tasks | 11 files |
+| Phase 02 P02 | 6min | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,8 @@ Recent decisions affecting current work:
 - [Phase 02]: AniDirection enum mirrors Aseprite string values for direct mapping
 - [Phase 02]: Hash format frames sorted by (x, y) position for consistent ordering
 - [Phase 02]: build_animation_for_tag is public for per-tag partial failure handling
+- [Phase 02]: Made aseprite parser lenient on invalid tag directions (skip with warning) to support D-17 partial failure
+- [Phase 02]: All-tags-failed detection via warning count + empty frame_tags (distinguishes from genuinely tagless JSON)
 
 ### Pending Todos
 
@@ -95,6 +98,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T06:21:59.065Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-03-28T06:33:08.754Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None
