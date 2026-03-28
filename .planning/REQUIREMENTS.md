@@ -14,7 +14,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **CLI-03**: Every command has `--help` with descriptions that AI agents can parse for command discovery
 - [x] **CLI-04**: All errors produce non-zero exit codes
 - [x] **CLI-05**: With `--json`, errors produce `{"error": "message", "code": "ERROR_CODE"}` with actionable fix suggestions
-- [ ] **CLI-06**: SKILL.md auto-generated from CLI command tree (names, arguments, options, help text)
+- [x] **CLI-06**: SKILL.md auto-generated from CLI command tree (names, arguments, options, help text)
 
 ### File Format Parser
 
@@ -116,7 +116,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLI-03 | Phase 1 | Complete |
 | CLI-04 | Phase 1 | Complete |
 | CLI-05 | Phase 1 | Complete |
-| CLI-06 | Phase 4 | Pending |
+| CLI-06 | Phase 4 | Complete |
 | FMT-01 | Phase 1 | Complete |
 | FMT-02 | Phase 1 | Complete |
 | FMT-03 | Phase 1 | Complete |

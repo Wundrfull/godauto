@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-01-PLAN.md
+stopped_at: Completed wave 1 (04-01, 04-02)
 last_updated: "2026-03-28T23:56:58.330Z"
 last_activity: 2026-03-28
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 16
-  completed_plans: 14
-  percent: 60
+  completed_plans: 15
+  percent: 67
 ---
 
 # Project State
@@ -65,6 +65,7 @@ Progress: [######░░░░] 60%
 | Phase 03 P02 | 6min | 2 tasks | 5 files |
 | Phase 03 P04 | 6min | 2 tasks | 8 files |
 | Phase 04 P01 | 8min | 3 tasks | 9 files |
+| Phase 04 P02 | 6min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -109,6 +110,8 @@ Recent decisions affecting current work:
 - [Phase 03]: TileSet validator follows sprite validator pattern: structural pre-check then optional headless GDScript load
 - [Phase 04]: Recursive _collect_children with parent path tracking for arbitrary nesting depth in scene builder
 - [Phase 04]: Constructor-form header attributes parsed via dedicated regex in common.py before quoted/unquoted patterns
+- [Phase 04]: Structured markdown output (not YAML) for native LLM consumption in SKILL.md
+- [Phase 04]: Known example overrides dict for realistic per-command usage examples
 
 ### Pending Todos
 
@@ -122,5 +125,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-28T23:56:58.328Z
-Stopped at: Completed 04-01-PLAN.md
+Stopped at: Completed wave 1 (04-01, 04-02)
 Resume file: None
