@@ -452,6 +452,22 @@ class SubResourceRef:
 
 
 # ---------------------------------------------------------------------------
+# PackedVector2Array
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True, slots=True)
+class PackedVector2Array:
+    """Packed array of 2D vector components as flat floats."""
+
+    values: tuple[float, ...]
+
+    def to_godot(self) -> str:
+        """Serialize to Godot text format."""
+        items = ", ".join(_fmt_float(v) for v in self.values)
+        return f"PackedVector2Array({items})"
+
+
+# ---------------------------------------------------------------------------
 # All Godot value dataclasses for isinstance checks
 # ---------------------------------------------------------------------------
 
@@ -461,6 +477,7 @@ _GODOT_TYPES = (
     Transform2D, Transform3D, AABB,
     StringName, NodePath,
     ExtResourceRef, SubResourceRef,
+    PackedVector2Array,
 )
 
 
@@ -769,6 +786,13 @@ def _parse_constructor(type_name: str, inner: str, raw: str) -> Any:
             return []
         args = _split_args(inner)
         return [int(a) for a in args]
+
+    # PackedVector2Array
+    if type_name == "PackedVector2Array":
+        if not inner:
+            return PackedVector2Array(())
+        args = _split_args(inner)
+        return PackedVector2Array(tuple(float(x) for x in args))
 
     # PackedByteArray
     if type_name == "PackedByteArray":
