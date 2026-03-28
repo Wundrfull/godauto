@@ -15,6 +15,12 @@ from gdauto.formats.tres import parse_tres_file, serialize_tres_file
 from gdauto.formats.values import GodotJSONEncoder, serialize_value
 from gdauto.output import GlobalConfig, emit, emit_error
 from gdauto.tileset.builder import build_tileset
+from gdauto.tileset.physics import apply_physics_to_atlas, parse_physics_rule
+from gdauto.tileset.terrain import (
+    LAYOUT_MAP,
+    add_terrain_set_to_resource,
+    apply_terrain_to_atlas,
+)
 
 
 @click.group(invoke_without_command=True)
@@ -290,3 +296,269 @@ def _print_inspect_human(data: dict[str, Any], verbose: bool = False) -> None:
         click.echo(f"  External resources:")
         for ext in data["ext_resources"]:
             click.echo(f"    {ext['type']}: {ext['path']}")
+
+
+# ---------------------------------------------------------------------------
+# tileset auto-terrain
+# ---------------------------------------------------------------------------
+
+
+def _find_atlas_source(resource: Any) -> Any | None:
+    """Find the first TileSetAtlasSource sub-resource, or None."""
+    for sub in resource.sub_resources:
+        if sub.type == "TileSetAtlasSource":
+            return sub
+    return None
+
+
+@tileset.command("auto-terrain")
+@click.argument("tres_file", type=click.Path(exists=False))
+@click.option(
+    "--layout",
+    type=click.Choice(["blob-47", "minimal-16", "rpgmaker"]),
+    required=True,
+    help="Terrain layout type. Required.",
+)
+@click.option(
+    "--terrain-name",
+    type=str,
+    default="Terrain",
+    help="Name for the terrain. Default: Terrain.",
+)
+@click.option(
+    "-o", "--output", type=click.Path(), default=None,
+    help="Output .tres path. Default: overwrite input file.",
+)
+@click.pass_context
+def auto_terrain(
+    ctx: click.Context,
+    tres_file: str,
+    layout: str,
+    terrain_name: str,
+    output: str | None,
+) -> None:
+    """Assign terrain peering bits to a TileSet using a standard layout.
+
+    Reads an existing TileSet .tres, applies the selected terrain layout
+    (blob-47, minimal-16, or rpgmaker) to the first TileSetAtlasSource,
+    and writes the modified resource back.
+    """
+    tres_path = Path(tres_file)
+    if not tres_path.exists():
+        emit_error(
+            GdautoError(
+                message=f"File not found: {tres_file}",
+                code="FILE_NOT_FOUND",
+                fix="Check the path to your .tres file",
+            ),
+            ctx,
+        )
+        return
+
+    try:
+        resource = parse_tres_file(tres_path)
+    except (ParseError, Exception) as exc:
+        emit_error(
+            GdautoError(
+                message=f"Failed to parse {tres_file}: {exc}",
+                code="PARSE_ERROR",
+                fix="Ensure the file is a valid Godot .tres resource",
+            ),
+            ctx,
+        )
+        return
+
+    if resource.type != "TileSet":
+        emit_error(
+            GdautoError(
+                message=f"Resource type is '{resource.type}', not 'TileSet'",
+                code="INVALID_RESOURCE_TYPE",
+                fix="Expected a TileSet .tres file",
+            ),
+            ctx,
+        )
+        return
+
+    atlas_sub = _find_atlas_source(resource)
+    if atlas_sub is None:
+        emit_error(
+            GdautoError(
+                message="No TileSetAtlasSource found in the TileSet",
+                code="NO_ATLAS_SOURCE",
+                fix="Create a TileSet with a TileSetAtlasSource first",
+            ),
+            ctx,
+        )
+        return
+
+    selected_layout = LAYOUT_MAP[layout]
+    apply_terrain_to_atlas(atlas_sub, selected_layout)
+    add_terrain_set_to_resource(resource.resource_properties, layout, terrain_name)
+
+    # Force model-based serialization (properties were modified)
+    resource._raw_header = None
+    resource._raw_sections = None
+
+    output_path = Path(output) if output else tres_path
+    serialize_tres_file(resource, output_path)
+
+    def _human(data: dict[str, Any], verbose: bool = False) -> None:
+        click.echo(
+            f"Applied {data['layout']} terrain to {data['output_path']} "
+            f"({data['tiles_assigned']} tiles)"
+        )
+
+    emit(
+        {
+            "output_path": str(output_path),
+            "layout": layout,
+            "tiles_assigned": len(selected_layout),
+        },
+        _human,
+        ctx,
+    )
+
+
+# ---------------------------------------------------------------------------
+# tileset assign-physics
+# ---------------------------------------------------------------------------
+
+
+@tileset.command("assign-physics")
+@click.argument("tres_file", type=click.Path(exists=False))
+@click.option(
+    "--physics",
+    multiple=True,
+    required=True,
+    type=str,
+    help="Tile range and shape: INDEX_RANGE:SHAPE (e.g., 0-15:full, 16-31:none).",
+)
+@click.option(
+    "--columns",
+    type=int,
+    required=True,
+    help="Number of tile columns in the atlas.",
+)
+@click.option(
+    "-o", "--output", type=click.Path(), default=None,
+    help="Output .tres path. Default: overwrite input file.",
+)
+@click.pass_context
+def assign_physics(
+    ctx: click.Context,
+    tres_file: str,
+    physics: tuple[str, ...],
+    columns: int,
+    output: str | None,
+) -> None:
+    """Batch assign collision shapes to tile ranges in a TileSet.
+
+    Reads an existing TileSet .tres, applies physics rules to the first
+    TileSetAtlasSource, and writes the modified resource back. Rules use
+    the format INDEX_RANGE:SHAPE (e.g., 0-15:full, 16-31:none).
+    """
+    tres_path = Path(tres_file)
+    if not tres_path.exists():
+        emit_error(
+            GdautoError(
+                message=f"File not found: {tres_file}",
+                code="FILE_NOT_FOUND",
+                fix="Check the path to your .tres file",
+            ),
+            ctx,
+        )
+        return
+
+    try:
+        resource = parse_tres_file(tres_path)
+    except (ParseError, Exception) as exc:
+        emit_error(
+            GdautoError(
+                message=f"Failed to parse {tres_file}: {exc}",
+                code="PARSE_ERROR",
+                fix="Ensure the file is a valid Godot .tres resource",
+            ),
+            ctx,
+        )
+        return
+
+    if resource.type != "TileSet":
+        emit_error(
+            GdautoError(
+                message=f"Resource type is '{resource.type}', not 'TileSet'",
+                code="INVALID_RESOURCE_TYPE",
+                fix="Expected a TileSet .tres file",
+            ),
+            ctx,
+        )
+        return
+
+    atlas_sub = _find_atlas_source(resource)
+    if atlas_sub is None:
+        emit_error(
+            GdautoError(
+                message="No TileSetAtlasSource found in the TileSet",
+                code="NO_ATLAS_SOURCE",
+                fix="Create a TileSet with a TileSetAtlasSource first",
+            ),
+            ctx,
+        )
+        return
+
+    # Parse physics rules
+    parsed_rules: list[tuple[range, str]] = []
+    total_affected = 0
+    try:
+        for rule_str in physics:
+            tile_range, shape_type = parse_physics_rule(rule_str)
+            parsed_rules.append((tile_range, shape_type))
+            total_affected += len(tile_range)
+    except ValidationError as exc:
+        emit_error(exc, ctx)
+        return
+
+    # Get tile size from resource properties
+    tile_size = resource.resource_properties.get("tile_size")
+    if tile_size is None:
+        emit_error(
+            GdautoError(
+                message="No tile_size found in TileSet resource properties",
+                code="MISSING_TILE_SIZE",
+                fix="Ensure the TileSet has a tile_size property",
+            ),
+            ctx,
+        )
+        return
+
+    apply_physics_to_atlas(
+        atlas_sub, parsed_rules, columns, tile_size.x, tile_size.y
+    )
+
+    # Add physics layer declaration if not already present
+    if "physics_layer_0/collision_layer" not in resource.resource_properties:
+        resource.resource_properties["physics_layer_0/collision_layer"] = 1
+    if "physics_layer_0/collision_mask" not in resource.resource_properties:
+        resource.resource_properties["physics_layer_0/collision_mask"] = 1
+
+    # Force model-based serialization
+    resource._raw_header = None
+    resource._raw_sections = None
+
+    output_path = Path(output) if output else tres_path
+    serialize_tres_file(resource, output_path)
+
+    def _human(data: dict[str, Any], verbose: bool = False) -> None:
+        click.echo(
+            f"Applied {data['rules_applied']} physics rules to "
+            f"{data['output_path']} ({data['tiles_affected']} tiles)"
+        )
+
+    emit(
+        {
+            "output_path": str(output_path),
+            "rules_applied": len(parsed_rules),
+            "tiles_affected": total_affected,
+        },
+        _human,
+        ctx,
+    )
