@@ -40,12 +40,17 @@ Validated in Phase 3: TileSet Automation and Export Pipeline
 - [x] import: force re-import with exponential backoff retry logic (1s/2s/4s)
 - [x] Auto-import before export when import cache is missing
 
+Validated in Phase 4: Scene Commands, Test Suite, and Agent Discoverability
+- [x] scene list: enumerate scenes with full node trees, scripts, dependencies, cross-scene graph
+- [x] scene create: create .tscn scene files from JSON node tree definitions with full property passthrough
+- [x] skill generate: auto-generate SKILL.md from Click CLI introspection for AI agent discovery
+- [x] E2E test suite with @pytest.mark.requires_godot marker, headless Godot validation
+- [x] Golden file comparison tests with UID normalization against committed reference outputs
+- [x] Peering bit validation tests (blob-47: 376 bits, minimal-16: 64 bits)
+
 ### Active
 
-- [ ] scene list: enumerate scenes, node trees, dependencies
-- [ ] scene create: create scenes from JSON/YAML definitions
-- [ ] All generated .tres/.tscn files loadable by Godot without modification
-- [ ] E2E tests that load generated resources in headless Godot
+All v1 requirements validated. No active requirements remain.
 
 ### Out of Scope
 
@@ -112,4 +117,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-28 after Phase 3 completion*
+*Last updated: 2026-03-29 after Phase 4 completion (all v1 phases complete)*
