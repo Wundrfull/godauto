@@ -48,7 +48,7 @@ def cli(
     no_color: bool,
     godot_path: str | None,
 ) -> None:
-    """gdauto: Agent-native CLI for Godot Engine.
+    """gdauto: Agent-native CLI for Godot Engine (Godot 4.5+).
 
     Wraps Godot's headless mode and manipulates Godot text file formats
     (.tscn, .tres, project.godot) to automate workflows that normally
