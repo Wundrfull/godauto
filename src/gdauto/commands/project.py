@@ -12,7 +12,7 @@ from rich.table import Table
 
 from gdauto.backend import GodotBackend
 from gdauto.errors import GodotBinaryError, ProjectError
-from gdauto.formats.project_cfg import parse_project_config
+from gdauto.formats.project_cfg import parse_project_config, serialize_project_config
 from gdauto.formats.tscn import parse_tscn_file
 from gdauto.formats.tres import parse_tres_file
 from gdauto.output import GlobalConfig, emit, emit_error
@@ -53,6 +53,19 @@ def _strip_quotes(value: str) -> str:
     return value
 
 
+def _extract_godot_version(features: str) -> str | None:
+    """Extract engine version from features PackedStringArray.
+
+    The features string looks like: PackedStringArray("4.5", "GL Compatibility")
+    The first quoted element that looks like a version number is the engine version.
+    """
+    import re
+    match = re.search(r'PackedStringArray\("([0-9]+\.[0-9]+[^"]*)"', features)
+    if match:
+        return match.group(1)
+    return None
+
+
 def _extract_info(config_text: str) -> dict[str, Any]:
     """Parse project.godot text and extract project metadata."""
     cfg = parse_project_config(config_text)
@@ -70,12 +83,12 @@ def _extract_info(config_text: str) -> dict[str, Any]:
 
     features = cfg.get_value("application", "config/features") or ""
 
-    # Extract autoloads
+    # Extract autoloads, stripping the * singleton prefix for clean paths
     autoloads: dict[str, str] = {}
     autoload_section = cfg.sections.get("autoload")
     if autoload_section:
         for key, val in autoload_section:
-            clean_val = _strip_quotes(val)
+            clean_val = _strip_quotes(val).lstrip("*")
             autoloads[key] = clean_val
 
     # Extract display settings
@@ -90,9 +103,12 @@ def _extract_info(config_text: str) -> dict[str, Any]:
     if stretch:
         display["stretch_mode"] = _strip_quotes(stretch)
 
+    godot_version = _extract_godot_version(features)
+
     return {
         "name": name,
         "config_version": config_version,
+        "godot_version": godot_version,
         "main_scene": main_scene,
         "icon": icon,
         "features": features,
@@ -106,6 +122,8 @@ def _display_project_info_human(data: dict[str, Any], verbose: bool = False) -> 
     console = Console()
     console.print(f"[bold]Project:[/bold] {data['name']}")
     console.print(f"  Config version: {data['config_version']}")
+    if data.get("godot_version"):
+        console.print(f"  Godot version: {data['godot_version']}")
     console.print(f"  Main scene: {data['main_scene']}")
     console.print(f"  Icon: {data['icon']}")
     console.print(f"  Features: {data['features']}")
@@ -185,6 +203,32 @@ def _extract_res_refs(text: str, refs: set[str]) -> None:
         refs.add(match.group(0))
 
 
+def _check_project_godot_refs(
+    cfg: Any, project_root: Path, missing: list[str]
+) -> None:
+    """Check res:// paths referenced in project.godot against the filesystem."""
+    # Check main_scene and icon from [application]
+    for key in ("run/main_scene", "config/icon"):
+        val = cfg.get_value("application", key)
+        if val is None:
+            continue
+        clean = _strip_quotes(val)
+        if clean.startswith("res://"):
+            rel = clean.replace("res://", "", 1)
+            if not (project_root / rel).exists() and clean not in missing:
+                missing.append(clean)
+
+    # Check autoload paths
+    autoload_section = cfg.sections.get("autoload")
+    if autoload_section:
+        for _key, val in autoload_section:
+            clean = _strip_quotes(val).lstrip("*")
+            if clean.startswith("res://"):
+                rel = clean.replace("res://", "", 1)
+                if not (project_root / rel).exists() and clean not in missing:
+                    missing.append(clean)
+
+
 def _collect_orphan_scripts(
     project_root: Path, all_refs: set[str]
 ) -> list[str]:
@@ -247,14 +291,28 @@ def validate(ctx: click.Context, path: str, check_only: bool) -> None:
         project_root = project_godot.parent
 
         missing, all_refs = _collect_res_paths(project_root)
+
+        # Also check resource references inside project.godot
+        config_text = project_godot.read_text(encoding="utf-8")
+        cfg = parse_project_config(config_text)
+        _check_project_godot_refs(cfg, project_root, missing)
+
+        # Include autoload scripts so they are not reported as orphans
+        autoload_section = cfg.sections.get("autoload")
+        if autoload_section:
+            for _key, val in autoload_section:
+                clean = _strip_quotes(val).lstrip("*")
+                if clean.startswith("res://"):
+                    all_refs.add(clean)
+
         orphans = _collect_orphan_scripts(project_root, all_refs)
 
-        # Count files scanned
+        # Count files scanned (project.godot counts as +1)
         scanned = sum(
             1 for _ in project_root.rglob("*.tscn")
         ) + sum(
             1 for _ in project_root.rglob("*.tres")
-        )
+        ) + 1
 
         report: dict[str, Any] = {
             "missing_resources": missing,
@@ -282,7 +340,22 @@ def _run_check_only(
     report: dict[str, Any],
 ) -> None:
     """Run Godot --check-only and add script errors to report."""
-    config: GlobalConfig = ctx.obj
+    # Check if any .gd scripts exist
+    gd_files = list(project_root.rglob("*.gd"))
+    if not gd_files:
+        report["script_errors"] = []
+        report["godot_check_skipped"] = True
+        report["godot_check_skip_reason"] = "no .gd scripts found"
+        config: GlobalConfig = ctx.obj
+        if not config.json_mode and not config.quiet:
+            click.echo(
+                "Note: --check-only requested but no .gd scripts found; "
+                "Godot syntax check skipped",
+                err=True,
+            )
+        return
+
+    config = ctx.obj
     try:
         backend = GodotBackend(binary_path=config.godot_path)
         result = backend.check_only(project_root)
@@ -293,10 +366,19 @@ def _run_check_only(
                 if "error" in line.lower():
                     errors.append(line.strip())
         report["script_errors"] = errors
+        report["godot_check_skipped"] = False
         report["issues_found"] += len(errors)
     except GodotBinaryError:
         # Godot not available; continue with file-level checks only
         report["script_errors"] = []
+        report["godot_check_skipped"] = True
+        report["godot_check_skip_reason"] = "Godot binary not available"
+        if not config.json_mode and not config.quiet:
+            click.echo(
+                "Note: --check-only requested but Godot binary not found; "
+                "syntax check skipped",
+                err=True,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -416,3 +498,108 @@ def _scaffold_project(target: Path, name: str) -> list[str]:
     created.append(".gdignore")
 
     return created
+
+
+# ---------------------------------------------------------------------------
+# project add-autoload
+# ---------------------------------------------------------------------------
+
+
+@project.command("add-autoload")
+@click.option(
+    "--name", required=True,
+    help="Autoload singleton name (e.g., GameState)",
+)
+@click.option(
+    "--path", "script_path", required=True,
+    help="Godot res:// path to the script (e.g., res://scripts/game_state.gd)",
+)
+@click.option(
+    "--no-singleton", is_flag=True, default=False,
+    help="Register without the singleton '*' prefix",
+)
+@click.argument("project_path", default=".", type=click.Path())
+@click.pass_context
+def add_autoload(
+    ctx: click.Context,
+    name: str,
+    script_path: str,
+    no_singleton: bool,
+    project_path: str,
+) -> None:
+    """Register an autoload singleton in project.godot."""
+    try:
+        project_godot = _find_project_godot(project_path)
+        config_text = project_godot.read_text(encoding="utf-8")
+        cfg = parse_project_config(config_text)
+
+        # Check for duplicates
+        existing = cfg.sections.get("autoload", [])
+        for key, _val in existing:
+            if key == name:
+                raise ProjectError(
+                    message=f"Autoload '{name}' already exists",
+                    code="AUTOLOAD_EXISTS",
+                    fix=f"Remove the existing autoload or choose a different name",
+                )
+
+        # Build the value with or without singleton prefix
+        prefix = "" if no_singleton else "*"
+        value = f'"{prefix}{script_path}"'
+
+        # Add autoload section if it doesn't exist, then append the entry
+        _add_autoload_entry(project_godot, name, value)
+
+        data = {
+            "added": True,
+            "name": name,
+            "path": script_path,
+            "singleton": not no_singleton,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(
+                f"Registered autoload '{data['name']}' -> {data['path']}"
+                f"{' (singleton)' if data['singleton'] else ''}"
+            )
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+def _add_autoload_entry(
+    project_godot: Path, name: str, value: str
+) -> None:
+    """Append an autoload entry to project.godot, creating the section if needed."""
+    text = project_godot.read_text(encoding="utf-8")
+    lines = text.split("\n")
+
+    # Find [autoload] section
+    autoload_idx = None
+    for i, line in enumerate(lines):
+        if line.strip() == "[autoload]":
+            autoload_idx = i
+            break
+
+    entry_line = f"{name}={value}"
+
+    if autoload_idx is not None:
+        # Find the end of the autoload section (next section header or EOF)
+        insert_idx = autoload_idx + 1
+        while insert_idx < len(lines):
+            stripped = lines[insert_idx].strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                break
+            insert_idx += 1
+        # Insert before the next section (or at EOF), after any trailing blank
+        lines.insert(insert_idx, entry_line)
+    else:
+        # Add [autoload] section at the end
+        if lines and lines[-1].strip() != "":
+            lines.append("")
+        lines.append("[autoload]")
+        lines.append("")
+        lines.append(entry_line)
+
+    project_godot.write_text("\n".join(lines), encoding="utf-8")

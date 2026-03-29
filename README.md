@@ -172,7 +172,7 @@ Every command supports:
 | `--no-color` | | Disable colored output |
 | `--godot-path` | | Explicit Godot binary path |
 
-All errors produce non-zero exit codes. With `--json`, errors return `{"error": "message", "code": "ERROR_CODE"}` with actionable fix suggestions.
+All errors produce non-zero exit codes. With `--json`, errors return `{"error": "message", "code": "ERROR_CODE", "fix": "suggestion"}` to stderr with actionable fix suggestions.
 
 ## Architecture
 

@@ -97,6 +97,12 @@ def parse_aseprite_json(path: Path) -> AsepriteData:
     raw = _load_json(path)
     _validate_has_frames(raw)
     frames = _parse_frames(raw["frames"])
+    if len(frames) == 0:
+        warnings.warn(
+            "Aseprite JSON contains zero frames; the generated SpriteFrames "
+            "will have no animation data. This is likely unintentional.",
+            stacklevel=2,
+        )
     meta = _parse_meta(raw.get("meta", {}))
     return AsepriteData(frames=frames, meta=meta)
 
@@ -104,12 +110,18 @@ def parse_aseprite_json(path: Path) -> AsepriteData:
 def _load_json(path: Path) -> dict:
     """Load and parse a JSON file, wrapping errors in ValidationError."""
     try:
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise ValidationError(
             message=f"Failed to parse JSON: {exc}",
             code="ASEPRITE_PARSE_ERROR",
             fix="Ensure the file is valid JSON exported by Aseprite",
+        ) from exc
+    except OSError as exc:
+        raise ValidationError(
+            message=f"Could not read file: {exc}",
+            code="FILE_READ_ERROR",
+            fix="Check that the file exists and is readable",
         ) from exc
 
 

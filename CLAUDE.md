@@ -13,7 +13,7 @@ gdauto is an agent-native command-line tool for the Godot game engine. Built in 
 - **Engine compatibility**: Godot 4.5+ binary on PATH (for E2E tests and headless commands only)
 - **Independence**: No Godot dependency for file manipulation commands (sprite, tileset, resource inspect)
 - **License**: Apache-2.0
-- **Error contract**: All errors produce non-zero exit codes and actionable messages; --json errors produce `{"error": "message", "code": "ERROR_CODE"}`
+- **Error contract**: All errors produce non-zero exit codes and actionable messages; --json errors produce `{"error": "message", "code": "ERROR_CODE", "fix": "suggestion"}`
 - **File validity**: Generated .tres/.tscn files must be loadable by Godot without modification
 - **Code style**: No em dashes (use commas, colons, semicolons, parentheses), no emojis, type hints on all signatures, docstrings on public functions, functions under 30 lines, comments on non-obvious logic only
 <!-- GSD:project-end -->
