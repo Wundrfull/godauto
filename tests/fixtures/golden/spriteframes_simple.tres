@@ -1,0 +1,22 @@
+[gd_resource type="SpriteFrames" load_steps=6 format=3 uid="uid://NORMALIZED"]
+
+[ext_resource type="Texture2D" uid="uid://NORMALIZED" path="res://test_sheet.png" id="Texture2D_XXXXX"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_XXXXX"]
+atlas = ExtResource("Texture2D_XXXXX")
+region = Rect2(0, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_XXXXX"]
+atlas = ExtResource("Texture2D_XXXXX")
+region = Rect2(32, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_XXXXX"]
+atlas = ExtResource("Texture2D_XXXXX")
+region = Rect2(64, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_XXXXX"]
+atlas = ExtResource("Texture2D_XXXXX")
+region = Rect2(96, 0, 32, 32)
+
+[resource]
+animations = [{"frames": [{"duration": 1, "texture": SubResource("AtlasTexture_XXXXX")}, {"duration": 1, "texture": SubResource("AtlasTexture_XXXXX")}, {"duration": 1, "texture": SubResource("AtlasTexture_XXXXX")}, {"duration": 1, "texture": SubResource("AtlasTexture_XXXXX")}], "loop": true, "name": &"idle", "speed": 10}]
