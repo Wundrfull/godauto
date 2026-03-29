@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from gdauto.backend import GodotBackend
-from gdauto.formats.tscn import serialize_tscn_file
+from gdauto.formats.tscn import parse_tscn, serialize_tscn, serialize_tscn_file
 from gdauto.scene.builder import build_scene
 
 
@@ -92,3 +92,52 @@ def test_scene_loads_in_godot(
     )
     assert "VALIDATION_OK" in result.stdout
     assert "children=" in result.stdout
+
+
+@pytest.mark.requires_godot
+def test_scene_unique_id_round_trip(
+    tmp_path: Path, godot_backend: GodotBackend
+) -> None:
+    """Validate .tscn with unique_id round-trips and loads in Godot (VAL-03).
+
+    Parses a hand-crafted .tscn with unique_id on nodes, serializes it back,
+    verifies unique_id preserved in text, and confirms the file loads in Godot.
+    """
+    # 1. Create a hand-crafted .tscn with unique_id on nodes
+    tscn_content = (
+        "[gd_scene format=3]\n"
+        "\n"
+        '[node name="Root" type="Node2D" unique_id=42]\n'
+        "\n"
+        '[node name="Child" type="Sprite2D" parent="." unique_id=99]\n'
+        "position = Vector2(10, 20)\n"
+    )
+
+    # 2. Parse and serialize back (round-trip)
+    scene = parse_tscn(tscn_content)
+    round_tripped = serialize_tscn(scene)
+
+    # 3. Python-side assertions: unique_id values preserved
+    assert "unique_id=42" in round_tripped
+    assert "unique_id=99" in round_tripped
+
+    # 4. Write the round-tripped text to disk
+    tscn_path = tmp_path / "test_scene_uid.tscn"
+    tscn_path.write_text(round_tripped)
+
+    # 5. Create project.godot
+    (tmp_path / "project.godot").write_text(_PROJECT_GODOT)
+
+    # 6. Create and run validation script
+    script = _build_scene_validation_script("test_scene_uid.tscn", "Node2D")
+    script_path = tmp_path / "validate.gd"
+    script_path.write_text(script)
+
+    result = godot_backend.run(
+        ["--headless", "--script", str(script_path)],
+        project_path=tmp_path,
+    )
+
+    # 7. Confirm the file loads and child node survived the round-trip
+    assert "VALIDATION_OK" in result.stdout
+    assert "children=1" in result.stdout
