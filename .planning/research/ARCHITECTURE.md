@@ -1,460 +1,673 @@
-# Architecture Research: Godot 4.6/4.6.1 Compatibility Audit
+# Architecture: Live Game Interaction via Godot Debugger Protocol
 
-**Domain:** Godot 4.6.x engine changes impacting gdauto v1.0 architecture
-**Researched:** 2026-03-28
-**Overall Confidence:** HIGH (verified against Godot source code, official docs, PRs)
+**Domain:** Godot remote debugger bridge for CLI-based game interaction
+**Researched:** 2026-03-29
+**Overall Confidence:** MEDIUM (protocol details verified from Godot source, integration patterns based on established asyncio practices, no existing Python debugger client to reference)
 
 ## Executive Summary
 
-Godot 4.6 introduces three changes that directly affect gdauto's file format layer, one change that affects the backend layer, and zero changes to the CLI flag interface. The changes range from trivial (load_steps removal) to moderate (unique_id node attribute, format=4 awareness). None require architectural rewrites; all integrate cleanly into the existing state-machine parser and dataclass models.
+Adding live game interaction to gdauto requires implementing a TCP server that speaks Godot's binary Variant protocol. The game (launched with `--remote-debug tcp://127.0.0.1:<port>`) acts as a TCP client and connects to our server. Messages are length-prefixed binary frames carrying Godot Variant-encoded Arrays. There is no handshake or authentication; the game begins sending data immediately after TCP connection.
 
-The critical finding: **format=3 remains the default for most files**. Godot 4.6 can write format=4 headers, but only when a file contains PackedVector4Array or base64-encoded PackedByteArray data. Since gdauto generates SpriteFrames, TileSets, and simple scenes (none of which use PackedVector4Array or large PackedByteArray), our generated files will still use format=3. However, our parser must **accept** format=4 files to maintain round-trip fidelity on user projects that contain these types.
+This is architecturally different from everything gdauto does today. All existing commands are synchronous one-shot invocations: parse a file, write a file, run a subprocess. The debugger bridge introduces a long-lived TCP session with bidirectional async communication. The key architectural decision is how to bridge this async, stateful world with Click's synchronous command model.
 
----
+**Recommendation:** Keep Click synchronous. Use `asyncio.run()` at the boundary of each debugger command to enter the async world. Build the debugger client as a standalone async module (`gdauto.debugger`) that knows nothing about Click. Click commands are thin wrappers that create a session, issue commands, and format output. Do NOT adopt asyncclick; it replaces all of Click with a fork and risks breaking existing synchronous commands.
 
-## Q1: Did the .tscn/.tres format version change from format=3?
-
-### Answer: Yes, conditionally. FORMAT_VERSION is now 4, with FORMAT_VERSION_COMPAT at 3.
-
-**Confidence:** HIGH (verified in Godot source: `resource_format_text.h`)
-
-**What changed (introduced in Godot 4.3, still current in 4.6):**
-
-```
-// resource_format_text.h (current master, matches 4.6)
-FORMAT_VERSION = 4
-FORMAT_VERSION_COMPAT = 3
-```
-
-**When Godot writes format=4 vs format=3:**
-- `format=4`: Written when the file contains PackedVector4Array values OR base64-encoded PackedByteArray (large byte arrays)
-- `format=3`: Written for everything else (the vast majority of files)
-
-**Format=4 features:**
-1. `PackedVector4Array(x1, y1, z1, w1, x2, y2, z2, w2, ...)` constructor (flat float list)
-2. Base64-encoded PackedByteArray, likely serialized as a different constructor form
-
-**Impact on gdauto parser:**
-
-| Component | File | Current Behavior | Required Change |
-|-----------|------|------------------|-----------------|
-| `parse_tres()` | `formats/tres.py:148` | `format=int(header.attrs.get("format", "3"))` | Accept both 3 and 4; no code change needed (already reads as int) |
-| `parse_tscn()` | `formats/tscn.py:180` | `format=int(header.attrs.get("format", "3"))` | Same; already handles any integer |
-| `_build_tres_from_model()` | `formats/tres.py:190` | Writes `format={resource.format}` | Preserves original format value; correct |
-| `_build_tscn_from_model()` | `formats/tscn.py:223` | Writes `format={scene.format}` | Preserves original format value; correct |
-| Value parser | `formats/values.py` | No PackedVector4Array handler | **ADD**: PackedVector4Array parser |
-
-**What to build:**
-- Add `PackedVector4Array` to the value parser's constructor dispatch (`values.py:_parse_constructor`)
-- Add `PackedByteArrayB64` or base64-encoded `PackedByteArray` parsing if Godot uses a distinct constructor name (needs verification with actual 4.6 files)
-- Our generated files always use format=3 (we never produce PackedVector4Array or large PackedByteArray), so serialization code needs no changes
-
-**Second change: load_steps removed from output (PR #103352, Godot 4.6).**
-
-Godot 4.6 no longer writes `load_steps=N` in file headers. When reading, the parser still accepts and ignores the field.
-
-| File Header (4.5) | File Header (4.6) |
-|--------------------|--------------------|
-| `[gd_resource type="SpriteFrames" load_steps=15 format=3 uid="uid://abc"]` | `[gd_resource type="SpriteFrames" format=3 uid="uid://abc"]` |
-
-**Impact on gdauto:**
-
-| Component | File | Impact | Action |
-|-----------|------|--------|--------|
-| `parse_tres()` | `formats/tres.py:142-143` | Reads load_steps from header attrs; None if absent | No change needed (already handles None) |
-| `parse_tscn()` | `formats/tscn.py:176-177` | Same pattern | No change needed |
-| `_build_tres_from_model()` | `formats/tres.py:188-189` | Conditionally writes load_steps | **CHANGE**: Make load_steps omission the default for 4.6+ |
-| `_build_tscn_from_model()` | `formats/tscn.py:221-222` | Conditionally writes load_steps | **CHANGE**: Same |
-| `build_spriteframes()` | `sprite/spriteframes.py:191` | Sets `load_steps=1 + len(all_subs) + 1` | **CHANGE**: Set to None for 4.6+ output |
-| Round-trip serialization | `formats/common.py:291-344` | Uses raw_line; preserves whatever was in original | No change (correct: preserves original) |
-
-**Backwards compatibility decision:** When generating new files, omit `load_steps` by default (matching 4.6 behavior). When round-tripping existing files, preserve whatever was there (already handled by raw_line preservation). Godot 4.5 accepts files without `load_steps` (it was always optional for the engine), so omitting it is safe for 4.5+ compatibility.
+**The game is the TCP client, gdauto is the TCP server.** This is counterintuitive but matches Godot's architecture: the editor listens on port 6007, and the game connects to it. gdauto must do the same.
 
 ---
 
-## Q2: Did UID format or generation change?
+## Connection Architecture
 
-### Answer: No changes between 4.5 and 4.6.
+### Who Connects to Whom
 
-**Confidence:** HIGH (verified against Godot source `core/io/resource_uid.cpp`)
+```
+gdauto (TCP Server)              Godot Game (TCP Client)
+  listen(0.0.0.0:6007)
+  accept()              <------  connect(tcp://127.0.0.1:6007)
+  recv/send             <------>  recv/send
+```
 
-**Current Godot UID encoding (unchanged since 4.0, with a minor 4.4 edge case fix):**
-- Base-34 encoding using characters: `a-y` (25) + `0-8` (9) = 34
-- Off-by-one bug means 'z' and '9' are never used (GH-83843, cannot fix without breaking compat)
-- 63-bit maximum value: `(1 << 63) - 1`
-- Text format: `uid://<base34-encoded-value>`
+**Verified from source:** `remote_debugger_peer.cpp` shows the game calls `stream->connect_to_host(ip, debug_port)` with retry logic (6 attempts, 1ms to 1000ms backoff). The editor side (`EditorDebuggerNode`) calls `server->start()` then polls `server->is_connection_available()` to accept connections.
 
-**Our implementation (`formats/uid.py`) matches exactly:**
+**Confidence:** HIGH (directly from Godot C++ source)
+
+### Launch Sequence
+
+1. gdauto starts TCP server on port (default 6007, configurable)
+2. gdauto launches the Godot game via subprocess: `godot --path <project> --remote-debug tcp://127.0.0.1:<port>`
+3. Game boots, connects to our TCP server
+4. Connection accepted; session begins
+5. Commands flow bidirectionally
+6. On disconnect/quit, game process terminates
+
+This means the existing `GodotBackend.run()` method (which uses `subprocess.run` with blocking wait) cannot be used directly; the game process must run concurrently while we communicate over TCP.
+
+---
+
+## Wire Protocol
+
+### Message Framing
+
+Every message on the wire follows this format:
+
+```
+[4 bytes: uint32 LE message_length][message_length bytes: encoded Variant]
+```
+
+- The 4-byte prefix is the byte length of the payload (NOT including the prefix itself)
+- The payload is a Godot Variant encoded using the binary serialization API
+- The top-level Variant MUST be of type Array
+- Buffer limits: 8 MiB + 4 bytes input, 8 MiB output (per Godot source)
+
+**Confidence:** HIGH (verified from `remote_debugger_peer.cpp`)
+
+### Variant Binary Encoding
+
+Each Variant is encoded as:
+
+```
+[4 bytes: type_header][variable bytes: type-specific data]
+```
+
+The type header's lower 16 bits are the type ID, upper 16 bits are flags (e.g., `ENCODE_FLAG_64 = 1 << 16` for 64-bit int/float). All values are little-endian. Data is padded to 4-byte boundaries.
+
+Key type IDs for debugger communication:
+
+| ID | Type | Encoding |
+|----|------|----------|
+| 0 | null | No data |
+| 1 | bool | 4-byte int (0 or 1) |
+| 2 | int | 4 or 8 bytes (flag-dependent) |
+| 3 | float | 4 or 8 bytes (flag-dependent) |
+| 4 | String | 4-byte length + UTF-8 bytes (padded to 4) |
+| 5 | Vector2 | 2x 4-byte floats |
+| 7 | Vector3 | 3x 4-byte floats |
+| 14 | Color | 4x 4-byte floats (RGBA) |
+| 15 | NodePath | Variable (name count + subname count + flags + strings) |
+| 17 | Object | null (0) or EncodedObjectAsID (object_id as uint64) |
+| 18 | Dictionary | 4-byte count + (key, value) pairs |
+| 19 | Array | 4-byte count + elements |
+
+**Confidence:** HIGH (official Godot binary serialization docs + godot-docs RST source)
+
+### Message Format (Application Layer)
+
+Debugger messages are Variant Arrays with this structure:
+
+```
+Array[
+    String message_type,    // e.g. "scene:request_scene_tree"
+    ... payload values ...  // message-specific arguments
+]
+```
+
+Messages use a prefix-based routing system. The prefix before the colon identifies the "capture" (subsystem), and the suffix is the command. Messages without a prefix go to the core debugger.
+
+**Confidence:** MEDIUM (inferred from `remote_debugger.cpp` capture dispatch system and `scene_debugger.cpp` handler registration)
+
+---
+
+## Debugger Command Inventory
+
+### Scene Commands (prefix: "scene:")
+
+These are the commands gdauto needs to implement v2.0 features.
+
+| Command | Direction | Args | Purpose |
+|---------|-----------|------|---------|
+| `request_scene_tree` | Server -> Game | none | Request full scene tree dump |
+| `inspect_object` | Server -> Game | [object_id: int] | Request all properties of a node |
+| `inspect_objects` | Server -> Game | [object_ids: Array, update: bool] | Batch inspect multiple nodes |
+| `set_object_property` | Server -> Game | [object_id: int, property: String, value: Variant] | Set a property on a live node |
+| `set_object_property_field` | Server -> Game | [object_id: int, property: String, value: Variant, field: String] | Set a specific field within a property |
+| `suspend_changed` | Server -> Game | [suspended: bool] | Pause/resume game |
+| `next_frame` | Server -> Game | none | Step one frame when suspended |
+| `speed_changed` | Server -> Game | [speed: float] | Set time scale |
+| `save_node` | Server -> Game | [object_id: int, path: String] | Save a node as PackedScene |
+
+### Live Edit Commands (prefix: "scene:")
+
+These operate on cached nodes and are used by the editor's live editing feature.
+
+| Command | Direction | Args | Purpose |
+|---------|-----------|------|---------|
+| `live_set_root` | Server -> Game | [path: NodePath, scene_file: String] | Set live edit context |
+| `live_node_path` | Server -> Game | [id: int, path: NodePath] | Map node ID to path |
+| `live_node_prop` | Server -> Game | [id: int, property: String, value: Variant] | Set property on cached node |
+| `live_node_call` | Server -> Game | [id: int, method: String, args...] | Call method on node |
+| `live_create_node` | Server -> Game | [id: int, type: String, name: String] | Create new node |
+| `live_remove_node` | Server -> Game | [id: int] | Remove node |
+
+### Core Debugger Commands (no prefix)
+
+| Command | Direction | Args | Purpose |
+|---------|-----------|------|---------|
+| `continue` | Server -> Game | none | Resume from breakpoint |
+| `break` | Server -> Game | none | Force pause |
+| `evaluate` | Server -> Game | [expression: String, frame: int] | Evaluate GDScript expression |
+| `reload_scripts` | Server -> Game | [paths: Array] | Reload specific scripts |
+
+### Game -> Server Messages
+
+| Message | Meaning |
+|---------|---------|
+| `debug_enter` | Game hit breakpoint or pause |
+| `debug_exit` | Game resumed |
+| `scene_tree` (response) | Scene tree data (flat depth-first array) |
+| `inspect_object` (response) | Object property data |
+| `output` | Print/log output from game |
+| `error` | Runtime error |
+| `performance:profile_frame` | Per-frame metrics |
+
+**Confidence:** HIGH for scene commands (verified from `scene_debugger.h` and `.cpp`), MEDIUM for exact response formats (inferred from source, not tested)
+
+---
+
+## Input Injection Strategy
+
+### The Problem
+
+The stock Godot debugger protocol does NOT have a dedicated "inject input event" command. This is the biggest gap for the v2.0 goal of simulating player input.
+
+### Available Approaches
+
+**Approach 1: GDScript Automation Autoload (Recommended)**
+
+Deploy a small GDScript autoload (`gdauto_bridge.gd`) into the target project. This script:
+- Listens for custom properties set via `set_object_property`
+- Translates property changes into `Input.parse_input_event()` calls
+- Reports game state back via the debugger's output channel
+
+gdauto already has all the infrastructure to do this:
+- `configparser`-based project.godot manipulation (add autoload entry)
+- .gd file generation (write the bridge script)
+- Cleanup after session (remove autoload entry, delete script)
+
+The bridge script approach is what PlayGodot also uses (though they do it in C++ in a Godot fork). A GDScript autoload achieves the same result without requiring a modified engine.
+
+**Approach 2: `live_node_call` for Method Invocation**
+
+Use the `live_node_call` debugger command to call `Input.parse_input_event()` directly on the Input singleton. This avoids needing a bridge script but depends on:
+- The live edit system being active
+- Correctly encoding InputEvent subclass instances as Variant (complex)
+- The node ID mapping being set up correctly
+
+**Risk:** InputEvent objects contain nested types (Vector2 for position, etc.) that must be correctly serialized as Variants. The live_node_call mechanism is designed for simple property changes in the editor, not for constructing complex objects.
+
+**Approach 3: `evaluate` Command**
+
+Use the debugger's expression evaluation to run GDScript like:
+```gdscript
+var ev = InputEventMouseButton.new(); ev.position = Vector2(100, 200); ev.pressed = true; Input.parse_input_event(ev)
+```
+
+**Risk:** Expression evaluation requires the game to be paused at a breakpoint. It cannot be used during normal game execution.
+
+### Recommendation
+
+Use **Approach 1** (GDScript autoload bridge) as the primary strategy for v2.0. It works with stock Godot, requires no engine modifications, and provides a clean interface for input injection.
+
+The bridge script pattern also opens the door for custom game state queries beyond what the debugger protocol exposes (e.g., "get the score", "check if the player is alive").
+
+**Confidence:** MEDIUM (approach is sound but untested; PlayGodot validates the concept with a different implementation)
+
+---
+
+## Component Architecture
+
+### New Components
+
+```
+src/gdauto/
+  debugger/                     # NEW: Debugger bridge package
+    __init__.py                 # Public API: connect(), DebugSession
+    variant.py                  # Variant binary encoder/decoder
+    protocol.py                 # Message framing (length-prefix, Array wrapping)
+    session.py                  # Async TCP server + session lifecycle
+    commands.py                 # High-level command methods (get_tree, set_property, etc.)
+    bridge.py                   # GDScript autoload bridge generation + injection
+    models.py                   # Dataclasses for scene tree, node info, properties
+    errors.py                   # DebuggerError subclasses
+  commands/
+    debug.py                    # NEW: Click command group for debugger commands
+```
+
+### Modified Components
+
+```
+src/gdauto/
+  cli.py                        # Add: cli.add_command(debug)
+  backend.py                    # Add: launch_game() method (non-blocking subprocess)
+  errors.py                     # Add: DebuggerConnectionError, DebuggerTimeoutError
+  output.py                     # No changes needed (emit/emit_error work as-is)
+```
+
+### Component Responsibilities
+
+| Component | Responsibility | Communicates With |
+|-----------|---------------|-------------------|
+| `debugger/variant.py` | Encode/decode Godot Variant binary format | `protocol.py` |
+| `debugger/protocol.py` | Frame/unframe messages (length prefix + Array wrapping) | `session.py`, `variant.py` |
+| `debugger/session.py` | TCP server lifecycle, async send/recv, connection state | `protocol.py`, `commands.py` |
+| `debugger/commands.py` | High-level async methods: `get_scene_tree()`, `set_property()`, `inject_input()` | `session.py`, `models.py` |
+| `debugger/bridge.py` | Generate and inject gdauto_bridge.gd autoload into target project | `formats/project_cfg.py` |
+| `debugger/models.py` | Dataclasses: `SceneNode`, `NodeProperty`, `RemoteSceneTree` | `commands.py` |
+| `debugger/errors.py` | Error types for connection, timeout, protocol failures | All debugger modules |
+| `commands/debug.py` | Click command group: `debug connect`, `debug tree`, `debug get`, `debug set`, `debug input`, `debug assert` | `debugger/commands.py`, `output.py` |
+| `backend.py` (modified) | Add `launch_game()` for non-blocking game process management | `commands/debug.py` |
+
+---
+
+## Data Flow
+
+### Session Lifecycle
+
+```
+1. User: gdauto debug connect --project ./my-game
+   |
+   v
+2. bridge.py: inject gdauto_bridge.gd into project, add autoload to project.godot
+   |
+   v
+3. session.py: start TCP server on port 6007
+   |
+   v
+4. backend.py: launch_game() -> subprocess.Popen(godot --path ./my-game --remote-debug tcp://127.0.0.1:6007)
+   |
+   v
+5. session.py: accept() -> game connects
+   |
+   v
+6. session.py: enter command loop (ready for user commands)
+   |
+   v
+7. User: gdauto debug tree (or other commands, using session file/socket for state)
+   |
+   v
+8. commands.py: send "scene:request_scene_tree" -> receive scene tree response
+   |
+   v
+9. User: gdauto debug disconnect
+   |
+   v
+10. session.py: close TCP connection
+    |
+    v
+11. backend.py: terminate game process
+    |
+    v
+12. bridge.py: remove autoload from project.godot, delete gdauto_bridge.gd
+```
+
+### Command Data Flow (e.g., `debug tree`)
+
+```
+Click command (debug.py)
+  |-- asyncio.run(async_get_tree())
+       |-- session.send_message("scene:request_scene_tree", [])
+       |    |-- protocol.encode_message(["scene:request_scene_tree"])
+       |    |    |-- variant.encode(Array["scene:request_scene_tree"])
+       |    |    |-- returns: bytes (length-prefixed)
+       |    |-- tcp_writer.write(encoded_bytes)
+       |
+       |-- response = session.recv_message(timeout=5.0)
+       |    |-- tcp_reader.read(4) -> message_length
+       |    |-- tcp_reader.read(message_length) -> payload
+       |    |-- variant.decode(payload) -> Array[...]
+       |    |-- returns: decoded Variant data
+       |
+       |-- models.parse_scene_tree(response) -> RemoteSceneTree
+       |-- return RemoteSceneTree as dict
+  |
+  |-- emit(tree_dict, human_formatter, ctx)
+```
+
+---
+
+## Session State Management
+
+### The Problem
+
+Click commands are one-shot: each invocation is a separate process. A debugger session must persist across multiple command invocations.
+
+### Options Analyzed
+
+**Option A: Long-running foreground process**
+
+One `gdauto debug connect` command that starts an interactive REPL-like loop. All commands happen within this single process.
+
+- Pro: Simple; no inter-process communication needed
+- Con: Blocks the terminal; incompatible with agent workflows where commands are issued one at a time
+- Con: Cannot be used from Claude Code (which runs individual CLI commands)
+
+**Option B: Background daemon with session file**
+
+`gdauto debug connect` starts a background TCP server process, writes a session file (`.gdauto-session.json`) with PID, port, and connection state. Subsequent commands read the session file and communicate with the daemon.
+
+- Pro: Matches CLI-native workflow; each command is independent
+- Con: Daemon management complexity (PID files, zombie processes, cleanup)
+- Con: Adds IPC between CLI commands and daemon
+
+**Option C: Per-command connection reuse via session file (Recommended)**
+
+`gdauto debug launch` starts the game with `--remote-debug` and writes a session file. Each subsequent command (`debug tree`, `debug set`, etc.) reads the session file, connects to the game directly (or maintains a connection pool), performs the operation, and exits. The session file tracks: game PID, port, bridge script state.
+
+Wait: this doesn't work because gdauto IS the server, not the client. The game connects TO us.
+
+**Option D: Background server process (Recommended)**
+
+`gdauto debug launch` spawns a background process that:
+1. Starts the TCP server
+2. Launches the game
+3. Accepts the game's connection
+4. Listens on a local Unix/TCP socket for commands from subsequent CLI invocations
+5. Writes session info to `.gdauto-session.json`
+
+Subsequent commands (`debug tree`, `debug set`) connect to the background server via the local socket, issue commands, receive responses, and exit.
+
+- Pro: Clean CLI interface; each command is independent
+- Pro: Compatible with agent workflows
+- Con: Two levels of networking (game <-> server <-> CLI commands)
+- Con: More complex implementation
+
+**Option E: Single-command workflow with embedded session (Simplest viable)**
+
+Each debugger command is self-contained: it starts the server, launches the game, waits for connection, performs the operation, and tears down. For multi-command workflows, a `debug run` command accepts a script/sequence of operations.
+
+- Pro: No daemon, no session files, no IPC
+- Con: Slow (game boot per command); only works for simple operations
+- Con: Fine for `debug run-script` but bad for interactive exploration
+
+### Recommendation: Hybrid of D and E
+
+**Phase 1 (MVP):** Implement Option E. Each command is self-contained. A `debug run` command accepts a YAML/JSON script defining a sequence of operations (launch, wait, interact, assert, quit). This covers the primary use case: automated game testing from an agent.
+
+**Phase 2 (Enhancement):** Implement Option D. Add `debug launch` (background server) and `debug connect` (attach to existing session) for interactive exploration workflows.
+
+The rationale: the v2.0 milestone's stated goal is "closing the write-code-to-test-it loop" for agents. Agents issue a single command with a test script, not interactive exploratory sessions. Option E serves this directly.
+
+**Confidence:** MEDIUM (architectural judgment call; the hybrid approach is pragmatic but untested)
+
+---
+
+## Async/Sync Bridge Pattern
+
+### The Approach
+
+Keep Click commands synchronous. Use `asyncio.run()` at the boundary of each debugger command handler. The async code lives entirely within the `debugger/` package.
+
 ```python
-CHARS = "abcdefghijklmnopqrstuvwxy012345678"  # 34 chars
-BASE = len(CHARS)  # 34
-MAX_UID = (1 << 63) - 1  # 63-bit maximum
+# commands/debug.py
+@debug.command("tree")
+@click.pass_context
+def debug_tree(ctx: click.Context, ...) -> None:
+    """Get the live scene tree from a running game."""
+    config: GlobalConfig = ctx.obj
+    try:
+        result = asyncio.run(_async_debug_tree(...))
+    except DebuggerError as exc:
+        emit_error(exc, ctx)
+        return
+    emit(result, _print_scene_tree, ctx)
+
+
+async def _async_debug_tree(...) -> dict:
+    """Async implementation of debug tree command."""
+    async with DebugSession(port=port) as session:
+        await session.launch_game(project_path, backend)
+        await session.wait_for_connection(timeout=10.0)
+        tree = await session.get_scene_tree()
+        return tree.to_dict()
 ```
 
-**One edge case fixed in Godot 4.4 (PR #100976):** The value 0 now encodes as `uid://a` instead of `uid://`. Our `uid_to_text()` already handles this correctly (the do/while loop always produces at least one character).
+### Why Not asyncclick
 
-**Verification against Godot source:**
+asyncclick (v8.3.0.7) replaces `import click` with `import asyncclick`, making ALL commands async. This creates risk:
+- Existing 28 synchronous commands would need validation under the new runtime
+- rich-click compatibility is unverified with asyncclick
+- asyncclick requires Python 3.11+ (our floor is 3.12, so compatible, but adds a dependency)
+- The async event loop overhead is unnecessary for file-manipulation commands
 
-| Aspect | Godot Source | Our uid.py | Match? |
-|--------|-------------|------------|--------|
-| Character set | `a-y, 0-8` | `CHARS = "abcdefghijklmnopqrstuvwxy012345678"` | YES |
-| Base | 34 (char_count + ('9'-'0') = 25+9) | `BASE = 34` | YES |
-| Max value | `0x7FFFFFFFFFFFFFFF` | `(1 << 63) - 1` | YES |
-| Encoding direction | LSB first, prepend to string | LSB first, prepend | YES |
-| Zero encoding | `uid://a` (post-4.4 fix) | Produces `uid://a` (correct) | YES |
-| `.uid` file format | `uid://...\n` | `uid_text + "\n"` | YES |
+`asyncio.run()` in individual command handlers is simpler, lower-risk, and keeps the existing CLI stack untouched.
 
-**No changes needed to `formats/uid.py`.**
-
-The Godot 4.4 UID generalization (`.uid` sidecar files for .gd, .gdshader, etc.) does not affect gdauto because we only generate .tres/.tscn files, which store UIDs inline in their headers. We already write .uid companion files via `write_uid_file()` and this behavior is unchanged.
+**Confidence:** HIGH (standard Python pattern, no external dependency needed)
 
 ---
 
-## Q3: Did project.godot structure change?
+## Variant Codec Implementation
 
-### Answer: config_version remains 5. No structural changes.
+### Build vs Reuse
 
-**Confidence:** HIGH (verified in Godot source `core/config/project_settings.h`)
+**Existing library: gdtype-python**
+- Last commit: September 2022 (3.5 years stale)
+- Targets Godot 4.0 beta (not 4.5+)
+- Unknown Python 3.12+ compatibility
+- Two functions: `serialize()` and `deserialize()`
+- No type stubs, no tests visible for Godot 4.x types
 
-```cpp
-// project_settings.h (current master, matches 4.6)
-static const int CONFIG_VERSION = 5;
-```
+**Recommendation: Build a custom Variant codec.**
 
-The `config_version=5` value has been stable across all of Godot 4.x. Project.godot files from 4.5 and 4.6 use the same structure.
+Rationale (same logic that justified the custom .tscn/.tres parser):
+1. The codec is well-specified (official Godot docs enumerate every type ID)
+2. We only need ~10 of 29 types for debugger communication (null, bool, int, float, String, Vector2, Vector3, Array, Dictionary, NodePath, Object/EncodedObjectAsID)
+3. Full control over error handling and type mapping to Python types
+4. No risk from abandoned upstream
+5. ~300-500 lines of Python using `struct.pack/unpack`
 
-**New project settings may exist** (Jolt Physics defaults for new projects, D3D12 default on Windows), but these are key-value pairs under existing sections. Our `project_cfg.py` parser reads arbitrary sections and key-value pairs, so new settings are automatically handled.
+The codec is a pure function pair: `encode(value) -> bytes` and `decode(data, offset) -> (value, bytes_consumed)`. It maps:
 
-**Impact on gdauto:**
+| Godot Type | Python Type |
+|------------|-------------|
+| null | None |
+| bool | bool |
+| int | int |
+| float | float |
+| String | str |
+| Vector2 | tuple[float, float] or dataclass |
+| Vector3 | tuple[float, float, float] or dataclass |
+| Array | list |
+| Dictionary | dict |
+| NodePath | str (with path parsing) |
+| Object (EncodedObjectAsID) | int (object_id) |
 
-| Component | File | Impact |
-|-----------|------|--------|
-| `parse_project_config()` | `formats/project_cfg.py` | No change needed |
-| `serialize_project_config()` | `formats/project_cfg.py` | No change needed |
-| `project info` command | `commands/project.py` | No change needed |
-| `project validate` command | `commands/project.py` | No change needed |
-
-**No changes needed to project.godot handling.**
-
----
-
-## Q4: Did headless binary flags change?
-
-### Answer: No changes to the flags gdauto uses.
-
-**Confidence:** HIGH (verified against Godot 4.6 command line docs)
-
-**All flags used by gdauto remain unchanged:**
-
-| Flag | gdauto Usage | 4.6 Status | Notes |
-|------|-------------|------------|-------|
-| `--headless` | `GodotBackend.run()` | Unchanged | Still `--display-driver headless --audio-driver Dummy` |
-| `--version` | `GodotBackend._check_version()` | Unchanged | Still outputs version string |
-| `--import` | `GodotBackend.import_resources()` | Unchanged | Still implies `--editor` and `--quit` |
-| `--quit-after N` | `GodotBackend.import_resources()` | Unchanged | Still available, still needed for import timing |
-| `--export-release` | `export_project()` | Unchanged | Implies `--import` |
-| `--export-debug` | `export_project()` | Unchanged | Implies `--import` |
-| `--export-pack` | `export_project()` | Unchanged | Implies `--import` |
-| `--check-only` | `GodotBackend.check_only()` | Unchanged | Extended availability only |
-| `--path` | `GodotBackend.run()` | Unchanged | Project directory specification |
-
-**Notable 4.6 headless improvements (no gdauto impact):**
-- Fix for hang when importing Blender files in headless mode
-- `--headless` now disables embedded mode in the main instance argument list
-
-**One behavior note:** Godot 4.6 added `--import` implying `--quit` (this was already the case in 4.5). Our `import_resources()` method uses `--import --quit-after N` which is redundant but harmless (both flags work together).
-
-**Impact on gdauto:**
-
-| Component | File | Impact |
-|-----------|------|--------|
-| `GodotBackend.run()` | `backend.py` | No change needed |
-| `GodotBackend.import_resources()` | `backend.py` | No change needed |
-| `GodotBackend.check_only()` | `backend.py` | No change needed |
-| `export_project()` | `export/pipeline.py` | No change needed |
-| Version validation | `backend.py:82-115` | Already accepts 4.6 (checks >= 4.5) |
-
-**No changes needed to the backend layer.**
+**Confidence:** HIGH (the binary serialization format is stable and well-documented)
 
 ---
 
-## Q5: How should we implement backwards compatibility?
+## Patterns to Follow
 
-### Recommendation: Version-detect at generation time, not at parse time.
-
-**Confidence:** HIGH (design recommendation based on findings)
-
-### Strategy: "Parse anything, generate current"
-
-**Parsing (reading files):** Accept format=3 and format=4 indiscriminately. The parser should not care about the format version because:
-1. Our state-machine parser already handles both (the section structure is identical)
-2. The only difference in format=4 is new value types (PackedVector4Array, base64 PackedByteArray)
-3. Round-trip fidelity is maintained by raw_line/raw_properties preservation regardless of format version
-
-**Generation (writing files):** Default to 4.6 conventions:
-- Omit `load_steps` from generated file headers
-- Write `format=3` (we never produce PackedVector4Array)
-- Include `unique_id` on nodes if present in input (preserve on round-trip)
-
-**Version detection in backend:** The existing `_check_version()` method in `backend.py` already extracts major.minor from the Godot binary. Expose this as a property for use by generators:
+### Pattern 1: Context Manager for Session Lifecycle
 
 ```python
-# backend.py (new property)
-@property
-def version_tuple(self) -> tuple[int, int] | None:
-    """Return (major, minor) if version has been checked, else None."""
-    if self._version is None:
-        return None
-    match = _VERSION_RE.search(self._version)
-    if match:
-        return (int(match.group(1)), int(match.group(2)))
-    return None
+class DebugSession:
+    async def __aenter__(self) -> DebugSession:
+        self._server = await asyncio.start_server(
+            self._handle_connection, "127.0.0.1", self.port
+        )
+        return self
+
+    async def __aexit__(self, *args) -> None:
+        if self._game_process:
+            self._game_process.terminate()
+        self._server.close()
+        await self._server.wait_closed()
+        self._cleanup_bridge()
 ```
 
-**Where to use version detection:**
+**Why:** Ensures cleanup (game process termination, TCP server shutdown, bridge script removal) even on exceptions. Matches the existing pattern where `GodotBackend` is created per-command.
 
-| Decision | Where | Logic |
-|----------|-------|-------|
-| Include load_steps? | `spriteframes.py`, `tileset/builder.py`, `scene/builder.py` | Omit always (safe for 4.5+, matches 4.6 behavior) |
-| Include unique_id? | `scene/builder.py` (if creating scenes) | Only when round-tripping 4.6 files that already have them |
-| format=3 or format=4? | All generators | Always format=3 (we never use format=4 features) |
+### Pattern 2: Request-Response Correlation
 
-**Why NOT detect at parse time:** The parser's job is to faithfully represent the file content, not to make version-dependent decisions. A file with `format=4` and `unique_id` attributes parses the same way as `format=3` without them. The extra attributes are simply additional header fields that our generic attr parser already handles.
+The debugger protocol does not have request IDs. Responses are correlated by message type, not by request ID. This means:
 
----
+- Send `scene:request_scene_tree` -> wait for the next `scene_tree` response
+- Send `scene:inspect_object` -> wait for the next `inspect_object` response
+- Only one outstanding request of each type at a time
 
-## Q6: Cleanest approach for format differences without breaking round-trip fidelity?
-
-### Answer: The existing architecture already handles this correctly.
-
-**Confidence:** HIGH (verified against code)
-
-**Our round-trip strategy (already implemented):**
-
-1. **Raw preservation path** (parse then re-serialize unmodified files):
-   - `common.py:serialize_sections()` uses `raw_line` for headers and `raw_properties` for values
-   - If a 4.6 file has no `load_steps` and includes `unique_id`, the raw lines preserve this exactly
-   - If a 4.5 file has `load_steps`, it stays in the output
-   - Zero changes needed for this path
-
-2. **Model-to-text path** (generate new files from data):
-   - `_build_tres_from_model()` and `_build_tscn_from_model()` construct headers from data fields
-   - Only change: make `load_steps` conditional (omit when None)
-   - `format` is already read from the data model and written verbatim
-
-**The architecture diagram for format handling:**
-
-```
-Input file (4.5 or 4.6)
-    |
-    v
-parse_sections() --> HeaderAttributes(raw_line="[gd_scene format=3 uid=\"...\"]")
-                     Section(header=..., raw_properties=[...])
-    |
-    v
-[Unmodified?] ---YES---> serialize_sections() uses raw_line --> byte-identical output
-    |
-    NO (new file or modified)
-    |
-    v
-_build_tscn_from_model() / _build_tres_from_model()
-    |
-    v
-Uses data model fields (format=3, uid=..., load_steps=None)
-    |
-    v
-Output: 4.6-style header (no load_steps, format=3)
-```
-
----
-
-## Changes Required: File-by-File Impact Analysis
-
-### Files That Need Changes
-
-| File | Change | Complexity | Reason |
-|------|--------|------------|--------|
-| `formats/values.py` | Add PackedVector4Array parser and dataclass | Low | Accept format=4 files that contain this type |
-| `formats/tres.py:182-219` | Make load_steps conditional in `_build_tres_from_model()` | Trivial | Omit when None, matching 4.6 behavior |
-| `formats/tscn.py:215-268` | Make load_steps conditional in `_build_tscn_from_model()` | Trivial | Same |
-| `formats/tscn.py:122-134` | Read `unique_id` from node header attrs | Low | Parse the integer attribute for round-trip |
-| `formats/tscn.py:32-43` | Add `unique_id: int | None = None` to SceneNode | Trivial | Store the attribute in data model |
-| `formats/tscn.py:246-255` | Write `unique_id` in `_build_tscn_from_model()` | Low | Emit when present |
-| `sprite/spriteframes.py:191` | Set `load_steps=None` | Trivial | Stop generating load_steps |
-| `tileset/builder.py` | Set `load_steps=None` if applicable | Trivial | Same |
-
-### Files That Need NO Changes
-
-| File | Reason |
-|------|--------|
-| `formats/common.py` | Parser already handles arbitrary header attrs; raw_line preserves any format |
-| `formats/uid.py` | UID encoding unchanged between 4.5 and 4.6 |
-| `formats/project_cfg.py` | config_version=5, no structural changes |
-| `backend.py` | All CLI flags unchanged, version check already accepts 4.6 |
-| `export/pipeline.py` | Export flags unchanged |
-| `formats/aseprite.py` | Aseprite format unrelated to Godot version |
-| `sprite/atlas.py` | Image processing unrelated to Godot version |
-| `sprite/splitter.py` | Image processing unrelated to Godot version |
-| `sprite/validator.py` | Validates structure, not version-specific |
-| All command files | CLI interface unchanged |
-
-### New Files (Optional)
-
-| File | Purpose | Priority |
-|------|---------|----------|
-| `tests/golden/spriteframes_46.tres` | Golden file without load_steps for 4.6 output | HIGH |
-| `tests/golden/*.tscn` (updated) | Regenerate golden files without load_steps | HIGH |
-| `tests/test_format_compat.py` | Tests for format=4 parsing, unique_id round-trip | HIGH |
-
----
-
-## New Value Types for format=4 Parsing
-
-### PackedVector4Array
-
-Add to `formats/values.py`:
+Implement this with an asyncio event/future per expected response type:
 
 ```python
-@dataclass(frozen=True, slots=True)
-class PackedVector4Array:
-    """Packed array of 4D vector components as flat floats."""
-    values: tuple[float, ...]
+class DebugSession:
+    _pending: dict[str, asyncio.Future]
 
-    def to_godot(self) -> str:
-        items = ", ".join(_fmt_float(v) for v in self.values)
-        return f"PackedVector4Array({items})"
+    async def request_scene_tree(self) -> RemoteSceneTree:
+        future = self._loop.create_future()
+        self._pending["scene_tree"] = future
+        await self._send("scene:request_scene_tree", [])
+        return await asyncio.wait_for(future, timeout=5.0)
 ```
 
-Register in `_parse_constructor()`:
+### Pattern 3: Message Dispatch Loop
+
+A background task reads messages from the TCP connection and dispatches them:
+
 ```python
-if type_name == "PackedVector4Array":
-    if not inner:
-        return PackedVector4Array(())
-    args = _split_args(inner)
-    return PackedVector4Array(tuple(float(x) for x in args))
+async def _recv_loop(self) -> None:
+    while self._connected:
+        msg_type, args = await self._protocol.read_message(self._reader)
+        if msg_type in self._pending:
+            self._pending.pop(msg_type).set_result(args)
+        elif msg_type == "output":
+            self._output_buffer.append(args)
+        elif msg_type == "error":
+            self._error_buffer.append(args)
 ```
 
-Add to `_GODOT_TYPES` tuple and `serialize_value()`.
+---
 
-### Base64 PackedByteArray (LOW priority)
+## Anti-Patterns to Avoid
 
-Godot 4.3+ can write base64-encoded PackedByteArray. The exact constructor name in text format needs verification with actual files (likely `PackedByteArray` with a base64 string argument, but could use a distinct name). This only appears in files with large byte arrays (embedded audio, mesh data), which gdauto does not generate or typically encounter.
+### Anti-Pattern 1: Blocking TCP in Click Handlers
 
-**Recommendation:** Defer base64 PackedByteArray support. If encountered, the existing lenient parser returns the raw string (D-04), which preserves the data for round-trip. Add explicit support only if users report issues.
+**What:** Using synchronous `socket.recv()` in Click command handlers.
+**Why bad:** Blocks the entire process; no timeout control; cannot handle concurrent sends and receives (the game sends unsolicited messages like `output` and `performance` data).
+**Instead:** Use asyncio with `asyncio.run()` at the Click boundary.
+
+### Anti-Pattern 2: Global Singleton Session
+
+**What:** A module-level `DebugSession` instance shared across commands.
+**Why bad:** Click commands are separate process invocations. A global variable dies with the process.
+**Instead:** Session state lives in a background process (Phase 2) or is reconstructed per command from a session file.
+
+### Anti-Pattern 3: Mixing Bridge Script with User Code
+
+**What:** Modifying user's existing GDScript files to add automation hooks.
+**Why bad:** Risk of corrupting user code; merge conflicts; hard to clean up.
+**Instead:** The bridge is a standalone .gd file added as an autoload, completely separate from user code. Clean removal on session end.
+
+### Anti-Pattern 4: Assuming Response Ordering
+
+**What:** Assuming the next message received is the response to the last command sent.
+**Why bad:** The game sends unsolicited messages (performance data, print output, errors) at any time.
+**Instead:** Dispatch messages by type and use futures for expected responses.
 
 ---
 
-## Unique Node IDs (unique_id attribute)
+## Scalability and Complexity Considerations
 
-### What It Is
+| Concern | MVP (single game) | Future (multiple games) |
+|---------|-------------------|-------------------------|
+| Connections | 1 game, 1 session | Multiple game instances on different ports |
+| Protocol overhead | Negligible (debugger messages are small) | Same |
+| Latency | <10ms local TCP | Same for local; network latency for remote |
+| Memory | ~16 MiB buffers (matching Godot's allocation) | Per-connection |
+| Game boot time | 2-5 seconds | Parallelizable |
+| Bridge cleanup | Must always run (even on crash) | `atexit` handler + signal handler |
 
-Godot 4.6 adds an integer `unique_id` attribute to `[node]` headers in .tscn files. This tracks nodes across renames and moves in inherited/instantiated scenes.
+---
 
-**Format:**
+## Build Order (Dependency Graph)
+
+The following build order respects component dependencies:
+
 ```
-[node name="Player" type="CharacterBody2D" parent="." unique_id=1234567890]
+Phase 1: Variant Codec + Protocol Layer
+  variant.py (no deps, pure encode/decode)
+  protocol.py (depends on variant.py)
+  models.py (no deps, pure dataclasses)
+  errors.py (extends gdauto.errors)
+
+Phase 2: Session + Connection Management
+  session.py (depends on protocol.py)
+  backend.py modifications (add launch_game)
+
+Phase 3: Bridge Script System
+  bridge.py (depends on formats/project_cfg.py, file I/O)
+
+Phase 4: High-Level Commands
+  commands.py (depends on session.py, models.py, bridge.py)
+
+Phase 5: CLI Integration
+  commands/debug.py (depends on commands.py, output.py)
+  cli.py modification (add debug group)
+
+Phase 6: Assertion/Verification Layer
+  Additional commands in commands.py for assert/verify patterns
+  Test script runner (YAML/JSON test script execution)
 ```
 
-The `unique_id` is a 32-bit integer, stored as an unquoted value in the node header.
-
-### Backwards Compatibility
-
-- Files with `unique_id` can be opened in older Godot versions (the attribute is simply ignored)
-- Files without `unique_id` work fine in Godot 4.6 (IDs are assigned on re-save)
-
-### Impact on gdauto
-
-**Parsing:** Our `parse_section_header()` in `common.py` already reads all `key=value` pairs from headers into `attrs: dict[str, str]`. The `unique_id` attribute is automatically captured. The `_extract_node()` function in `tscn.py` should explicitly extract it into the `SceneNode` dataclass for completeness.
-
-**Round-trip:** If a file has `unique_id`, the `raw_line` preserves it exactly. If we build from model, we should emit it when present.
-
-**Generation:** gdauto's `scene create` command builds scenes from JSON definitions. We should NOT generate `unique_id` values because:
-1. They are scene-local identifiers managed by the Godot editor
-2. Godot assigns them on first save/re-save
-3. Generating arbitrary IDs could conflict with Godot's own ID allocation
+Each phase can be independently tested:
+- Phase 1: Unit tests with known binary data (golden byte sequences)
+- Phase 2: Integration tests with a mock TCP client
+- Phase 3: Unit tests (file generation + project.godot manipulation)
+- Phase 4: Integration tests with a real Godot game instance
+- Phase 5: CLI runner tests (CliRunner)
+- Phase 6: E2E tests with sample game projects
 
 ---
 
-## AnimationLibrary Serialization Change (GH-110502)
+## Key Risks and Open Questions
 
-Godot 4.6 changed AnimationLibrary serialization to avoid using Dictionary. This affects the internal serialization of AnimationLibrary resources when saved by the Godot editor.
+### Risk 1: Variant Encoding Edge Cases
+The binary serialization spec covers 29 types. We plan to implement ~10. If a game sends an unexpected type in a response, the decoder must handle it gracefully (skip or error, not crash).
 
-**Impact on gdauto:** NONE. gdauto does not generate AnimationLibrary resources. If round-tripping .tres files that contain AnimationLibrary data, the raw_line preservation handles the new serialization format transparently (the key-value pairs are different, but our parser reads them generically).
+**Mitigation:** Implement a fallback that reads the type header, computes the data size, and skips unknown types with a warning.
 
----
+### Risk 2: Message Ordering and Timing
+The game sends unsolicited messages (performance data, print output). If we don't drain these, the TCP buffer fills and the game blocks.
 
-## Suggested Build Order
+**Mitigation:** The recv_loop must always be running and draining messages into buffers, regardless of whether a command is waiting for a response.
 
-Based on dependency analysis:
+### Risk 3: Bridge Script Cleanup on Crash
+If gdauto crashes mid-session, the bridge script and autoload entry remain in the project.
 
-### Phase 1: Parser Hardening (no behavior change, accept more input)
-1. Add `PackedVector4Array` dataclass and parser support to `values.py`
-2. Add `unique_id` field to `SceneNode` dataclass in `tscn.py`
-3. Extract `unique_id` in `_extract_node()` in `tscn.py`
-4. Write tests: parse a format=4 .tres file, parse a .tscn with unique_id
-5. Verify: existing tests still pass (no regressions)
+**Mitigation:** Use `atexit` handler, signal handlers (SIGINT, SIGTERM), and a cleanup check on next `debug launch` that detects and removes stale bridge artifacts.
 
-**Rationale:** Parser changes are the foundation; everything else depends on correct parsing.
+### Risk 4: Input Injection via Bridge Requires Game Cooperation
+The bridge script must be loaded by the game to inject input. If the project's autoload system is broken or the bridge script has a syntax error, input injection fails silently.
 
-### Phase 2: Generator Updates (behavior change, new output format)
-1. Make `load_steps` conditional in `_build_tres_from_model()` and `_build_tscn_from_model()`
-2. Update `build_spriteframes()` to set `load_steps=None`
-3. Update tileset builder to set `load_steps=None` (if it sets load_steps)
-4. Update scene builder to emit `unique_id` when present in model
-5. Regenerate golden files without `load_steps`
-6. Update golden file comparison tests
+**Mitigation:** Validate the bridge script with `godot --check-only` before launching the game. Include error reporting in the bridge script that sends diagnostics via the debugger output channel.
 
-**Rationale:** Generator changes produce different output; golden files must be updated in the same step.
+### Open Question 1: Scene Tree Response Format
+The exact binary format of the scene tree response (from `request_scene_tree`) is described as "flat list depth first" in the Godot source comments but the exact field layout needs to be reverse-engineered by sending the command and inspecting the response bytes. This will require empirical testing in Phase 2.
 
-### Phase 3: E2E Validation
-1. Run E2E tests with Godot 4.6.1 binary
-2. Verify generated .tres/.tscn files load in Godot 4.6.1
-3. Verify generated files also load in Godot 4.5 (backwards compat)
-4. Test round-trip: open 4.6 file, parse, serialize, compare
+### Open Question 2: Property Serialization Completeness
+`inspect_object` returns property names, values, types, and hints as a serialized array. The exact layout of this array (field order, delimiter patterns) needs empirical verification.
 
-**Rationale:** E2E tests require the Godot binary and should run after all code changes.
-
----
-
-## Backwards Compatibility Matrix
-
-| Scenario | gdauto Output | Godot 4.5 | Godot 4.6 |
-|----------|---------------|-----------|-----------|
-| SpriteFrames .tres (new) | format=3, no load_steps | Loads OK | Loads OK |
-| TileSet .tres (new) | format=3, no load_steps | Loads OK | Loads OK |
-| Scene .tscn (new) | format=3, no load_steps, no unique_id | Loads OK | Loads OK |
-| Round-trip 4.5 file | Preserves load_steps (raw_line) | Loads OK | Loads OK |
-| Round-trip 4.6 file | Preserves no load_steps, unique_id (raw_line) | Loads OK* | Loads OK |
-
-*Godot 4.5 ignores unknown attributes like `unique_id` in node headers.
-
----
-
-## Risk Assessment
-
-| Risk | Severity | Likelihood | Mitigation |
-|------|----------|------------|------------|
-| format=4 files with base64 PackedByteArray fail to round-trip | Medium | Low (gdauto rarely encounters these) | Lenient parser returns raw string; add explicit support later |
-| Removing load_steps breaks a downstream tool | Low | Very Low (load_steps was always optional) | Document the change; load_steps was never required by Godot |
-| unique_id values in generated scenes conflict with Godot | Medium | N/A (we don't generate them) | Explicitly do NOT generate unique_id |
-| Golden file tests fail after load_steps removal | Low | Certain (expected) | Regenerate all golden files in Phase 2 |
+### Open Question 3: Windows Named Pipes vs TCP
+For the Phase 2 daemon, inter-process communication between CLI commands and the background server could use Unix sockets (not available on Windows) or localhost TCP. Since gdauto runs on Windows (per the dev environment), localhost TCP is the safe choice.
 
 ---
 
 ## Sources
 
-- [Godot resource_format_text.h](https://github.com/godotengine/godot/blob/master/scene/resources/resource_format_text.h) -- FORMAT_VERSION=4, FORMAT_VERSION_COMPAT=3 (HIGH confidence)
-- [Godot resource_uid.cpp](https://github.com/godotengine/godot/blob/master/core/io/resource_uid.cpp) -- UID encoding algorithm verified, base-34, unchanged (HIGH confidence)
-- [Godot project_settings.h](https://github.com/godotengine/godot/blob/master/core/config/project_settings.h) -- CONFIG_VERSION=5, unchanged (HIGH confidence)
-- [PR #103352: Remove load_steps](https://github.com/godotengine/godot/pull/103352) -- load_steps no longer written in 4.6 (HIGH confidence)
-- [PR #106837: Add unique Node IDs](https://github.com/godotengine/godot/pull/106837) -- unique_id attribute in node headers, 32-bit integer (HIGH confidence)
-- [PR #89186: Base64 PackedByteArray](https://github.com/godotengine/godot/pull/89186) -- format=4 trigger, merged in 4.3 (HIGH confidence)
-- [PR #85474: PackedVector4Array](https://github.com/godotengine/godot/pull/85474) -- format=4 trigger, merged in 4.3 (HIGH confidence)
-- [PR #100976: Fix UID encoding](https://github.com/godotengine/godot/pull/100976) -- 0 encodes as uid://a, merged in 4.4 (HIGH confidence)
-- [GH-110502: AnimationLibrary serialization](https://github.com/godotengine/godot/pull/110502) -- Dictionary avoidance, internal change only (MEDIUM confidence)
-- [TSCN format docs (master)](https://github.com/godotengine/godot-docs/blob/master/engine_details/file_formats/tscn.rst) -- unique_id documented, load_steps deprecated (HIGH confidence)
-- [Godot 4.6 release page](https://godotengine.org/releases/4.6/) -- Unique Node IDs feature announcement (HIGH confidence)
-- [Godot 4.6.1 maintenance release](https://godotengine.org/article/maintenance-release-godot-4-6-1/) -- No format changes, NodePath hash fix (HIGH confidence)
-- [GDQuest Godot 4.6 workflow changes](https://www.gdquest.com/library/godot_4_6_workflow_changes/) -- Breaking changes list (HIGH confidence)
-- [Godot command line tutorial (raw)](https://raw.githubusercontent.com/godotengine/godot-docs/master/tutorials/editor/command_line_tutorial.rst) -- CLI flags verified unchanged (HIGH confidence)
-- [GH-11707: load_steps documentation issue](https://github.com/godotengine/godot-docs/issues/11707) -- Confirms load_steps removed in 4.6 (HIGH confidence)
+### Verified (HIGH confidence)
+- [Godot `remote_debugger_peer.cpp`](https://github.com/godotengine/godot/blob/master/core/debugger/remote_debugger_peer.cpp) - TCP client implementation, message framing, buffer sizes
+- [Godot `scene_debugger.cpp`](https://github.com/godotengine/godot/blob/master/scene/debugger/scene_debugger.cpp) - Scene debugger commands and handlers
+- [Godot `scene_debugger.h`](https://github.com/godotengine/godot/blob/master/scene/debugger/scene_debugger.h) - Public API surface
+- [Godot `remote_debugger.cpp`](https://github.com/godotengine/godot/blob/master/core/debugger/remote_debugger.cpp) - Core debugger commands and capture system
+- [Godot Binary Serialization API docs](https://github.com/godotengine/godot-docs/blob/master/tutorials/io/binary_serialization_api.rst) - Variant type IDs and encoding
+- [Godot InputEvent docs](https://docs.godotengine.org/en/stable/tutorials/inputs/inputevent.html) - Input.parse_input_event() API
+
+### Reference Implementations (MEDIUM confidence)
+- [PlayGodot](https://github.com/Randroids-Dojo/PlayGodot) - Python game automation via debugger protocol (requires forked Godot)
+- [godot-vscode-plugin](https://github.com/godotengine/godot-vscode-plugin) - TypeScript debugger client with VariantDecoder
+- [gdtype-python](https://github.com/anetczuk/gdtype-python) - Python Variant serializer (stale, Godot 4.0 beta era)
+- [godot-binary-serialization (JS)](https://github.com/pietrum/godot-binary-serialization) - JavaScript Variant codec
+- [godot-binary-serialization (Rust)](https://crates.io/crates/godot-binary-serialization) - Rust Variant codec
+
+### Architecture Patterns (MEDIUM confidence)
+- [asyncclick PyPI](https://pypi.org/project/asyncclick/) - Async Click fork (evaluated, not recommended)
+- [Click async integration issue #2033](https://github.com/pallets/click/issues/2033) - Discussion of asyncio.run() pattern
+- [Python asyncio streams docs](https://docs.python.org/3/library/asyncio-stream.html) - TCP client/server with asyncio
+- [Godot DeepWiki: VSCode plugin debugging](https://deepwiki.com/godotengine/godot-vscode-plugin/4-debugging) - Debugger architecture overview
