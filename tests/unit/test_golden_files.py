@@ -42,6 +42,12 @@ _RESOURCE_ID_PATTERN = re.compile(r'id="(\w+)_[a-zA-Z0-9_]{5}"')
 _EXT_REF_PATTERN = re.compile(r'ExtResource\("(\w+)_[a-zA-Z0-9_]{5}"\)')
 _SUB_REF_PATTERN = re.compile(r'SubResource\("(\w+)_[a-zA-Z0-9_]{5}"\)')
 
+# Strip load_steps=N from file headers (per Pitfall 3/11: anchored to header brackets)
+_LOAD_STEPS_PATTERN = re.compile(r" load_steps=\d+")
+
+# Strip unique_id=N from [node] headers (anchored to avoid matching property values)
+_UNIQUE_ID_PATTERN = re.compile(r" unique_id=\d+")
+
 
 def normalize_for_comparison(text: str) -> str:
     """Normalize randomly-generated UIDs and resource IDs for stable comparison.
@@ -50,8 +56,11 @@ def normalize_for_comparison(text: str) -> str:
     id="Type_xxxxx" with id="Type_XXXXX",
     ExtResource("Type_xxxxx") with ExtResource("Type_XXXXX"),
     SubResource("Type_xxxxx") with SubResource("Type_XXXXX"),
-    and standalone uid://xxx with uid://NORMALIZED.
+    standalone uid://xxx with uid://NORMALIZED,
+    and strips load_steps and unique_id from header lines.
     """
+    text = _LOAD_STEPS_PATTERN.sub("", text)
+    text = _UNIQUE_ID_PATTERN.sub("", text)
     text = _UID_ATTR_PATTERN.sub('uid="uid://NORMALIZED"', text)
     text = _STANDALONE_UID.sub("uid://NORMALIZED", text)
     text = _RESOURCE_ID_PATTERN.sub(
@@ -175,6 +184,32 @@ def test_normalize_standalone_uid() -> None:
     text = "uid://dnhachg64twdg"
     result = normalize_for_comparison(text)
     assert result == "uid://NORMALIZED"
+
+
+def test_normalize_strips_load_steps() -> None:
+    """Verify normalization removes load_steps from resource headers."""
+    text = '[gd_resource type="SpriteFrames" load_steps=6 format=3 uid="uid://abc"]'
+    result = normalize_for_comparison(text)
+    assert "load_steps" not in result
+    assert 'type="SpriteFrames"' in result
+    assert "format=3" in result
+
+
+def test_normalize_strips_unique_id() -> None:
+    """Verify normalization removes unique_id from node headers."""
+    text = '[node name="Player" type="Node2D" parent="." unique_id=1234567890]'
+    result = normalize_for_comparison(text)
+    assert "unique_id" not in result
+    assert 'name="Player"' in result
+    assert 'parent="."' in result
+
+
+def test_normalize_preserves_load_steps_in_properties() -> None:
+    """Verify normalization does not strip load_steps from non-header context."""
+    # This tests that we only strip the attribute form, not a property value
+    text = "my_load_steps = 5"
+    result = normalize_for_comparison(text)
+    assert result == text  # Should be unchanged (no leading space before load_steps)
 
 
 # ---------------------------------------------------------------------------
