@@ -79,3 +79,43 @@ def test_spriteframes_loads_in_godot(
 
     # 7. Check output
     assert "VALIDATION_OK" in result.stdout
+
+
+@pytest.mark.requires_godot
+def test_spriteframes_no_load_steps(
+    tmp_path: Path, godot_backend: GodotBackend
+) -> None:
+    """Validate SpriteFrames without load_steps loads in headless Godot (VAL-01)."""
+    # 1. Parse the simple Aseprite fixture
+    aseprite_data = parse_aseprite_json(FIXTURES / "aseprite_simple.json")
+
+    # 2. Build SpriteFrames resource
+    resource = build_spriteframes(aseprite_data, "res://test_sheet.png")
+
+    # 3. Confirm load_steps is None at the Python level
+    assert resource.load_steps is None
+
+    # 4. Write to tmp_path as .tres file
+    tres_path = tmp_path / "test_nols.tres"
+    serialize_tres_file(resource, tres_path)
+
+    # 5. Confirm load_steps is absent in the serialized text
+    tres_text = tres_path.read_text()
+    assert "load_steps" not in tres_text
+
+    # 6. Create a minimal project.godot so Godot recognizes the directory
+    (tmp_path / "project.godot").write_text(_PROJECT_GODOT)
+
+    # 7. Create validation GDScript
+    script = _build_spriteframes_validation_script("test_nols.tres")
+    script_path = tmp_path / "validate.gd"
+    script_path.write_text(script)
+
+    # 8. Run headless Godot
+    result = godot_backend.run(
+        ["--headless", "--script", str(script_path)],
+        project_path=tmp_path,
+    )
+
+    # 9. Check output
+    assert "VALIDATION_OK" in result.stdout
