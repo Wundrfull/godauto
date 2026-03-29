@@ -36,11 +36,11 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
   3. Parsing a Godot 4.6-saved .tscn file (with `unique_id` and no `load_steps`) and re-serializing it produces byte-identical output
   4. All golden file comparison tests pass against the updated output format
   5. Generated files (without `load_steps`) load without error in both Godot 4.5 and 4.6.1
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 05-01: TBD
-- [ ] 05-02: TBD
+- [ ] 05-01-PLAN.md -- Parser and format layer changes (unique_id, PackedVector4Array, load_steps removal)
+- [ ] 05-02-PLAN.md -- Test infrastructure update and golden file regeneration
 
 ### Phase 6: E2E Validation and Ecosystem Audit
 **Goal**: Confirmed compatibility with Godot 4.6.1 binary and documented ecosystem position
@@ -68,5 +68,5 @@ Phases execute in numeric order: 5 -> 6
 | 2. Aseprite-to-SpriteFrames Bridge | v1.0 | 4/4 | Complete | 2026-03-28 |
 | 3. TileSet Automation and Export Pipeline | v1.0 | 4/4 | Complete | 2026-03-28 |
 | 4. Scene Commands, Test Suite, and Agent Discoverability | v1.0 | 3/3 | Complete | 2026-03-29 |
-| 5. Format Compatibility and Backwards Safety | v1.1 | 0/0 | Not started | - |
+| 5. Format Compatibility and Backwards Safety | v1.1 | 0/2 | In progress | - |
 | 6. E2E Validation and Ecosystem Audit | v1.1 | 0/0 | Not started | - |
