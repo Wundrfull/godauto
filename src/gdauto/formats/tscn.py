@@ -39,6 +39,7 @@ class SceneNode:
     instance: str | None = None
     owner: str | None = None
     groups: list[str] | None = None
+    unique_id: int | None = None
     raw_section: Section | None = None
 
 
@@ -100,6 +101,7 @@ class GdScene:
                     "name": node.name,
                     "type": node.type,
                     "parent": node.parent,
+                    "unique_id": node.unique_id,
                     "properties": {
                         k: serialize_value(v)
                         for k, v in node.properties.items()
@@ -123,6 +125,7 @@ def _extract_node(section: Section) -> SceneNode:
     """Build a SceneNode from a parsed [node] section."""
     attrs = section.header.attrs
     props = {k: v for k, v in section.properties if k != ""}
+    unique_id_str = attrs.get("unique_id")
     return SceneNode(
         name=attrs.get("name", ""),
         type=attrs.get("type"),
@@ -130,6 +133,7 @@ def _extract_node(section: Section) -> SceneNode:
         properties=props,
         instance=attrs.get("instance"),
         owner=attrs.get("owner"),
+        unique_id=int(unique_id_str) if unique_id_str else None,
         raw_section=section,
     )
 
@@ -250,6 +254,8 @@ def _build_tscn_from_model(scene: GdScene) -> str:
             parts.append(f'type="{node.type}"')
         if node.parent:
             parts.append(f'parent="{node.parent}"')
+        if node.unique_id is not None:
+            parts.append(f"unique_id={node.unique_id}")
         lines.append("[node " + " ".join(parts) + "]")
         for key, val in node.properties.items():
             lines.append(f"{key} = {serialize_value(val)}")

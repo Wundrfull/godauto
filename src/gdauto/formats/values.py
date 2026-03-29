@@ -468,6 +468,22 @@ class PackedVector2Array:
 
 
 # ---------------------------------------------------------------------------
+# PackedVector4Array
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True, slots=True)
+class PackedVector4Array:
+    """Packed array of 4D vector components as flat floats."""
+
+    values: tuple[float, ...]
+
+    def to_godot(self) -> str:
+        """Serialize to Godot text format."""
+        items = ", ".join(_fmt_float(v) for v in self.values)
+        return f"PackedVector4Array({items})"
+
+
+# ---------------------------------------------------------------------------
 # All Godot value dataclasses for isinstance checks
 # ---------------------------------------------------------------------------
 
@@ -477,7 +493,7 @@ _GODOT_TYPES = (
     Transform2D, Transform3D, AABB,
     StringName, NodePath,
     ExtResourceRef, SubResourceRef,
-    PackedVector2Array,
+    PackedVector2Array, PackedVector4Array,
 )
 
 
@@ -793,6 +809,13 @@ def _parse_constructor(type_name: str, inner: str, raw: str) -> Any:
             return PackedVector2Array(())
         args = _split_args(inner)
         return PackedVector2Array(tuple(float(x) for x in args))
+
+    # PackedVector4Array
+    if type_name == "PackedVector4Array":
+        if not inner:
+            return PackedVector4Array(())
+        args = _split_args(inner)
+        return PackedVector4Array(tuple(float(x) for x in args))
 
     # PackedByteArray
     if type_name == "PackedByteArray":
