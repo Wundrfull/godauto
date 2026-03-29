@@ -76,13 +76,12 @@ def split_sheet_grid(
 
     sub_resources = _build_grid_sub_resources(rows, cols, frame_w, frame_h, ext)
     animation = _build_default_animation(sub_resources, fps)
-    load_steps = 1 + len(sub_resources) + 1
 
     return GdResource(
         type="SpriteFrames",
         format=3,
         uid=uid_to_text(generate_uid()),
-        load_steps=load_steps,
+        load_steps=None,
         ext_resources=[ext],
         sub_resources=sub_resources,
         resource_properties={"animations": [animation]},
@@ -161,13 +160,12 @@ def split_sheet_json(
 
     sub_resources = _build_json_sub_resources(frames, ext)
     animation = _build_default_animation(sub_resources, fps)
-    load_steps = 1 + len(sub_resources) + 1
 
     return GdResource(
         type="SpriteFrames",
         format=3,
         uid=uid_to_text(generate_uid()),
-        load_steps=load_steps,
+        load_steps=None,
         ext_resources=[ext],
         sub_resources=sub_resources,
         resource_properties={"animations": [animation]},

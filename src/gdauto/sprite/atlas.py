@@ -158,12 +158,11 @@ def _build_atlas_resource(
         "speed": 10.0,
     }
 
-    load_steps = 1 + len(sub_resources) + 1
     return GdResource(
         type="SpriteFrames",
         format=3,
         uid=uid_to_text(generate_uid()),
-        load_steps=load_steps,
+        load_steps=None,
         ext_resources=[ext],
         sub_resources=sub_resources,
         resource_properties={"animations": [animation]},

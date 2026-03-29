@@ -188,11 +188,10 @@ def build_spriteframes(
         all_subs.extend(subs)
         animations.append(anim)
 
-    load_steps = 1 + len(all_subs) + 1
     return GdResource(
         type="SpriteFrames", format=3,
         uid=uid_to_text(generate_uid()),
-        load_steps=load_steps,
+        load_steps=None,
         ext_resources=[ext], sub_resources=all_subs,
         resource_properties={"animations": animations},
     )

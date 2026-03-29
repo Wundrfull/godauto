@@ -85,9 +85,10 @@ class TestBuildTileset:
         assert "margins" not in atlas.properties
         assert "separation" not in atlas.properties
 
-    def test_load_steps(self) -> None:
+    def test_load_steps_omitted(self) -> None:
         resource = build_tileset("res://sheet.png", 32, 32, 8, 6)
-        assert resource.load_steps == 3
+        # load_steps omitted per Godot 4.6 compatibility
+        assert resource.load_steps is None
 
     def test_uid_is_set(self) -> None:
         resource = build_tileset("res://sheet.png", 32, 32, 8, 6)

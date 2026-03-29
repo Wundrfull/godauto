@@ -114,7 +114,7 @@ class TestSplitSheetGrid:
         assert resource.format == 3
 
     @patch("gdauto.sprite.splitter.Image")
-    def test_load_steps_computed_correctly(
+    def test_load_steps_omitted(
         self, mock_image_module: MagicMock
     ) -> None:
         from gdauto.sprite.splitter import split_sheet_grid
@@ -123,8 +123,8 @@ class TestSplitSheetGrid:
         resource = split_sheet_grid(
             Path("sheet.png"), 32, 32, "res://sheet.png"
         )
-        # 1 ext_resource + 2 sub_resources + 1 = 4
-        assert resource.load_steps == 4
+        # load_steps omitted per Godot 4.6 compatibility
+        assert resource.load_steps is None
 
     @patch("gdauto.sprite.splitter.Image")
     def test_custom_fps(

@@ -157,7 +157,7 @@ class TestBuildSceneResources:
         assert "script" in root.properties
         assert isinstance(root.properties["script"], ExtResourceRef)
 
-    def test_multiple_resources_load_steps(self) -> None:
+    def test_multiple_resources_load_steps_omitted(self) -> None:
         definition = {
             "root": {"name": "Root", "type": "Node2D"},
             "resources": [
@@ -176,7 +176,7 @@ class TestBuildSceneResources:
             ],
         }
         result = build_scene(definition)
-        assert result.load_steps == len(result.ext_resources) + 1
+        assert result.load_steps is None
 
 
 class TestBuildSceneUidAndSerialization:

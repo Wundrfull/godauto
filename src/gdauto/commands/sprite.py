@@ -204,11 +204,10 @@ def _build_resource(
         )
         return None
 
-    load_steps = 1 + len(all_sub_resources) + 1
     resource = GdResource(
         type="SpriteFrames", format=3,
         uid=uid_to_text(generate_uid()),
-        load_steps=load_steps,
+        load_steps=None,
         ext_resources=[ext],
         sub_resources=all_sub_resources,
         resource_properties={"animations": successful_animations},

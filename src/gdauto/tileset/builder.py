@@ -49,7 +49,7 @@ def build_tileset(
         type="TileSet",
         format=3,
         uid=uid_to_text(generate_uid()),
-        load_steps=3,
+        load_steps=None,
         ext_resources=[ext],
         sub_resources=[atlas_sub],
         resource_properties=resource_props,

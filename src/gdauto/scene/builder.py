@@ -34,13 +34,12 @@ def build_scene(definition: dict[str, Any]) -> GdScene:
         ext_resources = _build_ext_resources(resources_defs)
         _assign_resources(nodes, resources_defs, ext_resources)
 
-    load_steps = len(ext_resources) + 1 if ext_resources else None
     uid = uid_to_text(generate_uid())
 
     return GdScene(
         format=3,
         uid=uid,
-        load_steps=load_steps,
+        load_steps=None,
         ext_resources=ext_resources,
         sub_resources=[],
         nodes=nodes,

@@ -260,11 +260,11 @@ class TestBuildSpriteframes:
         for sub in resource.sub_resources:
             assert sub.type == "AtlasTexture"
 
-    def test_load_steps(self) -> None:
+    def test_load_steps_omitted(self) -> None:
         data = _make_simple_data(num_frames=4)
         resource = build_spriteframes(data, "res://sprites/test.png")
-        expected = len(resource.ext_resources) + len(resource.sub_resources) + 1
-        assert resource.load_steps == expected
+        # load_steps omitted per Godot 4.6 compatibility
+        assert resource.load_steps is None
 
     def test_loop_true_when_repeat_zero(self) -> None:
         data = _make_simple_data(repeat=0)
