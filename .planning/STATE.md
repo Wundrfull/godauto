@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.1
-milestone_name: v1.1 Godot 4.6 Compatibility and Audit
-status: ready_to_plan
-stopped_at: Roadmap created for v1.1
-last_updated: "2026-03-29T03:00:00.000Z"
+milestone_name: Godot 4.6 Compatibility and Audit
+status: verifying
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-03-29T05:12:14.444Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 2
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
   percent: 0
 ---
 
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 
 Phase: 5 of 6 (Format Compatibility and Backwards Safety)
 Plan: 0 of 0 in current phase (plans TBD)
-Status: Ready to plan
-Last activity: 2026-03-29 -- Roadmap created for v1.1
+Status: Phase complete — ready for verification
+Last activity: 2026-03-29
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -58,6 +58,9 @@ Progress: [░░░░░░░░░░] 0%
 
 All v1.0 decisions archived in PROJECT.md Key Decisions table and phase SUMMARY.md files.
 
+- [Phase 05]: Set load_steps=None unconditionally in all generators; Godot 4.5 tolerates omission
+- [Phase 05]: unique_id stored as int; PackedVector4Array uses flat-float pattern
+
 ### Pending Todos
 
 None.
@@ -71,6 +74,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-29
-Stopped at: Roadmap created for v1.1 milestone
+Last session: 2026-03-29T05:12:14.441Z
+Stopped at: Completed 05-01-PLAN.md
 Resume file: None

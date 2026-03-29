@@ -8,14 +8,14 @@
 
 ### Format Compatibility
 
-- [ ] **COMPAT-01**: All generators stop emitting `load_steps` in .tscn/.tres headers (affects SpriteFrames builder, TileSet builder, scene builder, and any other file generators)
-- [ ] **COMPAT-02**: `SceneNode` dataclass captures `unique_id` integer attribute; parser reads it from [node] headers, serializer emits it when present
-- [ ] **COMPAT-03**: Parser accepts both format=3 and format=4 .tscn/.tres files without error (format=4 used for PackedVector4Array/base64 PackedByteArray)
+- [x] **COMPAT-01**: All generators stop emitting `load_steps` in .tscn/.tres headers (affects SpriteFrames builder, TileSet builder, scene builder, and any other file generators)
+- [x] **COMPAT-02**: `SceneNode` dataclass captures `unique_id` integer attribute; parser reads it from [node] headers, serializer emits it when present
+- [x] **COMPAT-03**: Parser accepts both format=3 and format=4 .tscn/.tres files without error (format=4 used for PackedVector4Array/base64 PackedByteArray)
 - [ ] **COMPAT-04**: Golden files updated to match Godot 4.6.1 output format (no load_steps, unique_id preserved in scene golden files)
 
 ### Backwards Compatibility
 
-- [ ] **BACK-01**: Generated files remain loadable by Godot 4.5 (verify dropping load_steps is safe; Godot 4.5 tolerates omission)
+- [x] **BACK-01**: Generated files remain loadable by Godot 4.5 (verify dropping load_steps is safe; Godot 4.5 tolerates omission)
 - [ ] **BACK-02**: GodotBackend version validation accepts >= 4.5 and works correctly with 4.6.x binaries
 
 ### Validation and Testing
@@ -52,11 +52,11 @@ Deferred to v1.2+:
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| COMPAT-01 | Phase 5 | Pending |
-| COMPAT-02 | Phase 5 | Pending |
-| COMPAT-03 | Phase 5 | Pending |
+| COMPAT-01 | Phase 5 | Complete |
+| COMPAT-02 | Phase 5 | Complete |
+| COMPAT-03 | Phase 5 | Complete |
 | COMPAT-04 | Phase 5 | Pending |
-| BACK-01 | Phase 5 | Pending |
+| BACK-01 | Phase 5 | Complete |
 | BACK-02 | Phase 5 | Pending |
 | VAL-01 | Phase 6 | Pending |
 | VAL-02 | Phase 6 | Pending |
