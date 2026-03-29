@@ -1,7 +1,7 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.1
-milestone_name: v1.1 Feature Expansion
+milestone_name: v1.1 Godot 4.6 Compatibility and Audit
 status: defining_requirements
 stopped_at: Milestone v1.1 started
 last_updated: "2026-03-29T02:00:00.000Z"

@@ -8,15 +8,16 @@ gdauto is a feature-complete, agent-native command-line tool for the Godot game 
 
 **v1.0 shipped 2026-03-29.** All 50 requirements validated across 4 phases, 16 plans.
 
-## Current Milestone: v1.1 Feature Expansion
+## Current Milestone: v1.1 Godot 4.6 Compatibility and Audit
 
-**Goal:** Expand godauto with full Tiled-to-TileMap conversion, scene editing commands, PyPI distribution, and addon/plugin management.
+**Goal:** Audit existing v1.0 functionality against Godot 4.6.1, ensure compatibility with engine changes, and establish a 4.5+ baseline with forward support for 4.6.x features.
 
 **Target features:**
-- Full Tiled .tmx/.tmj map-to-TileMap conversion (layers, tile placement, playable .tscn output)
-- Scene editing: add/remove nodes, set properties, attach scripts, wire signals in existing .tscn files
-- PyPI publishing: package distribution polish, proper versioning, `pip install godauto`
-- Addon/plugin management: Asset Library API integration for CLI-based plugin install/management
+- Audit all parsers and generators against Godot 4.6.1 file format changes
+- Research Godot 4.6/4.6.1 CLI and headless mode changes
+- Backwards compatibility: maintain 4.5 as baseline, conditionally support 4.6.x additions
+- Update E2E tests and golden files for 4.6.1 compatibility
+- Evaluate what the Godot ecosystem has shipped since v1.0 (avoid rebuilding existing tools)
 
 ## Core Value
 
@@ -64,11 +65,11 @@ Validated in Phase 4: Scene Commands, Test Suite, and Agent Discoverability
 
 ### Active
 
-- [ ] Full Tiled map-to-TileMap .tscn conversion
-- [ ] Scene node editing (add, remove, set properties)
-- [ ] Script attachment and signal wiring in existing scenes
-- [ ] PyPI distribution (`pip install godauto`)
-- [ ] Addon/plugin management via Asset Library API
+- [ ] Godot 4.6.1 file format compatibility audit
+- [ ] Godot 4.6.x CLI/headless mode change assessment
+- [ ] Backwards compatibility layer (4.5 baseline, 4.6.x forward support)
+- [ ] E2E and golden file updates for 4.6.1
+- [ ] Ecosystem gap re-evaluation (what exists now vs what we built)
 
 ### Out of Scope
 
@@ -76,8 +77,8 @@ Validated in Phase 4: Scene Commands, Test Suite, and Agent Discoverability
 - RL/ML training pipeline integration (Godot RL Agents) -- separate domain, defer
 - Particle effect and shader preset generation -- requires GPU for validation, defer
 - Multiplayer server management and load testing -- separate concern, defer
-- Addon/plugin management via Asset Library API -- moved to Active for v1.1
-- Tiled .tmx/.tmj full map-to-TileMap conversion -- moved to Active for v1.1
+- Addon/plugin management wrapping the Asset Library API -- deferred, evaluate ecosystem first
+- Tiled .tmx/.tmj full map-to-TileMap conversion -- basic tileset extraction implemented, full map conversion deferred
 - OAuth or GUI-based workflows -- CLI-only tool
 - Godot 3.x support -- targets Godot 4.5+ only
 
@@ -138,4 +139,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 after v1.1 milestone start*
+*Last updated: 2026-03-29 after v1.1 milestone start (Godot 4.6 compatibility audit)*
