@@ -9,16 +9,9 @@ gdauto is a feature-complete, agent-native command-line tool for the Godot game 
 **v1.0 shipped 2026-03-29.** All 50 requirements validated across 4 phases, 16 plans.
 **v1.1 shipped 2026-03-29.** Godot 4.6 compatibility audit complete: 11 requirements validated across 2 phases, 4 plans.
 
-## Current Milestone: v1.1 Godot 4.6 Compatibility and Audit
+## Next Milestone
 
-**Goal:** Audit existing v1.0 functionality against Godot 4.6.1, ensure compatibility with engine changes, and establish a 4.5+ baseline with forward support for 4.6.x features.
-
-**Target features:**
-- Audit all parsers and generators against Godot 4.6.1 file format changes
-- Research Godot 4.6/4.6.1 CLI and headless mode changes
-- Backwards compatibility: maintain 4.5 as baseline, conditionally support 4.6.x additions
-- Update E2E tests and golden files for 4.6.1 compatibility
-- Evaluate what the Godot ecosystem has shipped since v1.0 (avoid rebuilding existing tools)
+Not yet planned. Run `/gsd:new-milestone` to define the next milestone.
 
 ## Core Value
 
@@ -76,7 +69,7 @@ Validated in Phase 6: E2E Validation and Ecosystem Audit
 
 ### Active
 
-None -- v1.1 milestone complete.
+None -- planning next milestone.
 
 ### Out of Scope
 
@@ -146,4 +139,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 after v1.1 milestone completion (Godot 4.6 compatibility audit)*
+*Last updated: 2026-03-29 after v1.1 milestone archived*

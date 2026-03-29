@@ -18,3 +18,21 @@
 **Archive:** `.planning/milestones/v1.0-ROADMAP.md`, `.planning/milestones/v1.0-REQUIREMENTS.md`
 
 ---
+
+## v1.1 Godot 4.6 Compatibility and Audit (Shipped: 2026-03-29)
+
+**Phases completed:** 2 phases, 4 plans, 8 tasks
+**Changes:** 49 files, +5,669/-1,235 lines | 30 commits
+**Timeline:** 1 day (2026-03-29)
+
+**Key accomplishments:**
+
+1. Removed load_steps from all generators for Godot 4.6.1 format compatibility
+2. Added unique_id round-trip support for scene nodes (parse, preserve, serialize)
+3. Added PackedVector4Array parser support for format=4 files
+4. 4 new E2E tests validating format changes against headless Godot
+5. Documented ecosystem position: no competing headless CLI tools found
+
+**Archive:** `.planning/milestones/v1.1-ROADMAP.md`, `.planning/milestones/v1.1-REQUIREMENTS.md`
+
+---
