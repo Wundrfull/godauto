@@ -1,0 +1,96 @@
+# Domain Pitfalls: Godot 4.6 Compatibility
+
+**Domain:** Godot engine version migration for CLI tooling
+**Researched:** 2026-03-28
+
+## Critical Pitfalls
+
+Mistakes that cause broken output, test failures, or user-facing regressions.
+
+### Pitfall 1: Generating load_steps in 4.6-targeted Files
+
+**What goes wrong:** gdauto v1.0 writes `load_steps=N` in every .tres and .tscn header. Users open the generated file in Godot 4.6, Godot strips `load_steps` on save, and the file now has a diff in version control that looks like gdauto's output was "wrong."
+**Why it happens:** Godot 4.6 removed `load_steps` from its text resource writer (PR #103352) but the community and third-party tools were not warned in the release notes.
+**Consequences:** (a) Unnecessary VCS noise for every generated file, (b) golden file tests fail when comparing against 4.6-saved references, (c) users lose trust in gdauto's output fidelity.
+**Prevention:** Stop emitting `load_steps` in all builders. Verify that Godot 4.5 also accepts files without it before dropping unconditionally.
+**Detection:** Golden file comparison tests will catch this immediately if run against 4.6-saved reference files.
+
+### Pitfall 2: Over-Engineering Version Branching
+
+**What goes wrong:** Building an elaborate version-detection and conditional-generation system for what is essentially one removed attribute.
+**Why it happens:** The instinct to "support both 4.5 and 4.6" leads to adding `--godot-version` flags, version detection, conditional code paths in every builder, and dual golden file sets.
+**Consequences:** Code complexity explodes for minimal benefit. Maintenance burden doubles. The actual change (dropping one attribute) takes 30 minutes; the version system takes days.
+**Prevention:** Verify the simple path first: if `load_steps` omission is harmless in 4.5, just drop it. Only add version branching if testing proves 4.5 breaks without it.
+**Detection:** Review the implementation plan; if it mentions "version detection" before proving the simple path fails, push back.
+
+### Pitfall 3: Breaking Round-Trip Fidelity for 4.5 Files
+
+**What goes wrong:** Changing the parser to strip `load_steps` on read (instead of just not writing it on generate) would cause existing 4.5 files to lose `load_steps` when round-tripped through gdauto.
+**Why it happens:** Conflating "stop generating" with "stop preserving." The parser should still accept `load_steps` in input; only the builders should stop emitting it.
+**Consequences:** Users who parse-then-serialize a 4.5 file through `resource inspect` or similar pipelines get modified output.
+**Prevention:** Keep `GdResource.load_steps` and `GdScene.load_steps` fields as `Optional[int]`. Parser continues reading them. Only builders set them to `None`. Round-trip via raw sections preserves them byte-for-byte.
+**Detection:** Existing round-trip tests with 4.5 fixtures will catch this if the parser is inadvertently changed.
+
+## Moderate Pitfalls
+
+### Pitfall 4: Ignoring unique_id in Model-Based Serialization
+
+**What goes wrong:** When gdauto parses a 4.6 scene file, modifies it via the data model (not raw sections), and serializes back, `unique_id` attributes are silently dropped from all nodes.
+**Why it happens:** `SceneNode` dataclass has no `unique_id` field. `_extract_node()` does not read it. `_build_tscn_from_model()` does not write it.
+**Consequences:** Inherited/instantiated scenes that depend on `unique_id` for node tracking lose their stability guarantees. Nodes may become "detached" from their base scene overrides.
+**Prevention:** Add `unique_id: int | None = None` to `SceneNode`, extract in parser, emit in serializer.
+**Detection:** Diff a parsed-and-reserialized 4.6 scene against the original; missing `unique_id` attributes will show in the diff.
+
+### Pitfall 5: Golden File Comparison Brittleness
+
+**What goes wrong:** Changing the generation format (dropping `load_steps`) without updating golden files causes all golden comparison tests to fail. Conversely, updating golden files to match 4.6 format makes them incompatible if someone runs tests against a 4.5 binary.
+**Why it happens:** Golden files are version-specific snapshots. Format changes require deliberate golden file maintenance.
+**Consequences:** Either all tests fail (not updated) or tests become engine-version-dependent (updated for 4.6 only).
+**Prevention:** Option A: Update golden files to 4.6 format (no load_steps); since this is the new forward direction, this is correct. Option B: Make golden comparison strip `load_steps` before comparing (version-agnostic). Option A is simpler and recommended since we are moving forward to 4.6.
+**Detection:** CI pipeline catches this immediately on first test run after format changes.
+
+### Pitfall 6: Validator False Positives on 4.6 Files
+
+**What goes wrong:** `sprite validate` currently warns when `load_steps` does not match the expected count. For files generated by Godot 4.6 (which have no `load_steps`), the validator would either (a) warn about missing `load_steps` or (b) skip the check silently.
+**Why it happens:** The `_check_load_steps()` function was written when `load_steps` was always present.
+**Consequences:** Users validating Godot 4.6-generated SpriteFrames files get spurious warnings, or the validator silently ignores a potentially useful sanity check.
+**Prevention:** Current code already handles `load_steps is None` (returns early). Verify this path works. Consider removing the check entirely since Godot itself no longer uses it.
+**Detection:** Test `sprite validate` on a 4.6-generated .tres file.
+
+## Minor Pitfalls
+
+### Pitfall 7: TileSet Atlas Bounds Strictness in 4.6
+
+**What goes wrong:** Godot 4.6 TileSet editor fix #112271 "checks for tiles outside texture on atlas settings changes." If Godot 4.6 is now stricter about tiles that reference regions outside the texture bounds, gdauto-generated TileSets with imprecise tile counts (e.g., from rounding errors in `tileset create`) could fail validation.
+**Why it happens:** Bug fix in 4.6 makes the editor validate atlas bounds more carefully.
+**Consequences:** TileSet files that worked in 4.5 might produce warnings or errors in 4.6 editor.
+**Prevention:** Ensure `tileset create` never generates tile coordinates that exceed the texture dimensions. E2E test with 4.6 binary.
+**Detection:** E2E tileset tests against 4.6.
+
+### Pitfall 8: Assuming 4.6.1 Has Additional Format Changes
+
+**What goes wrong:** Spending time investigating 4.6.1 for format changes that do not exist.
+**Why it happens:** Maintenance releases sometimes include format changes. 4.6.1 specifically does not.
+**Consequences:** Wasted research and implementation effort.
+**Prevention:** 4.6.1 has 38 fixes, all runtime/editor. No format changes. Verified via release notes and GitHub release page.
+**Detection:** Check the changelog; zero file format PRs in 4.6.1.
+
+## Phase-Specific Warnings
+
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| Format fixes (load_steps) | Over-engineering version branching | Verify simple drop first; only branch if 4.5 breaks |
+| Format fixes (unique_id) | Incomplete model update | Add to dataclass, parser, and serializer together |
+| Golden file updates | Breaking tests for 4.5 users | Commit to 4.6 as new baseline; document in changelog |
+| E2E testing | Flaky headless mode in 4.6 | Use `--headless --quit` idiom; check for new 4.6-specific timeouts |
+| Validator updates | Removing useful validation | Keep load_steps check for files that have it; skip for files that do not |
+| Project create defaults | Wrong physics engine for target version | Only add Jolt default when targeting 4.6+; leave unset for 4.5 |
+
+## Sources
+
+- [load_steps removal PR #103352](https://github.com/godotengine/godot/pull/103352)
+- [load_steps removal proposal #11802](https://github.com/godotengine/godot-proposals/issues/11802)
+- [Unique Node IDs PR #106837](https://github.com/godotengine/godot/pull/106837)
+- [TileSet atlas bounds check #112271](https://github.com/godotengine/godot/pull/112271)
+- [Godot 4.6.1 release notes](https://godotengine.org/article/maintenance-release-godot-4-6-1/)
+- [4.5 to 4.6 migration guide](https://github.com/godotengine/godot-docs/blob/master/tutorials/migrating/upgrading_to_godot_4.6.rst)

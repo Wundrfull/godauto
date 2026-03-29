@@ -1,181 +1,188 @@
 # Project Research Summary
 
-**Project:** gdauto
-**Domain:** Agent-native CLI tooling for Godot game engine automation
-**Researched:** 2026-03-27
+**Project:** gdauto v1.1 — Godot 4.6.1 Compatibility Audit
+**Domain:** Godot engine file format delta; headless CLI tooling for Godot 4.5/4.6
+**Researched:** 2026-03-28
 **Confidence:** HIGH
 
 ## Executive Summary
 
-gdauto is a Python CLI tool that automates Godot Engine workflows that currently require the editor GUI. The core value proposition is an Aseprite-to-SpriteFrames bridge -- converting Aseprite JSON metadata into valid Godot .tres resource files without requiring a running Godot instance. The secondary differentiator is TileSet terrain automation, replacing hours of manual peering bit assignment with deterministic layout mapping. The tool is designed agent-native from the start: every command produces structured JSON output, uses non-zero exit codes, and is fully non-interactive. Experts build tools in this space by separating pure file manipulation (no Godot binary needed) from headless engine invocation (subprocess wrapping), and gdauto follows this exact pattern.
+Godot 4.6 (January 2026) and its 4.6.1 maintenance release (February 2026) introduce two file format changes that directly affect gdauto and a set of well-documented breaking changes that do not. The format changes are: (1) `load_steps` is no longer written in `.tscn`/`.tres` file headers (PR #103352), and (2) every scene node now carries a `unique_id` integer attribute in its `[node]` header (PR #106837). Both are backward-compatible in the sense that Godot 4.6 still reads files with `load_steps` and Godot 4.5 ignores `unique_id`. The recommended strategy is forward-only: stop emitting `load_steps` universally and add `unique_id` support, producing files valid for both engine versions. The `format=3` version number remains unchanged for all files gdauto generates (SpriteFrames, TileSets, simple scenes), and neither SpriteFrames nor TileSet resource structures changed.
 
-The recommended approach is a lean Python stack (Click + rich-click, stdlib for everything else, custom Godot file format parser) organized in three layers: CLI surface, domain logic, and file format I/O. The most consequential decision is building a custom .tscn/.tres parser rather than depending on the abandoned godot_parser library. This is justified: the Godot text format is well-specified and bounded (~6 constructs), the existing library targets Godot 3.x format=2 and is unmaintained, and gdauto's core value depends on correct file generation where we must control the output. The parser is estimated at 500-800 lines of Python.
+The required work is confined to two thin layers: generators (serializers that build file headers) and the test infrastructure (golden files and normalization). The three-layer architecture (CLI / domain / formats) isolates changes cleanly — no architectural rewrites are needed. Eight source files need `load_steps` removed from their output, three need `unique_id` support added, and all golden reference files need regeneration. None of these require algorithmic redesign; all are well-scoped mechanical changes verified directly against Godot source code and merged PRs.
 
-The key risks are: (1) generating invalid resource IDs or missing UIDs that cause Godot to silently rewrite files, creating version control noise; (2) botching Aseprite frame duration conversion for variable-timing animations; (3) getting terrain peering bit mappings wrong for the 47-tile blob layout, which is reverse-engineered from community conventions rather than official documentation; and (4) headless Godot's well-documented import race condition breaking E2E tests. All four risks have clear mitigation strategies documented in the pitfalls research, and all map to specific phases where they must be addressed.
+The most significant operational risk is the export determinism regression (issue #115971, "Very Bad" severity): Godot 4.6 assigns non-deterministic `unique_id` values to scene nodes that lack them, causing every export to produce a different binary hash. Generating deterministic `unique_id` values in gdauto-created scenes directly prevents this. The headless import race condition (issue #77508) persists unchanged from prior versions; the existing `--quit-after 30` mitigation already handles it, but adding post-import completeness verification would harden the pipeline. gdauto's niche (headless, no-editor file manipulation) remains uncontested — all Godot MCP servers that emerged in 2025-2026 require a running editor instance.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The stack is deliberately minimal: only two runtime dependencies (click and rich-click), with Pillow as an optional extra for image manipulation commands. Everything else uses the Python standard library. Python >= 3.12 is required for modern type hints and performance improvements. uv manages the project (dependencies, virtualenvs, lockfile). ruff and mypy handle code quality.
+No Python dependency changes are required for v1.1. The existing stack (Python 3.12+, Click 8.3, custom state-machine parser, stdlib json/configparser, Pillow for image commands) remains optimal. The custom parser over `stevearc/godot_parser` is validated by this audit: the third-party library would require significant patching for Godot 4.6 format changes, while our in-house parser already handles both old and new formats on read with no changes needed to the parsing path.
 
 **Core technologies:**
-- **Python >= 3.12 + Click 8.3 + rich-click 1.9:** CLI framework mandated by PROJECT.md, with drop-in rich formatting for human-readable help
-- **Custom .tscn/.tres parser:** Hand-rolled state machine parser (~500-800 LoC) replacing the abandoned godot_parser library; gives full control over Godot 4.x format=3, round-trip fidelity, and UID support
-- **stdlib dataclasses:** Internal data models without Pydantic overhead (6x faster instantiation, zero dependencies); validation happens at the parser level
-- **stdlib configparser:** project.godot INI-style parsing with minor preprocessing for Godot quirks
-- **Pillow 12.1 (optional):** Only needed for atlas compositing and sheet splitting; core Aseprite bridge requires zero image manipulation
-- **uv + pyproject.toml + hatchling:** Modern Python project management; single config file for everything
+- Python 3.12+: runtime — type aliases, improved error messages, 15% perf boost over 3.11
+- Click 8.3: CLI framework — mandated, battle-tested, supports `--json` flag and command groups
+- Custom .tscn/.tres parser: format layer — full control over format=3/4 compatibility, round-trip fidelity via `raw_line` preservation; `stevearc/godot_parser` has Godot 4 compatibility issues and is unmaintained
+- stdlib configparser: project.godot parser — INI-style format, no dependency needed
+- stdlib json: Aseprite metadata and `--json` output — no third-party JSON library needed at this scale
+- stdlib dataclasses: internal data models — 6x faster than Pydantic, no validation overhead for already-parsed data
+- Pillow 12.1.x (optional): atlas creation and sprite splitting only; NOT needed for core Aseprite-to-SpriteFrames bridge
+- pytest 9.0.x, ruff, mypy, uv: development tooling — unchanged from v1.0
+
+**No new dependencies needed for v1.1.**
 
 ### Expected Features
 
 **Must have (table stakes):**
-- `--json` flag on every command (agent-native contract)
-- Structured error messages with error codes and suggested fixes
-- Non-zero exit codes on failure
-- Godot binary discovery with `--godot-path` override and `GODOT_BINARY` env var
-- Headless export (release/debug/pack) with auto-import-before-export
-- Force re-import with retry logic for Godot's timing bugs
-- Resource inspection (dump any .tres/.tscn as JSON)
-- Project info (dump project.godot as JSON)
-- Project validation (missing resources, broken references, script errors)
+- Omit `load_steps` from all generated `.tres`/`.tscn` headers — Godot 4.6 strips it on re-save; causes VCS diff noise for every user; affects 8 source files and 18 references
+- Parse `unique_id` from `.tscn` node headers — 4.6 scenes contain this attribute; parser must expose it on the `SceneNode` model
+- Preserve `unique_id` on round-trip — model-based serialization must emit it when present; raw-line path already handles it correctly
+- Update golden files — existing golden files include `load_steps`; new output will not; all golden reference files need regeneration
+- Update `_check_load_steps()` sprite validator — validates a now-obsolete attribute; must be skipped or demoted for 4.6 output
 
 **Should have (differentiators):**
-- `sprite import-aseprite` -- THE core differentiator; no headless CLI tool does this today
-- `tileset auto-terrain` -- deterministic peering bit assignment for standard layouts (47-tile blob, 16-tile minimal, RPG Maker)
-- `tileset create` -- sprite sheet to TileSet resource without the editor
-- `tileset assign-physics` -- batch collision assignment by tile range
-- `sprite split` and `sprite create-atlas` -- sprite sheet manipulation
-- `scene create` -- generate .tscn from JSON definitions without Godot running
+- Add `unique_id` field to `SceneNode` dataclass — exposes node IDs in `resource inspect` and `scene list` JSON output for agents
+- Write `unique_id` in model-based scene serialization — generated scenes include node IDs when available
+- Generate deterministic `unique_id` values in `scene create` — prevents non-deterministic export regression (#115971); use CSPRNG 32-bit int or sequential counter
+- Expose `unique_id` in `scene list` JSON output — richer scene analysis for AI agent consumers
+- Add import completeness verification after `import_resources()` — checks `.godot/imported/` for expected files, not just directory existence
 
 **Defer (v2+):**
-- Scene creation from definitions (complex node type validation)
-- Project scaffolding with genre-specific templates
-- SKILL.md auto-generation (tool must be feature-complete first)
-- Tiled .tmx/.tmj import (adds parser complexity for a secondary workflow)
-- Live game interaction, RL/ML integration, addon management, GUI/TUI (explicitly anti-features)
+- Version-aware generation flag (`--target-version 4.5`) — most users are on 4.6; 4.5 tolerates omitted `load_steps`; implement only if users on 4.5 report issues
+- `--export-patch` wrapper for delta PCK exports — new Godot 4.6 headless flag; useful but not blocking
+- TileMapLayer scene data manipulation — complex, editor-focused; tile rotation is a runtime feature
+- LibGodot embedding as alternative to subprocess — experimental API, major architectural change
+- `gdauto project upgrade-scenes` migration command — useful but Godot editor already does this via "Upgrade Project Files"
 
 ### Architecture Approach
 
-The architecture follows a strict three-layer separation: CLI surface (Click command modules as thin orchestrators), domain logic (pure Python functions with zero I/O), and file format layer (parser/generator with zero domain knowledge). Commands operate in one of two modes: "direct" (pure Python file manipulation, no Godot needed) or "headless" (subprocess invocation via a centralized backend wrapper). A Click context object carries shared state (output format, verbosity, lazy-initialized Godot backend), and a dual-mode output formatter ensures the `--json` contract is never broken.
+The existing three-layer architecture (CLI commands / domain logic / formats layer) handles all Godot 4.6 changes cleanly without restructuring. All file format changes are confined to the formats layer (`tscn.py`, `tres.py`, `values.py`) and the domain builders (`spriteframes.py`, `tileset/builder.py`, `scene/builder.py`). The round-trip architecture already works correctly: the `serialize_sections()` function in `common.py` uses `raw_line` for headers and `raw_properties` for values, meaning any file read and re-written without model modification is byte-identical regardless of Godot version. Only the model-to-text generation path (building new files from `SceneNode`/`GdResource` dataclasses) needs updates.
 
 **Major components:**
-1. **File Format Layer** (`formats/`) -- tokenizer, section parser, value type (de)serializer for .tscn/.tres; INI parser for project.godot; Aseprite JSON parser
-2. **Domain Logic Layer** (`domain/`) -- Aseprite-to-SpriteFrames bridge (duration conversion, direction handling, trim offsets), TileSet builder (peering bit lookup tables, collision shapes), scene builder
-3. **CLI Surface Layer** (root package) -- Click command groups (sprite, tileset, scene, project, export, resource), output formatter, Click context object
-4. **Backend Layer** (`godot_backend.py`) -- centralized subprocess wrapper for all Godot binary interactions (discovery, timeout, error parsing, retry logic)
+
+1. `formats/` layer (parser + serializer) — reads `.tscn`, `.tres`, `project.godot`; writes generated files; raw-line preservation gives free round-trip fidelity; state-machine parser already accepts arbitrary header attrs
+2. Domain builders (`sprite/spriteframes.py`, `tileset/builder.py`, `scene/builder.py`) — construct resource models from domain inputs; these are the source of `load_steps` emission and the target for `unique_id` generation
+3. `backend.py` + `export/pipeline.py` — wraps Godot headless binary; all CLI flags unchanged; version detection via `_check_version()` already parses major.minor; can expose as `version_tuple` property for use by generators
+4. Test infrastructure (`tests/unit/test_golden_files.py`, `tests/fixtures/golden/`) — golden file comparison with normalization; must be extended with `load_steps` and `unique_id` stripping patterns; all golden reference files need regeneration
+
+**Key pattern: "Parse anything, generate current."** The parser accepts format=3 and format=4 without branching. Generators always write current (4.6-style) output: no `load_steps`, `format=3`, `unique_id` when present. Both directions produce files valid in Godot 4.5 and 4.6.
 
 ### Critical Pitfalls
 
-1. **Invalid resource IDs and missing UIDs** -- Godot 4 uses `Type_xxxxx` alphanumeric IDs and `uid://` base36 UIDs. Omitting or mis-formatting these causes silent file rewrites and version control noise. Mitigation: dedicated ID/UID generators with collision testing and golden-file E2E tests from Phase 1.
+1. **`load_steps` removal is not in Godot 4.6 release notes** — the change was only documented after community report (godot-docs#11707). Users and tool authors expecting it to still be there will be surprised. Prevention: strip from all 8 generator sites; parser remains tolerant of both formats.
 
-2. **Wrong Aseprite duration conversion** -- Naive ms-to-FPS conversion fails for variable-timing animations. Mitigation: compute GCD of all frame durations, set animation speed to `1000/GCD`, compute per-frame duration multipliers. Test with uniform, variable, very slow, and very fast frame timing.
+2. **Missing `unique_id` causes non-deterministic exports** — Godot 4.6 assigns IDs at export time when a scene lacks them, and the RNG seed is not stable (issue #115971, "Very Bad", milestoned 4.7). Every export of a gdauto-generated scene produces a different binary hash. Prevention: generate `unique_id` values in `scene create`; normalize them in golden file tests.
 
-3. **Trimmed sprite offset handling** -- Aseprite's `spriteSourceSize` offsets are silently ignored in untrimmed-only implementations, causing frame jitter. Mitigation: always check `trimmed` field, apply offsets via AtlasTexture margin. Test with both trimmed and untrimmed fixtures.
+3. **Golden file drift breaks the test suite symmetrically in both directions** — removing `load_steps` from generated output means existing golden files immediately fail; updating golden files without expanding `normalize_for_comparison()` means `unique_id` values (which change per generation run) will also break tests. Prevention: update normalization patterns first, then regenerate golden files in the same step.
 
-4. **Headless import race condition** -- Godot's `--import` with `--quit` exits before import completes (issue #77508). Mitigation: use `--quit-after 2` or timeout wrapper, verify `.godot/imported/` contents, implement retry logic in backend wrapper.
+4. **`load_steps` applies to `.tres` as well as `.tscn`** — PR #103352 modified `resource_format_text.cpp`, which handles both. The v1.0 audit only anticipated `.tscn` changes. SpriteFrames and TileSet `.tres` files both currently include `load_steps`. Prevention: apply the same omission logic to `.tres` builders; this is Pitfall 4 from PITFALLS.md, easy to overlook.
 
-5. **Wrong terrain peering bit mappings** -- No official Godot documentation maps grid positions to peering bits for standard layouts. Mitigation: use TileBitTools' archived mapping data as reference, build lookup tables (not computed logic), E2E test by painting terrain in Godot and verifying transitions.
+5. **`config_version=5` cannot be used for Godot minor version detection** — it has been 5 for all of Godot 4.x. For feature-conditional behavior, use `[application] config/features` in project.godot or binary `--version` output. Prevention: design version detection before implementing any conditional format behavior.
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure:
+Based on research, this v1.1 audit milestone should have three phases. The work is small enough that phases 1 and 2 could be merged if the team prefers fewer milestones.
 
-### Phase 1: Foundation (Parser, CLI Skeleton, Backend)
-**Rationale:** Every feature depends on the file format parser and CLI framework. The parser is the highest-risk component (custom build, complex edge cases) and must be proven correct before any domain logic builds on it. UID and resource ID generation are foundational -- getting them wrong infects every subsequent phase.
-**Delivers:** Working .tscn/.tres parser/generator with round-trip fidelity, Godot value type serialization, project.godot parser, Click CLI skeleton with `--json` infrastructure, output formatter, Godot backend wrapper with timeout and retry logic, `resource inspect` command, `project info` command.
-**Addresses features:** `--json` flag infrastructure, structured errors, exit codes, Godot binary discovery, resource inspection, project info.
-**Avoids pitfalls:** Invalid resource IDs (Pitfall 1), missing UIDs (Pitfall 2), regex parser (Pitfall 6), format version instability (Pitfall 8), headless import race condition (Pitfall 5), file overwrite without warning.
+### Phase 1: Format Compatibility Layer
 
-### Phase 2: Aseprite-to-SpriteFrames Bridge (Core Value)
-**Rationale:** This is the primary differentiator -- no other CLI tool converts Aseprite exports to Godot SpriteFrames without the editor. It exercises the parser/generator from Phase 1 with a concrete, well-specified use case (Aseprite JSON is fully documented). Shipping this first validates the architecture and provides immediate user value.
-**Delivers:** `sprite import-aseprite` command with full animation support (named animations from tags, per-frame variable durations, all four Aseprite directions, loop/repeat handling, trimmed sprite offsets), plus E2E tests loading generated .tres in Godot.
-**Addresses features:** Aseprite-to-SpriteFrames bridge (P1 differentiator).
-**Avoids pitfalls:** Duration conversion errors (Pitfall 3), trimmed sprite misalignment (Pitfall 4), missing frameTags handling, ping-pong direction support.
+**Rationale:** All format changes are well-scoped mechanical edits to existing code. The test infrastructure must be updated in the same phase to avoid a broken-tests interim state. Format changes before validation — you cannot validate what you have not built.
 
-### Phase 3: TileSet Automation (Second Differentiator)
-**Rationale:** The second major value proposition. Exercises the parser/generator with a more complex resource type (TileSet has terrain sets, physics layers, atlas sources). Depends on Phase 1 parser being battle-tested through Phase 2. The peering bit mapping is the highest-risk aspect and needs dedicated E2E verification.
-**Delivers:** `tileset create` (sprite sheet to TileSet), `tileset auto-terrain` (peering bit assignment for blob47/minimal16/RPG Maker layouts), `tileset assign-physics` (batch collision shapes), `tileset inspect` (TileSet as JSON).
-**Addresses features:** TileSet creation, terrain auto-configuration, physics assignment, TileSet inspection.
-**Avoids pitfalls:** Wrong peering bit mapping (Pitfall 7). Requires careful E2E testing with multiple layout conventions.
+**Delivers:** gdauto generates files valid for Godot 4.6.1 with no unnecessary diff noise; round-trip of 4.6 scenes preserves `unique_id`; test suite passes against new output format.
 
-### Phase 4: Headless Godot Integration (Export and Import)
-**Rationale:** Export and import commands are table stakes for CI/CD use but are independent of the file manipulation pipeline. Deferring them lets Phases 2-3 focus on pure Python correctness without Godot binary dependency complexity. The backend wrapper from Phase 1 provides the foundation.
-**Delivers:** `export release`, `export debug`, `export pack` commands with structured error reporting, `import` (force re-import with retry), `project validate` combining file-system scanning with optional `--check-only`.
-**Addresses features:** Headless export, force re-import, project validation.
-**Avoids pitfalls:** Import race condition (Pitfall 5, verified in E2E), export-without-prior-import failure.
+**Addresses:** load_steps removal (8 files), unique_id support (SceneNode dataclass + parser + serializer + builder), golden file regeneration, normalization pattern expansion, sprite validator update, deterministic `unique_id` generation in `scene create`.
 
-### Phase 5: Sprite Utilities and Scene Commands
-**Rationale:** Lower-priority commands that build on the proven parser and domain logic. Sprite split and atlas creation share frame region logic with the Aseprite bridge. Scene commands are useful but less differentiated.
-**Delivers:** `sprite split`, `sprite create-atlas` (requires Pillow optional dependency), `scene create` (from JSON definitions), `scene list` (project auditing), SKILL.md auto-generation.
-**Addresses features:** Sprite sheet splitting, atlas creation, scene creation, scene listing, agent discoverability.
+**Avoids:** Pitfalls #1, #2, #3, #4 — the four HIGH-severity pitfalls all resolve here.
 
-### Phase 6: Polish and Community Readiness
-**Rationale:** Error message refinement, shell completion, documentation, and packaging for distribution. This phase prepares the tool for community adoption.
-**Delivers:** Shell completion, refined error messages with actionable suggestions, comprehensive documentation, PyPI packaging, project scaffolding templates.
+**Build order within phase:**
+1. Expand `normalize_for_comparison()` with `load_steps` and `unique_id` stripping patterns (test infrastructure first)
+2. Add `unique_id: int | None = None` to `SceneNode` dataclass; parse in `_extract_node()`
+3. Update `_build_tscn_from_model()` to emit `unique_id` when present; make `load_steps` conditional (omit when None)
+4. Update `_build_tres_from_model()` — same `load_steps` conditional
+5. Set `load_steps=None` in `build_spriteframes()`, `build_tileset()`, `build_scene()`
+6. Generate deterministic `unique_id` in `scene/builder.py`
+7. Update `_check_load_steps()` in sprite validator
+8. Regenerate all golden files
+
+### Phase 2: Parser Hardening and Pipeline Validation
+
+**Rationale:** Parser extension (format=4 PackedVector4Array) and headless import verification are independent of format changes. They harden the tool against real-world files without changing generated output. Doing this second avoids mixing concern layers in Phase 1.
+
+**Delivers:** Parser accepts format=4 files from user projects (no crash on PackedVector4Array); import verification catches incomplete imports that previously silently succeeded.
+
+**Addresses:** PackedVector4Array parser support in `values.py`; import completeness verification in `backend.py`/`export/pipeline.py`; `version_tuple` property exposure on `GodotBackend`; AnimationLibrary format change validation tests (parse, do not convert).
+
+**Avoids:** Pitfall #5 (import race condition with silent success), Pitfall #7 (AnimationLibrary round-trip correctness).
+
+### Phase 3: E2E Validation Against Godot 4.6.1
+
+**Rationale:** E2E tests require the Godot binary and are the authoritative check that file format changes actually work. They should run last, after code and unit tests are stable, to surface any behavioral differences that research missed.
+
+**Delivers:** Confirmed compatibility with Godot 4.6.1 binary; new golden files for 4.6 output format; regression coverage for TileSet bounds strictness edge case and round-trip fidelity for both 4.5 and 4.6 files.
+
+**Addresses:** E2E test suite run against 4.6.1, round-trip fidelity tests (parse a 4.6-saved `.tscn`, serialize back, verify byte-identical), TileSet atlas alignment verification, Godot 4.5 backward compat check (generated files without `load_steps` load cleanly).
+
+**Avoids:** Pitfall #2 residual (verify export determinism with unique_id present), Pitfall #5 (verify import completeness checks work in practice).
 
 ### Phase Ordering Rationale
 
-- **Parser first** because every file manipulation command depends on it. A parser bug is catastrophic; an Aseprite bridge bug is isolated.
-- **Aseprite bridge second** because it is the clearest specification (Aseprite JSON is well-documented), the strongest differentiator (zero competition), and the best validation of the parser architecture.
-- **TileSet third** because it exercises the parser with a more complex resource type, validating that the architecture generalizes beyond SpriteFrames.
-- **Export/import fourth** because these are well-understood patterns (subprocess wrapping) with low architectural risk, and they are independent of the file manipulation pipeline.
-- **Utilities last** because they reuse infrastructure from earlier phases and are not differentiators.
+- Format changes first because all test infrastructure depends on them and they are the prerequisite for every validation step.
+- Parser hardening second because it is independent of generated output format and operates on a different code surface (value parser vs. builders).
+- E2E last because it requires a Godot binary, validates all prior work, and surfaces any behavioral surprises that static analysis cannot catch.
+- Phases 1 and 2 have no dependency between them and could be merged or run in parallel if bandwidth allows.
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase 1 (Parser):** Needs phase research. The Godot text format has underdocumented edge cases (multiline values, StringName syntax, PackedByteArray encoding). Build the test fixture set from real Godot-generated files early. The UID generation algorithm (base36-encoded 64-bit CSPRNG) needs verification against Godot source code.
-- **Phase 2 (Aseprite Bridge):** Needs phase research. Aseprite Wizard's GDScript source is the best reference implementation for duration conversion and direction handling. Study its edge cases before implementing.
-- **Phase 3 (TileSet Automation):** Needs phase research. Peering bit mappings are reverse-engineered. TileBitTools' archived data is the primary reference. Must validate against Godot 4.5's terrain painting algorithm.
+Phases with standard patterns (research-phase not needed):
+- **Phase 1:** All changes are verified via Godot source PRs and upgrade guide. No ambiguity. Direct mechanical edits to known files at known line numbers.
+- **Phase 2:** PackedVector4Array is documented in PR #85474 and #89186. Import verification is a test-coverage gap, not an unknown pattern.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 4 (Export/Import):** Well-documented. godot-ci Docker images and Godot's CLI tutorial cover all flags. The only non-obvious aspect (import race condition) is already documented in pitfalls.
-- **Phase 5 (Utilities):** Standard patterns. Sprite splitting is coordinate arithmetic. Atlas creation uses bin-packing (well-known algorithm).
-- **Phase 6 (Polish):** Standard patterns. Click shell completion is documented. PyPI packaging via hatchling is standard.
+Phases that may surface unknowns during execution:
+- **Phase 3:** E2E tests may reveal unexpected Godot 4.6 validation strictness (TileSet bounds, `unique_id` ID collision detection). Have the PITFALLS.md "Looks Done But Isn't" checklist available during this phase. The TileSet fix (#112271, "tiles outside texture") is the most likely source of surprises.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All technologies verified on PyPI with current versions. Only two runtime dependencies. No speculative choices. |
-| Features | HIGH (core), MEDIUM (differentiators) | Table stakes are well-understood from competitor analysis. Aseprite bridge value proposition is clear (zero competition). TileSet automation confidence is medium due to undocumented peering bit conventions. |
-| Architecture | HIGH | Three-layer separation (CLI / domain / formats) is standard for Python CLI tools. Click patterns are well-documented. The main architectural risk is the custom parser, which is mitigated by the format's bounded complexity. |
-| Pitfalls | HIGH | Most pitfalls verified through official Godot GitHub issues and community tools. Import race condition is documented in issue #77508. ID format changes documented in issue #77172. Duration conversion studied from Aseprite Wizard source. |
+| Stack | HIGH | No changes from v1.0 stack; all existing dependencies confirmed correct |
+| Features | HIGH | load_steps and unique_id changes verified directly via merged PRs and upgrade guide |
+| Architecture | HIGH | All changes map to specific file:line locations verified against codebase structure |
+| Pitfalls | HIGH | Critical pitfalls cross-referenced across all 4 research documents; severity ratings confirmed against Godot issue tracker |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Godot 4.5 format specifics:** The research targets "4.5+" but Godot 4.5 may introduce format changes not yet documented. Validate generated files against the specific Godot 4.5 release during Phase 1 E2E testing.
-- **UID generation algorithm:** The exact base36 encoding Godot uses needs verification against engine source code. A wrong encoding produces UIDs that Godot silently rewrites. Validate in Phase 1 with golden-file tests.
-- **Peering bit lookup tables:** No authoritative source exists for grid-position-to-peering-bit mappings. TileBitTools is archived and may have bugs. Must be verified empirically by generating TileSets and painting terrain in Godot during Phase 3.
-- **Aseprite repeat count mapping:** Aseprite's `repeat` field in tags (added in Aseprite 1.3) maps to SpriteFrames' `loop` property, but the exact semantics (repeat=0 means infinite, repeat=1 means play once) need verification against Aseprite's documentation and Godot's behavior.
-- **Windows line endings:** Godot expects LF line endings. Verify that the file writer produces LF on Windows (Python's `open()` with `newline='\n'` or binary mode).
+- **Godot 4.5 tolerates missing `load_steps` — needs E2E confirmation:** Research confirms Godot 4.5 recomputes resource counts from file content (not from `load_steps`), so omission should be safe. This is the single assumption that most needs E2E verification.
+- **TileSet atlas bounds strictness in 4.6:** The "tiles outside texture" fix (#112271) may produce stricter validation errors when opening TileSets with imprecise atlas dimensions. Cannot be confirmed without a 4.6.1 binary and a test fixture.
+- **`unique_id` integer range and uniqueness contract:** Research confirms 32-bit integer, scene-local. If gdauto uses a sequential counter (1, 2, 3...) vs. CSPRNG, the safety of either approach against Godot's ID allocation needs one round of E2E testing to confirm no collision detection fires.
+- **Base64 PackedByteArray constructor name in format=4:** Confirmed that format=4 triggers on PackedVector4Array and large PackedByteArray, but the exact text-format constructor name for base64-encoded PackedByteArray needs verification with an actual 4.6 file. Deferred; lenient parser returns raw string as fallback.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [Godot TSCN File Format Docs](https://docs.godotengine.org/en/4.4/contributing/development/file_formats/tscn.html) -- official format specification
-- [Godot Command Line Tutorial](https://docs.godotengine.org/en/latest/tutorials/editor/command_line_tutorial.html) -- headless flags and export workflow
-- [Click Documentation](https://click.palletsprojects.com/en/stable/) -- CLI framework patterns, testing, complex applications
-- [godotengine/godot#77508](https://github.com/godotengine/godot/issues/77508) -- headless import race condition
-- [godotengine/godot#77172](https://github.com/godotengine/godot/issues/77172) -- ExtResource ID rewriting on save
-- [UID changes in Godot 4.4](https://godotengine.org/article/uid-changes-coming-to-godot-4-4/) -- UID system documentation
-- [Click PyPI](https://pypi.org/project/click/) -- v8.3.0, Python 3.10+ requirement confirmed
-- [Pillow PyPI](https://pypi.org/project/pillow/) -- v12.1.1, Feb 2026
+- [PR #103352: Remove load_steps](https://github.com/godotengine/godot/pull/103352) — load_steps removal implementation and scope
+- [PR #106837: Add unique Node IDs](https://github.com/godotengine/godot/pull/106837) — unique_id 32-bit integer attribute on [node] headers
+- [Godot resource_format_text.h](https://github.com/godotengine/godot/blob/master/scene/resources/resource_format_text.h) — FORMAT_VERSION=4, FORMAT_VERSION_COMPAT=3
+- [Godot resource_uid.cpp](https://github.com/godotengine/godot/blob/master/core/io/resource_uid.cpp) — UID encoding algorithm verified unchanged
+- [Godot project_settings.h](https://github.com/godotengine/godot/blob/master/core/config/project_settings.h) — CONFIG_VERSION=5, unchanged
+- [Command Line Tutorial (GitHub source)](https://raw.githubusercontent.com/godotengine/godot-docs/master/tutorials/editor/command_line_tutorial.rst) — All existing CLI flags verified unchanged
+- [Upgrading 4.5 to 4.6 (GitHub docs source)](https://raw.githubusercontent.com/godotengine/godot-docs/master/tutorials/migrating/upgrading_to_godot_4.6.rst) — Official breaking changes list
+- [TSCN format docs (master)](https://github.com/godotengine/godot-docs/blob/master/engine_details/file_formats/tscn.rst) — unique_id documented, load_steps deprecated
+- [Godot 4.6.1 maintenance release](https://godotengine.org/article/maintenance-release-godot-4-6-1/) — 38 bug fixes, no format changes
 
 ### Secondary (MEDIUM confidence)
-- [Aseprite Wizard](https://github.com/viniciusgerevini/godot-aseprite-wizard) -- reference implementation for duration conversion and direction handling
-- [TileBitTools](https://github.com/dandeliondino/tile_bit_tools) -- archived, but peering bit mapping data is the best available reference
-- [stevearc/godot_parser](https://github.com/stevearc/godot_parser) -- evaluated and rejected; format=2 only, unmaintained
-- [godot-resource-parser](https://github.com/fernforestgames/godot-resource-parser) -- TypeScript parser, archived Jan 2026; confirms demand for external parsing tools
-- [GDToolkit Architecture (DeepWiki)](https://deepwiki.com/Scony/godot-gdscript-toolkit) -- reference for Python tool architecture in Godot ecosystem
+- [Issue #115971: Non-deterministic exports in 4.6](https://github.com/godotengine/godot/issues/115971) — "Very Bad" severity; unique_id regeneration on export
+- [Issue #112332: Duplicate unique scene resource ID](https://github.com/godotengine/godot/issues/112332) — RNG seed instability in generate_scene_unique_id()
+- [Issue #77508: Import race condition with --quit](https://github.com/godotengine/godot/issues/77508) — Still open as of 4.6.1; our --quit-after 30 mitigates
+- [GDQuest: Godot 4.6 workflow changes](https://www.gdquest.com/library/godot_4_6_workflow_changes/) — Community analysis of breaking changes
+- [PR #85474: PackedVector4Array](https://github.com/godotengine/godot/pull/85474) — format=4 trigger (merged 4.3)
+- [PR #89186: Base64 PackedByteArray](https://github.com/godotengine/godot/pull/89186) — format=4 trigger (merged 4.3)
 
-### Tertiary (LOW confidence)
-- Community tileset layout conventions -- multiple sources with minor disagreements on exact grid positions; needs empirical validation
-- Godot 4.5 format specifics -- not yet released at time of research; format stability assumed based on 4.x track record
+### Tertiary (LOW confidence / informational)
+- [Issue #116408: Animation events lost 4.6.0 to 4.6.1](https://github.com/godotengine/godot/issues/116408) — gdauto not affected; informational for users
+- [GH-110502: AnimationLibrary serialization change](https://godotengine.org/article/dev-snapshot-godot-4-6-beta-1/) — Dictionary avoidance; gdauto parser handles generically
+- [godot-docs#11707: load_steps not in release notes](https://github.com/godotengine/godot-docs/issues/11707) — Confirms change was underdocumented
 
 ---
-*Research completed: 2026-03-27*
+*Research completed: 2026-03-28*
 *Ready for roadmap: yes*
