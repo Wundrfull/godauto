@@ -52,22 +52,22 @@ Deferred to v1.2+:
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| COMPAT-01 | TBD | Pending |
-| COMPAT-02 | TBD | Pending |
-| COMPAT-03 | TBD | Pending |
-| COMPAT-04 | TBD | Pending |
-| BACK-01 | TBD | Pending |
-| BACK-02 | TBD | Pending |
-| VAL-01 | TBD | Pending |
-| VAL-02 | TBD | Pending |
-| VAL-03 | TBD | Pending |
-| ECO-01 | TBD | Pending |
-| ECO-02 | TBD | Pending |
+| COMPAT-01 | Phase 5 | Pending |
+| COMPAT-02 | Phase 5 | Pending |
+| COMPAT-03 | Phase 5 | Pending |
+| COMPAT-04 | Phase 5 | Pending |
+| BACK-01 | Phase 5 | Pending |
+| BACK-02 | Phase 5 | Pending |
+| VAL-01 | Phase 6 | Pending |
+| VAL-02 | Phase 6 | Pending |
+| VAL-03 | Phase 6 | Pending |
+| ECO-01 | Phase 6 | Pending |
+| ECO-02 | Phase 6 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 11 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 11
+- Mapped to phases: 11
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-29*
