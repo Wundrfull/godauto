@@ -116,10 +116,45 @@ def _print_dependencies(console: Console, scenes: list[dict[str, Any]]) -> None:
 )
 @click.pass_context
 def scene_create(ctx: click.Context, json_file: str, output: str | None) -> None:
-    """Create a Godot scene (.tscn) from a JSON definition file.
+    r"""Create a Godot scene (.tscn) from a JSON definition file.
 
-    The JSON file defines a node tree with types, properties, and optional
-    external resources. See 'gdauto scene create --help' for the JSON format.
+    \b
+    JSON FORMAT:
+      {
+        "root": {
+          "name": "Main",
+          "type": "Node2D",
+          "properties": {"position": "Vector2(100, 50)"},
+          "children": [
+            {"name": "Player", "type": "Sprite2D", "properties": {}}
+          ]
+        },
+        "resources": [
+          {
+            "type": "Texture2D",
+            "path": "res://sprite.png",
+            "assign_to": "Player",
+            "property": "texture"
+          }
+        ]
+      }
+
+    \b
+    FIELDS:
+      root.name       (required) Root node name
+      root.type       (required) Godot node type (Node2D, Control, etc.)
+      root.properties (optional) Key-value pairs of Godot properties
+      root.children   (optional) Array of child node objects (same schema)
+      resources       (optional) External resources to create and assign
+      resources[].type       Resource type (Texture2D, Script, etc.)
+      resources[].path       res:// path to the resource file
+      resources[].assign_to  Node name to assign the resource to
+      resources[].property   Property name on the target node
+
+    \b
+    NOTES:
+      - Script properties with res:// paths are auto-converted to ExtResource refs
+      - Property values use Godot syntax: Vector2(x,y), Color(r,g,b,a), etc.
     """
     json_path = Path(json_file)
     if not json_path.exists():
@@ -166,7 +201,7 @@ def scene_create(ctx: click.Context, json_file: str, output: str | None) -> None
 def _load_json(json_path: Path, ctx: click.Context) -> dict[str, Any] | None:
     """Load and parse a JSON file, emitting errors on failure."""
     try:
-        text = json_path.read_text()
+        text = json_path.read_text(encoding="utf-8")
         return json.loads(text)
     except json.JSONDecodeError as exc:
         emit_error(

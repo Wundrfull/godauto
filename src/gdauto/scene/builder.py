@@ -34,6 +34,9 @@ def build_scene(definition: dict[str, Any]) -> GdScene:
         ext_resources = _build_ext_resources(resources_defs)
         _assign_resources(nodes, resources_defs, ext_resources)
 
+    # Auto-create ExtResource entries for script properties (issue #9)
+    _promote_script_properties(nodes, ext_resources)
+
     uid = uid_to_text(generate_uid())
 
     return GdScene(
@@ -144,3 +147,27 @@ def _assign_resources(
         prop_name = res_def["property"]
         if target_name in node_map:
             node_map[target_name].properties[prop_name] = ExtResourceRef(ext.id)
+
+
+def _promote_script_properties(
+    nodes: list[SceneNode],
+    ext_resources: list[ExtResource],
+) -> None:
+    """Convert raw string script paths to proper ExtResource references.
+
+    When a node has a "script" property with a res:// string value,
+    creates an ExtResource of type "Script" and replaces the raw string
+    with an ExtResourceRef so Godot can load the script at runtime.
+    """
+    for node in nodes:
+        script_val = node.properties.get("script")
+        if not isinstance(script_val, str) or not script_val.startswith("res://"):
+            continue
+        ext = ExtResource(
+            type="Script",
+            path=script_val,
+            id=generate_resource_id("Script"),
+            uid=uid_to_text(generate_uid()),
+        )
+        ext_resources.append(ext)
+        node.properties["script"] = ExtResourceRef(ext.id)

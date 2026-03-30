@@ -145,10 +145,13 @@ def _check_single_animation(
         issues.append(f"Animation '{name}' missing 'loop' key")
 
     frame_count = len(frames) if isinstance(frames, list) else 0
+    speed_val = speed if isinstance(speed, (int, float)) else 0
+    if isinstance(speed_val, float):
+        speed_val = round(speed_val, 2)
     summaries.append({
         "name": name,
         "frames": frame_count,
-        "speed": speed if isinstance(speed, (int, float)) else 0,
+        "speed": speed_val,
         "loop": bool(loop) if loop is not None else False,
     })
 

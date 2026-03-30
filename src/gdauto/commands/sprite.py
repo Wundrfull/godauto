@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import sys
+import json
 import warnings
 from pathlib import Path
 from typing import Any
@@ -85,6 +85,26 @@ def import_aseprite(
       gdauto sprite import-aseprite character.json -o sprites/character.tres
       gdauto sprite import-aseprite character.json --res-path res://art/character.png
     """
+    try:
+        _do_import_aseprite(ctx, json_file, output, res_path)
+    except Exception as exc:
+        emit_error(
+            GdautoError(
+                message=f"Unexpected error: {exc}",
+                code="INTERNAL_ERROR",
+                fix="Report this issue with the full command and input file",
+            ),
+            ctx,
+        )
+
+
+def _do_import_aseprite(
+    ctx: click.Context,
+    json_file: str,
+    output: str | None,
+    res_path: str | None,
+) -> None:
+    """Inner implementation of import-aseprite, wrapped for error handling."""
     json_path = Path(json_file)
     if not json_path.exists():
         emit_error(
@@ -105,15 +125,14 @@ def import_aseprite(
             aseprite_data = parse_aseprite_json(json_path)
             for w in caught:
                 msg = str(w.message)
-                if "Skipping tag" in msg:
-                    warnings_list.append(msg)
-                    click.echo(msg, err=True)
+                warnings_list.append(msg)
+                click.echo(msg, err=True)
     except (ValidationError, GdautoError) as exc:
         emit_error(exc, ctx)
         return
 
     # If parser skipped tags and none remain, all tags failed (D-17)
-    had_skipped_tags = len(warnings_list) > 0
+    had_skipped_tags = any("Skipping tag" in w for w in warnings_list)
     no_valid_tags = len(aseprite_data.meta.frame_tags) == 0
     if had_skipped_tags and no_valid_tags:
         emit_error(
@@ -126,7 +145,17 @@ def import_aseprite(
         )
         return
 
-    image_res_path = _resolve_image_path(res_path, aseprite_data.meta.image)
+    # Explicit zero-frames check so the warning is always in structured output
+    if len(aseprite_data.frames) == 0:
+        warnings_list.append(
+            "Aseprite JSON contains zero frames; the generated SpriteFrames "
+            "will have no animation data"
+        )
+
+    image_res_path = _resolve_image_path(
+        res_path, aseprite_data.meta.image, output,
+    )
+
     result = _build_resource(aseprite_data, image_res_path, warnings_list, ctx)
     if result is None:
         return
@@ -140,10 +169,25 @@ def import_aseprite(
     )
 
 
-def _resolve_image_path(res_path: str | None, meta_image: str) -> str:
-    """Determine the Godot res:// path for the sprite sheet texture."""
+def _resolve_image_path(
+    res_path: str | None, meta_image: str, output: str | None
+) -> str:
+    """Determine the Godot res:// path for the sprite sheet texture.
+
+    Priority: explicit --res-path > inferred from -o directory > flat filename.
+    When -o is a relative path with subdirectories (e.g., sprites/char.tres),
+    the image path is inferred as res://<output_dir>/<image_filename> so agents
+    get correct paths by default. Absolute output paths are not used for
+    inference since they are not valid Godot res:// paths.
+    """
     if res_path is not None:
         return res_path
+    if output is not None:
+        output_path = Path(output)
+        if not output_path.is_absolute():
+            output_dir = output_path.parent
+            if str(output_dir) != ".":
+                return "res://" + (output_dir / Path(meta_image).name).as_posix()
     return "res://" + meta_image
 
 
@@ -281,6 +325,13 @@ def _emit_result(
     default=10.0,
     help="Animation FPS for the generated SpriteFrames. Default: 10.",
 )
+@click.option(
+    "--tags-from",
+    type=click.Path(exists=False),
+    default=None,
+    help="Aseprite JSON file to read frameTags from for animation names. "
+         "Auto-detected from adjacent .json file if not specified.",
+)
 @click.pass_context
 def split(
     ctx: click.Context,
@@ -290,6 +341,7 @@ def split(
     output: str | None,
     res_path: str | None,
     fps: float,
+    tags_from: str | None,
 ) -> None:
     """Split a sprite sheet into frames and generate a SpriteFrames .tres."""
     image_path = Path(image_file)
@@ -318,28 +370,70 @@ def split(
     output_path = Path(output) if output else image_path.with_suffix(".tres")
     image_res = res_path or f"res://{image_path.name}"
 
+    # Resolve tag source: explicit --tags-from, or auto-detect adjacent .json
+    tag_data = _resolve_tags(tags_from, image_path)
+
     try:
-        resource = _do_split(image_path, frame_size, json_meta, image_res, fps)
+        resource = _do_split(
+            image_path, frame_size, json_meta, image_res, fps, tag_data,
+        )
     except (GdautoError, ValidationError) as exc:
         emit_error(exc, ctx)
         return
 
     serialize_tres_file(resource, output_path)
 
+    anim_count = len(resource.resource_properties.get("animations", []))
+
     def _human(data: dict, verbose: bool = False) -> None:  # type: ignore[type-arg]
         click.echo(
-            f"Created {data['output']} with {data['frame_count']} frames"
+            f"Created {data['output']} with {data['animation_count']} "
+            f"animation(s) ({data['frame_count']} frames)"
         )
 
     emit(
         {
             "output": str(output_path),
             "frame_count": len(resource.sub_resources),
+            "animation_count": anim_count,
             "image": str(image_path),
         },
         _human,
         ctx,
     )
+
+
+def _resolve_tags(
+    tags_from: str | None, image_path: Path
+) -> list[dict[str, Any]] | None:
+    """Resolve animation tags from --tags-from or auto-detected adjacent JSON.
+
+    Returns a list of raw tag dicts (with name, from, to keys) or None
+    if no tag source is available.
+    """
+    tag_path: Path | None = None
+    if tags_from is not None:
+        tag_path = Path(tags_from)
+        if not tag_path.exists():
+            return None
+    else:
+        # Auto-detect adjacent .json file with same stem
+        candidate = image_path.with_suffix(".json")
+        if candidate.exists():
+            tag_path = candidate
+
+    if tag_path is None:
+        return None
+
+    try:
+        raw = json.loads(tag_path.read_text(encoding="utf-8"))
+        meta = raw.get("meta", {})
+        tags = meta.get("frameTags", [])
+        if tags:
+            return tags
+    except (json.JSONDecodeError, OSError):
+        pass
+    return None
 
 
 def _do_split(
@@ -348,14 +442,17 @@ def _do_split(
     json_meta: str | None,
     image_res: str,
     fps: float,
+    tag_data: list[dict[str, Any]] | None = None,
 ) -> GdResource:  # type: ignore[return]
     """Dispatch to grid or JSON splitting based on provided options."""
     from gdauto.sprite.splitter import split_sheet_grid, split_sheet_json
 
     if frame_size is not None:
         frame_w, frame_h = _parse_frame_size(frame_size)
-        return split_sheet_grid(image_path, frame_w, frame_h, image_res, fps)
-    if json_meta is not None:
+        resource = split_sheet_grid(
+            image_path, frame_w, frame_h, image_res, fps,
+        )
+    elif json_meta is not None:
         json_path = Path(json_meta)
         if not json_path.exists():
             raise GdautoError(
@@ -363,7 +460,54 @@ def _do_split(
                 code="FILE_NOT_FOUND",
                 fix="Check the JSON file path and try again",
             )
-        return split_sheet_json(image_path, json_path, image_res, fps)
+        resource = split_sheet_json(image_path, json_path, image_res, fps)
+    else:
+        return None  # type: ignore[return-value]
+
+    # Apply tag data to split animations by frame range
+    if tag_data and resource is not None:
+        _apply_tags_to_resource(resource, tag_data, fps)
+
+    return resource
+
+
+def _apply_tags_to_resource(
+    resource: GdResource,
+    tag_data: list[dict[str, Any]],
+    fps: float,
+) -> None:
+    """Replace the single 'default' animation with tagged animations.
+
+    Reads frameTags from Aseprite JSON and slices the sub_resources
+    into per-tag animation entries.
+    """
+    from gdauto.formats.values import StringName, SubResourceRef
+
+    subs = resource.sub_resources
+    animations: list[dict[str, Any]] = []
+
+    for tag in tag_data:
+        name = tag.get("name", "default")
+        from_idx = tag.get("from", 0)
+        to_idx = tag.get("to", len(subs) - 1)
+
+        # Clamp indices to available sub_resources
+        from_idx = max(0, min(from_idx, len(subs) - 1))
+        to_idx = max(from_idx, min(to_idx, len(subs) - 1))
+
+        frames = [
+            {"duration": 1.0, "texture": SubResourceRef(subs[i].id)}
+            for i in range(from_idx, to_idx + 1)
+        ]
+        animations.append({
+            "frames": frames,
+            "loop": True,
+            "name": StringName(name),
+            "speed": fps,
+        })
+
+    if animations:
+        resource.resource_properties["animations"] = animations
 
 
 def _parse_frame_size(frame_size: str) -> tuple[int, int]:
@@ -517,6 +661,10 @@ def validate(ctx: click.Context, tres_file: str, godot: bool) -> None:
         )
         result = validate_spriteframes_headless(tres_path, backend)
 
+    # Validate always writes to stdout (both valid and invalid results).
+    # This differs from error commands which write to stderr. The validate
+    # result is structured data, not an error, so consumers should always
+    # read stdout and check the "valid" key regardless of exit code.
     emit(result, _print_validate_result, ctx)
 
     if not result["valid"]:
