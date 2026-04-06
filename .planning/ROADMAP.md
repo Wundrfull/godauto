@@ -34,7 +34,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 
 **Milestone Goal:** Enable Claude Code to connect to a running Godot instance via the remote debugger protocol, read game state, inject player input, and verify behavior, closing the write-code-to-test-it loop without a human in the middle.
 
-- [ ] **Phase 7: Variant Codec and TCP Connection** - Binary protocol codec, TCP server, game launch, connection lifecycle
+- [x] **Phase 7: Variant Codec and TCP Connection** - Binary protocol codec, TCP server, game launch, connection lifecycle (completed 2026-04-06)
 - [ ] **Phase 8: Scene Inspection and Execution Control** - Read live scene tree, node properties, game output; pause/resume/step/speed
 - [ ] **Phase 9: Game Interaction and Bridge System** - Modify properties, inject input, invoke methods via GDScript autoload bridge
 - [ ] **Phase 10: Verification Layer and End-to-End Validation** - Assert/wait conditions, E2E test workflow, --json contract for all debug commands
@@ -98,7 +98,7 @@ Phases execute in numeric order: 7 -> 8 -> 9 -> 10
 | 4. Scene Commands, Test Suite, and Agent Discoverability | v1.0 | 3/3 | Complete | 2026-03-29 |
 | 5. Format Compatibility and Backwards Safety | v1.1 | 2/2 | Complete | 2026-03-29 |
 | 6. E2E Validation and Ecosystem Audit | v1.1 | 2/2 | Complete | 2026-03-29 |
-| 7. Variant Codec and TCP Connection | v2.0 | 0/0 | Not started | - |
+| 7. Variant Codec and TCP Connection | v2.0 | 1/1 | Complete   | 2026-04-06 |
 | 8. Scene Inspection and Execution Control | v2.0 | 0/0 | Not started | - |
 | 9. Game Interaction and Bridge System | v2.0 | 0/0 | Not started | - |
 | 10. Verification Layer and End-to-End Validation | v2.0 | 0/0 | Not started | - |
