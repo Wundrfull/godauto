@@ -151,6 +151,33 @@ class GodotBackend:
 
         return result
 
+    def launch_game(
+        self,
+        project_path: Path,
+        port: int = 6007,
+        scene: str | None = None,
+    ) -> subprocess.Popen[str]:
+        """Launch a Godot game with remote debug connection.
+
+        Uses Popen (non-blocking) instead of run (blocking) so the
+        game runs as a child process while gdauto manages the TCP
+        session. Does NOT use --headless; the game needs its window.
+        """
+        binary = self.ensure_binary()
+        cmd = [
+            binary,
+            "--path", str(project_path),
+            "--remote-debug", f"tcp://127.0.0.1:{port}",
+        ]
+        if scene is not None:
+            cmd.append(scene)
+        return subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
     def check_only(
         self, project_path: Path
     ) -> subprocess.CompletedProcess[str]:
