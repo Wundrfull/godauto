@@ -2,12 +2,13 @@
 
 ## What This Is
 
-gdauto is a feature-complete, agent-native command-line tool for the Godot game engine. Built in Python on Click, it wraps Godot's headless mode and directly manipulates Godot's text-based file formats (.tscn, .tres, project.godot) to automate workflows that currently require the Godot editor GUI. It ships 28 commands across 8 command groups (project, export, sprite, tileset, scene, resource, skill, import), with 7,200+ lines of source code and 648 tests.
+gdauto is a feature-complete, agent-native command-line tool for the Godot game engine. Built in Python on Click, it wraps Godot's headless mode and directly manipulates Godot's text-based file formats (.tscn, .tres, project.godot) to automate workflows that currently require the Godot editor GUI. It ships 29 commands across 9 command groups (project, export, sprite, tileset, scene, resource, skill, import, debug), with 8,900+ lines of source code and 882 tests.
 
 ## Current State
 
 **v1.0 shipped 2026-03-29.** All 50 requirements validated across 4 phases, 16 plans.
 **v1.1 shipped 2026-03-29.** Godot 4.6 compatibility audit complete: 11 requirements validated across 2 phases, 4 plans.
+**v2.0 Phase 7 complete 2026-04-06.** Variant binary codec (24+ types), TCP session, debug connect command: 5 requirements validated across 3 plans.
 
 ## Current Milestone: v2.0 Live Game Interaction
 
@@ -75,9 +76,16 @@ Validated in Phase 6: E2E Validation and Ecosystem Audit
 - [x] Ecosystem position documented in README (no competing headless CLI tools found)
 - [x] Godot 4.5+ compatibility claim in CLI help and README
 
+Validated in Phase 7: Variant Codec and TCP Connection
+- [x] Variant binary codec encodes and decodes all Godot types needed for debugger communication (PROTO-01)
+- [x] TCP server accepts incoming Godot debugger connections with length-prefixed binary framing (PROTO-02)
+- [x] Background receive loop drains unsolicited messages to prevent TCP buffer flooding (PROTO-03)
+- [x] Game launch integrates with existing GodotBackend, adding non-blocking subprocess with --remote-debug flag (PROTO-04)
+- [x] Connection lifecycle manages connect, readiness detection, timeout, and clean disconnect (PROTO-05)
+
 ### Active
 
-(Defining requirements for v2.0)
+(Remaining v2.0 requirements: SCENE-01 through SCENE-03, EXEC-01 through EXEC-03, INTERACT-01 through INTERACT-04, VERIFY-01 through VERIFY-04)
 
 ### Out of Scope
 
@@ -147,4 +155,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 after v2.0 milestone started*
+*Last updated: 2026-04-06 after Phase 7 completion*
