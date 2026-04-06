@@ -50,7 +50,11 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
   2. The Variant codec round-trips all required Godot types (null, bool, int, float, String, StringName, Vector2, Vector3, Color, NodePath, Array, Dictionary) through encode/decode with byte-exact fidelity verified against Godot's own `var_to_bytes()` output
   3. Unsolicited messages (performance, output, errors) from the game are drained continuously without blocking the connection or flooding the buffer
   4. Connection timeout, game crash, and clean disconnect all produce actionable error messages with non-zero exit codes
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 07-01-PLAN.md -- Variant codec TDD: error hierarchy, models, golden-byte tests, encode/decode for 24+ Godot types
+- [ ] 07-02-PLAN.md -- Protocol framing and async TCP session with background recv loop
+- [ ] 07-03-PLAN.md -- Game launch, connect workflow, and `debug connect` CLI command
 
 ### Phase 8: Scene Inspection and Execution Control
 **Goal**: Users can observe live game state and control execution timing for deterministic testing
@@ -98,7 +102,7 @@ Phases execute in numeric order: 7 -> 8 -> 9 -> 10
 | 4. Scene Commands, Test Suite, and Agent Discoverability | v1.0 | 3/3 | Complete | 2026-03-29 |
 | 5. Format Compatibility and Backwards Safety | v1.1 | 2/2 | Complete | 2026-03-29 |
 | 6. E2E Validation and Ecosystem Audit | v1.1 | 2/2 | Complete | 2026-03-29 |
-| 7. Variant Codec and TCP Connection | v2.0 | 0/0 | Not started | - |
+| 7. Variant Codec and TCP Connection | v2.0 | 0/3 | Planning complete | - |
 | 8. Scene Inspection and Execution Control | v2.0 | 0/0 | Not started | - |
 | 9. Game Interaction and Bridge System | v2.0 | 0/0 | Not started | - |
 | 10. Verification Layer and End-to-End Validation | v2.0 | 0/0 | Not started | - |
