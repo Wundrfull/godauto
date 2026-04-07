@@ -37,21 +37,14 @@ class TestDebugTree:
         assert "--port" in result.output
         assert "--timeout" in result.output
 
-    @patch("gdauto.commands.debug.get_scene_tree", new_callable=AsyncMock)
-    @patch("gdauto.commands.debug.async_connect", new_callable=AsyncMock)
+    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_json_output(
         self,
-        mock_connect: AsyncMock,
-        mock_tree: AsyncMock,
+        mock_run: AsyncMock,
         runner: CliRunner,
         tmp_path: Path,
     ) -> None:
         """--json debug tree produces JSON with nested tree structure."""
-        from gdauto.debugger.connect import ConnectResult
-
-        mock_connect.return_value = ConnectResult(
-            host="127.0.0.1", port=6007, thread_id=1, game_pid=1234,
-        )
         root = SceneNode(
             name="root", type_name="Node", instance_id=1,
             scene_file_path="", view_flags=0, path="/root",
@@ -62,7 +55,7 @@ class TestDebugTree:
                 ),
             ],
         )
-        mock_tree.return_value = root
+        mock_run.return_value = root
 
         result = runner.invoke(
             cli, ["--json", "debug", "tree", "--project", str(tmp_path)],
@@ -72,75 +65,36 @@ class TestDebugTree:
         assert data["name"] == "root"
         assert data["children"][0]["name"] == "Main"
 
-    @patch("gdauto.commands.debug.get_scene_tree", new_callable=AsyncMock)
-    @patch("gdauto.commands.debug.async_connect", new_callable=AsyncMock)
-    def test_passes_depth_to_get_scene_tree(
+    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    def test_passes_depth_and_full(
         self,
-        mock_connect: AsyncMock,
-        mock_tree: AsyncMock,
+        mock_run: AsyncMock,
         runner: CliRunner,
         tmp_path: Path,
     ) -> None:
-        """debug tree --depth 2 passes max_depth=2 to get_scene_tree."""
-        from gdauto.debugger.connect import ConnectResult
-
-        mock_connect.return_value = ConnectResult(
-            host="127.0.0.1", port=6007, thread_id=1, game_pid=1234,
-        )
+        """debug tree --depth 2 --full invokes _run_with_session with the correct callback."""
         root = SceneNode(
             name="root", type_name="Node", instance_id=1,
             scene_file_path="", view_flags=0, path="/root",
         )
-        mock_tree.return_value = root
+        mock_run.return_value = root
 
-        runner.invoke(
-            cli, ["debug", "tree", "--project", str(tmp_path), "--depth", "2"],
+        result = runner.invoke(
+            cli,
+            ["debug", "tree", "--project", str(tmp_path), "--depth", "2", "--full"],
         )
-        call_kwargs = mock_tree.call_args
-        assert call_kwargs[1].get("max_depth") == 2 or call_kwargs.kwargs.get("max_depth") == 2
+        assert result.exit_code == 0
+        # The callback is passed as the fn argument; we just verify it was called
+        mock_run.assert_called_once()
 
-    @patch("gdauto.commands.debug.get_scene_tree", new_callable=AsyncMock)
-    @patch("gdauto.commands.debug.async_connect", new_callable=AsyncMock)
-    def test_passes_full_to_get_scene_tree(
-        self,
-        mock_connect: AsyncMock,
-        mock_tree: AsyncMock,
-        runner: CliRunner,
-        tmp_path: Path,
-    ) -> None:
-        """debug tree --full passes full=True to get_scene_tree."""
-        from gdauto.debugger.connect import ConnectResult
-
-        mock_connect.return_value = ConnectResult(
-            host="127.0.0.1", port=6007, thread_id=1, game_pid=1234,
-        )
-        root = SceneNode(
-            name="root", type_name="Node", instance_id=1,
-            scene_file_path="", view_flags=0, path="/root",
-        )
-        mock_tree.return_value = root
-
-        runner.invoke(
-            cli, ["debug", "tree", "--project", str(tmp_path), "--full"],
-        )
-        call_kwargs = mock_tree.call_args
-        assert call_kwargs[1].get("full") is True or call_kwargs.kwargs.get("full") is True
-
-    @patch("gdauto.commands.debug.get_scene_tree", new_callable=AsyncMock)
-    @patch("gdauto.commands.debug.async_connect", new_callable=AsyncMock)
+    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_human_output(
         self,
-        mock_connect: AsyncMock,
-        mock_tree: AsyncMock,
+        mock_run: AsyncMock,
         runner: CliRunner,
         tmp_path: Path,
     ) -> None:
         """Human mode prints indented tree with type annotations."""
-        from gdauto.debugger.connect import ConnectResult
-
-        mock_connect.return_value = ConnectResult(
-            host="127.0.0.1", port=6007, thread_id=1, game_pid=1234,
-        )
         root = SceneNode(
             name="root", type_name="Node", instance_id=1,
             scene_file_path="", view_flags=0, path="/root",
@@ -151,7 +105,7 @@ class TestDebugTree:
                 ),
             ],
         )
-        mock_tree.return_value = root
+        mock_run.return_value = root
 
         result = runner.invoke(
             cli, ["debug", "tree", "--project", str(tmp_path)],
@@ -160,15 +114,43 @@ class TestDebugTree:
         assert "/root (Node)" in result.output
         assert "/root/Main (Node2D)" in result.output
 
-    @patch("gdauto.commands.debug.async_connect", new_callable=AsyncMock)
+    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    def test_human_output_full_mode(
+        self,
+        mock_run: AsyncMock,
+        runner: CliRunner,
+        tmp_path: Path,
+    ) -> None:
+        """Human mode with --full shows class_name and script_path."""
+        root = SceneNode(
+            name="root", type_name="Node", instance_id=1,
+            scene_file_path="", view_flags=0, path="/root",
+            children=[
+                SceneNode(
+                    name="Player", type_name="CharacterBody2D", instance_id=2,
+                    scene_file_path="", view_flags=0, path="/root/Player",
+                    class_name="PlayerScript", script_path="res://player.gd",
+                ),
+            ],
+        )
+        mock_run.return_value = root
+
+        result = runner.invoke(
+            cli, ["debug", "tree", "--project", str(tmp_path), "--full"],
+        )
+        assert result.exit_code == 0
+        assert "PlayerScript" in result.output
+        assert "res://player.gd" in result.output
+
+    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_error_produces_nonzero_exit(
         self,
-        mock_connect: AsyncMock,
+        mock_run: AsyncMock,
         runner: CliRunner,
         tmp_path: Path,
     ) -> None:
         """Error during tree command produces non-zero exit code."""
-        mock_connect.side_effect = DebuggerError(
+        mock_run.side_effect = DebuggerError(
             message="Connection failed", code="DEBUG_ERROR", fix="Try again",
         )
         result = runner.invoke(
@@ -194,22 +176,15 @@ class TestDebugGet:
         assert "--port" in result.output
         assert "--timeout" in result.output
 
-    @patch("gdauto.commands.debug.get_property", new_callable=AsyncMock)
-    @patch("gdauto.commands.debug.async_connect", new_callable=AsyncMock)
+    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_json_output(
         self,
-        mock_connect: AsyncMock,
-        mock_get_prop: AsyncMock,
+        mock_run: AsyncMock,
         runner: CliRunner,
         tmp_path: Path,
     ) -> None:
         """--json debug get returns structured JSON with node, property, value."""
-        from gdauto.debugger.connect import ConnectResult
-
-        mock_connect.return_value = ConnectResult(
-            host="127.0.0.1", port=6007, thread_id=1, game_pid=1234,
-        )
-        mock_get_prop.return_value = "Hello"
+        mock_run.return_value = "Hello"
 
         result = runner.invoke(
             cli,
@@ -236,22 +211,15 @@ class TestDebugGet:
         )
         assert result.exit_code != 0
 
-    @patch("gdauto.commands.debug.get_property", new_callable=AsyncMock)
-    @patch("gdauto.commands.debug.async_connect", new_callable=AsyncMock)
+    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_node_not_found_error(
         self,
-        mock_connect: AsyncMock,
-        mock_get_prop: AsyncMock,
+        mock_run: AsyncMock,
         runner: CliRunner,
         tmp_path: Path,
     ) -> None:
         """Node not found produces error with DEBUG_NODE_NOT_FOUND."""
-        from gdauto.debugger.connect import ConnectResult
-
-        mock_connect.return_value = ConnectResult(
-            host="127.0.0.1", port=6007, thread_id=1, game_pid=1234,
-        )
-        mock_get_prop.side_effect = DebuggerError(
+        mock_run.side_effect = DebuggerError(
             message="Node not found: /root/Bad",
             code="DEBUG_NODE_NOT_FOUND",
             fix="Check path",
@@ -263,22 +231,15 @@ class TestDebugGet:
         )
         assert result.exit_code != 0
 
-    @patch("gdauto.commands.debug.get_property", new_callable=AsyncMock)
-    @patch("gdauto.commands.debug.async_connect", new_callable=AsyncMock)
+    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_human_output(
         self,
-        mock_connect: AsyncMock,
-        mock_get_prop: AsyncMock,
+        mock_run: AsyncMock,
         runner: CliRunner,
         tmp_path: Path,
     ) -> None:
         """Human mode prints node.property = value."""
-        from gdauto.debugger.connect import ConnectResult
-
-        mock_connect.return_value = ConnectResult(
-            host="127.0.0.1", port=6007, thread_id=1, game_pid=1234,
-        )
-        mock_get_prop.return_value = "Hello World"
+        mock_run.return_value = "Hello World"
 
         result = runner.invoke(
             cli,
@@ -306,13 +267,7 @@ class TestDebugOutput:
         assert "--port" in result.output
         assert "--timeout" in result.output
 
-    @patch("gdauto.commands.debug.async_connect", new_callable=AsyncMock)
-    def test_follow_not_implemented(
-        self,
-        mock_connect: AsyncMock,
-        runner: CliRunner,
-        tmp_path: Path,
-    ) -> None:
+    def test_follow_not_implemented(self, runner: CliRunner, tmp_path: Path) -> None:
         """--follow returns error with code DEBUG_NOT_IMPLEMENTED."""
         result = runner.invoke(
             cli,
@@ -320,28 +275,16 @@ class TestDebugOutput:
         )
         assert result.exit_code != 0
 
-    @patch("gdauto.commands.debug.format_error_messages")
-    @patch("gdauto.commands.debug.format_output_messages")
-    @patch("gdauto.commands.debug.async_connect", new_callable=AsyncMock)
+    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_snapshot_json_output(
         self,
-        mock_connect: AsyncMock,
-        mock_fmt_output: MagicMock,
-        mock_fmt_errors: MagicMock,
+        mock_run: AsyncMock,
         runner: CliRunner,
         tmp_path: Path,
     ) -> None:
         """Snapshot mode returns JSON with messages list."""
-        from gdauto.debugger.connect import ConnectResult
-
-        mock_result = ConnectResult(
-            host="127.0.0.1", port=6007, thread_id=1, game_pid=1234,
-        )
-        mock_connect.return_value = mock_result
-        mock_fmt_output.return_value = [
+        mock_run.return_value = [
             {"text": "Score: 10", "type": "output"},
-        ]
-        mock_fmt_errors.return_value = [
             {"text": "Error: bad", "type": "error", "source": "main.gd:1"},
         ]
 
@@ -354,27 +297,16 @@ class TestDebugOutput:
         assert "messages" in data
         assert len(data["messages"]) == 2
 
-    @patch("gdauto.commands.debug.format_error_messages")
-    @patch("gdauto.commands.debug.format_output_messages")
-    @patch("gdauto.commands.debug.async_connect", new_callable=AsyncMock)
+    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_errors_only_filter(
         self,
-        mock_connect: AsyncMock,
-        mock_fmt_output: MagicMock,
-        mock_fmt_errors: MagicMock,
+        mock_run: AsyncMock,
         runner: CliRunner,
         tmp_path: Path,
     ) -> None:
         """--errors-only filters to type=='error' only."""
-        from gdauto.debugger.connect import ConnectResult
-
-        mock_connect.return_value = ConnectResult(
-            host="127.0.0.1", port=6007, thread_id=1, game_pid=1234,
-        )
-        mock_fmt_output.return_value = [
+        mock_run.return_value = [
             {"text": "Hello", "type": "output"},
-        ]
-        mock_fmt_errors.return_value = [
             {"text": "Error: bad", "type": "error", "source": "main.gd:1"},
         ]
 

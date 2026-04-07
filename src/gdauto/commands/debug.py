@@ -3,16 +3,59 @@
 from __future__ import annotations
 
 import asyncio
+import subprocess
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 import rich_click as click
 
 from gdauto.backend import GodotBackend
 from gdauto.debugger.connect import ConnectResult, async_connect
 from gdauto.debugger.errors import DebuggerError
+from gdauto.debugger.inspector import (
+    format_error_messages,
+    format_output_messages,
+    get_property,
+    get_scene_tree,
+)
+from gdauto.debugger.session import DebugSession
 from gdauto.errors import GdautoError
 from gdauto.output import GlobalConfig, emit, emit_error
+
+T = TypeVar("T")
+
+
+async def _run_with_session(
+    project_path: Path,
+    port: int,
+    timeout: float,
+    backend: GodotBackend,
+    fn: Callable[[DebugSession], Awaitable[T]],
+) -> T:
+    """Auto-connect helper: start session, launch game, run callback.
+
+    Creates a DebugSession, starts the TCP server, launches the game
+    via GodotBackend, waits for the connection, executes the callback,
+    and cleans up. This makes every inspection command independently
+    runnable (D-01) without requiring a prior `debug connect`.
+    """
+    session = DebugSession(port=port)
+    process: subprocess.Popen[str] | None = None
+    try:
+        await session.start()
+        process = backend.launch_game(project_path, port)
+        await session.wait_for_connection(timeout=timeout)
+        result = await fn(session)
+        return result
+    finally:
+        await session.close()
+        if process is not None and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
 
 
 @click.group(invoke_without_command=True)
@@ -93,3 +136,260 @@ def _print_connect_status(data: dict[str, Any], verbose: bool = False) -> None:
     )
     if verbose and data.get("thread_id") is not None:
         click.echo(f"  Thread ID: {data['thread_id']}")
+
+
+@debug.command("tree")
+@click.option(
+    "--project",
+    type=click.Path(exists=True),
+    default=".",
+    help="Path to Godot project directory.",
+)
+@click.option(
+    "--port",
+    type=int,
+    default=6007,
+    help="TCP port for debugger connection.",
+)
+@click.option(
+    "--depth",
+    type=int,
+    default=None,
+    help="Maximum tree depth to display.",
+)
+@click.option(
+    "--full",
+    is_flag=True,
+    default=False,
+    help="Include extended metadata per node (class_name, script_path, groups). Slower: O(n) network calls.",
+)
+@click.option(
+    "--timeout",
+    type=float,
+    default=30.0,
+    help="Connection timeout in seconds.",
+)
+@click.pass_context
+def debug_tree(
+    ctx: click.Context,
+    project: str,
+    port: int,
+    depth: int | None,
+    full: bool,
+    timeout: float,
+) -> None:
+    """Display the live scene tree from a running Godot game.
+
+    Connects to the game, retrieves the scene tree, and displays it
+    as a nested hierarchy. Use --depth to limit traversal depth and
+    --full to include extended metadata per node.
+    """
+    config: GlobalConfig = ctx.obj
+    backend = GodotBackend(binary_path=config.godot_path)
+
+    async def _get_tree(session: DebugSession) -> Any:
+        return await get_scene_tree(session, max_depth=depth, full=full)
+
+    try:
+        tree = asyncio.run(
+            _run_with_session(
+                project_path=Path(project),
+                port=port,
+                timeout=timeout,
+                backend=backend,
+                fn=_get_tree,
+            )
+        )
+    except (DebuggerError, GdautoError) as exc:
+        emit_error(exc, ctx)
+        return
+    emit(tree.to_dict(), _print_scene_tree, ctx)
+
+
+def _print_scene_tree(
+    data: dict[str, Any], verbose: bool = False, indent: int = 0,
+) -> None:
+    """Display scene tree in human-readable indented format."""
+    prefix = "  " * indent
+    line = f"{prefix}{data['path']} ({data['type']})"
+    # Show extended metadata if present
+    extras: list[str] = []
+    if data.get("class_name"):
+        extras.append(data["class_name"])
+    if data.get("script_path"):
+        extras.append(data["script_path"])
+    if extras:
+        line += f" [{', '.join(extras)}]"
+    click.echo(line)
+    for child in data.get("children", []):
+        _print_scene_tree(child, verbose=verbose, indent=indent + 1)
+
+
+@debug.command("get")
+@click.option(
+    "--node",
+    required=True,
+    help="NodePath (e.g., /root/Main/ScoreLabel).",
+)
+@click.option(
+    "--property",
+    "prop_name",
+    required=True,
+    help="Property name (e.g., text).",
+)
+@click.option(
+    "--project",
+    type=click.Path(exists=True),
+    default=".",
+    help="Path to Godot project directory.",
+)
+@click.option(
+    "--port",
+    type=int,
+    default=6007,
+    help="TCP port for debugger connection.",
+)
+@click.option(
+    "--timeout",
+    type=float,
+    default=30.0,
+    help="Connection timeout in seconds.",
+)
+@click.pass_context
+def debug_get(
+    ctx: click.Context,
+    node: str,
+    prop_name: str,
+    project: str,
+    port: int,
+    timeout: float,
+) -> None:
+    """Read a single property value from a node in the running game.
+
+    Resolves the NodePath to the object, inspects its properties,
+    and returns the requested value.
+    """
+    config: GlobalConfig = ctx.obj
+    backend = GodotBackend(binary_path=config.godot_path)
+
+    async def _get_prop(session: DebugSession) -> object:
+        return await get_property(session, node, prop_name)
+
+    try:
+        value = asyncio.run(
+            _run_with_session(
+                project_path=Path(project),
+                port=port,
+                timeout=timeout,
+                backend=backend,
+                fn=_get_prop,
+            )
+        )
+    except (DebuggerError, GdautoError) as exc:
+        emit_error(exc, ctx)
+        return
+    emit(
+        {"node": node, "property": prop_name, "value": value},
+        _print_property,
+        ctx,
+    )
+
+
+def _print_property(data: dict[str, Any], verbose: bool = False) -> None:
+    """Display property value in human-readable format."""
+    click.echo(f"{data['node']}.{data['property']} = {data['value']}")
+
+
+@debug.command("output")
+@click.option(
+    "--project",
+    type=click.Path(exists=True),
+    default=".",
+    help="Path to Godot project directory.",
+)
+@click.option(
+    "--port",
+    type=int,
+    default=6007,
+    help="TCP port for debugger connection.",
+)
+@click.option(
+    "--timeout",
+    type=float,
+    default=30.0,
+    help="Connection timeout in seconds.",
+)
+@click.option(
+    "--follow",
+    is_flag=True,
+    default=False,
+    help="Stream output continuously (like tail -f).",
+)
+@click.option(
+    "--errors-only",
+    is_flag=True,
+    default=False,
+    help="Show only error messages.",
+)
+@click.pass_context
+def debug_output(
+    ctx: click.Context,
+    project: str,
+    port: int,
+    timeout: float,
+    follow: bool,
+    errors_only: bool,
+) -> None:
+    """Capture game print() output and runtime errors.
+
+    By default returns a snapshot of buffered messages and exits.
+    Use --errors-only to filter to errors only.
+    """
+    if follow:
+        emit_error(
+            DebuggerError(
+                message="Follow mode not yet supported",
+                code="DEBUG_NOT_IMPLEMENTED",
+                fix="Use snapshot mode (without --follow) for now",
+            ),
+            ctx,
+        )
+        return
+
+    config: GlobalConfig = ctx.obj
+    backend = GodotBackend(binary_path=config.godot_path)
+
+    async def _get_output(session: DebugSession) -> list[dict[str, str]]:
+        raw_output = session.drain_output()
+        raw_errors = session.drain_errors()
+        messages = format_output_messages(raw_output)
+        messages.extend(format_error_messages(raw_errors))
+        return messages
+
+    try:
+        all_messages = asyncio.run(
+            _run_with_session(
+                project_path=Path(project),
+                port=port,
+                timeout=timeout,
+                backend=backend,
+                fn=_get_output,
+            )
+        )
+    except (DebuggerError, GdautoError) as exc:
+        emit_error(exc, ctx)
+        return
+
+    if errors_only:
+        all_messages = [m for m in all_messages if m.get("type") == "error"]
+
+    emit({"messages": all_messages}, _print_output_messages, ctx)
+
+
+def _print_output_messages(
+    data: dict[str, Any], verbose: bool = False,
+) -> None:
+    """Display output messages in human-readable format."""
+    for msg in data.get("messages", []):
+        prefix = "[ERROR] " if msg.get("type") == "error" else ""
+        click.echo(f"{prefix}{msg['text']}")
