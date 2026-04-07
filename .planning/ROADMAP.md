@@ -65,7 +65,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 Plans:
 - [x] 08-01-PLAN.md -- Data models, session enhancements, session file persistence
 - [x] 08-02-PLAN.md -- Scene inspection commands (tree, get, output)
-- [ ] 08-03-PLAN.md -- Execution control commands (pause, resume, step, speed)
+- [x] 08-03-PLAN.md -- Execution control commands (pause, resume, step, speed)
 
 ### Phase 9: Game Interaction and Bridge System
 **Goal**: Users can modify game state and inject player input programmatically, with the bridge script infrastructure managed automatically
