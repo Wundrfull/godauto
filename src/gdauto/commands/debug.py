@@ -13,12 +13,20 @@ import rich_click as click
 from gdauto.backend import GodotBackend
 from gdauto.debugger.connect import ConnectResult, async_connect
 from gdauto.debugger.errors import DebuggerError
+from gdauto.debugger.execution import (
+    get_speed,
+    pause_game,
+    resume_game,
+    set_speed,
+    step_frame,
+)
 from gdauto.debugger.inspector import (
     format_error_messages,
     format_output_messages,
     get_property,
     get_scene_tree,
 )
+from gdauto.debugger.models import GameState
 from gdauto.debugger.session import DebugSession
 from gdauto.errors import GdautoError
 from gdauto.output import GlobalConfig, emit, emit_error
@@ -393,3 +401,238 @@ def _print_output_messages(
     for msg in data.get("messages", []):
         prefix = "[ERROR] " if msg.get("type") == "error" else ""
         click.echo(f"{prefix}{msg['text']}")
+
+
+# ---------------------------------------------------------------------------
+# Execution control commands (Plan 08-03)
+# ---------------------------------------------------------------------------
+
+
+def _print_game_state(
+    data: dict[str, Any], verbose: bool = False, action: str = "",
+) -> None:
+    """Display game state in human-readable format."""
+    speed = data["speed"]
+    if action == "paused":
+        click.echo(f"Game paused (speed: {speed}x)")
+    elif action == "resumed":
+        click.echo(f"Game resumed (speed: {speed}x)")
+    elif action == "stepped":
+        click.echo(f"Stepped one frame (paused, speed: {speed}x)")
+    elif action == "speed_set":
+        click.echo(f"Speed set to {speed}x")
+    elif action == "speed_query":
+        click.echo(f"Current speed: {speed}x")
+
+
+@debug.command("pause")
+@click.option(
+    "--project",
+    type=click.Path(exists=True),
+    default=".",
+    help="Path to Godot project directory.",
+)
+@click.option(
+    "--port",
+    type=int,
+    default=6007,
+    help="TCP port for debugger connection.",
+)
+@click.option(
+    "--timeout",
+    type=float,
+    default=30.0,
+    help="Connection timeout in seconds.",
+)
+@click.pass_context
+def debug_pause(
+    ctx: click.Context, project: str, port: int, timeout: float,
+) -> None:
+    """Pause the running game."""
+    config: GlobalConfig = ctx.obj
+    backend = GodotBackend(binary_path=config.godot_path)
+    try:
+        result = asyncio.run(
+            _run_with_session(
+                project_path=Path(project),
+                port=port,
+                timeout=timeout,
+                backend=backend,
+                fn=pause_game,
+            )
+        )
+    except (DebuggerError, GdautoError) as exc:
+        emit_error(exc, ctx)
+        return
+    data = result.to_dict()
+    emit(data, lambda d, verbose=False: _print_game_state(d, verbose, "paused"), ctx)
+
+
+@debug.command("resume")
+@click.option(
+    "--project",
+    type=click.Path(exists=True),
+    default=".",
+    help="Path to Godot project directory.",
+)
+@click.option(
+    "--port",
+    type=int,
+    default=6007,
+    help="TCP port for debugger connection.",
+)
+@click.option(
+    "--timeout",
+    type=float,
+    default=30.0,
+    help="Connection timeout in seconds.",
+)
+@click.pass_context
+def debug_resume(
+    ctx: click.Context, project: str, port: int, timeout: float,
+) -> None:
+    """Resume a paused game."""
+    config: GlobalConfig = ctx.obj
+    backend = GodotBackend(binary_path=config.godot_path)
+    try:
+        result = asyncio.run(
+            _run_with_session(
+                project_path=Path(project),
+                port=port,
+                timeout=timeout,
+                backend=backend,
+                fn=resume_game,
+            )
+        )
+    except (DebuggerError, GdautoError) as exc:
+        emit_error(exc, ctx)
+        return
+    data = result.to_dict()
+    emit(data, lambda d, verbose=False: _print_game_state(d, verbose, "resumed"), ctx)
+
+
+@debug.command("step")
+@click.option(
+    "--project",
+    type=click.Path(exists=True),
+    default=".",
+    help="Path to Godot project directory.",
+)
+@click.option(
+    "--port",
+    type=int,
+    default=6007,
+    help="TCP port for debugger connection.",
+)
+@click.option(
+    "--timeout",
+    type=float,
+    default=30.0,
+    help="Connection timeout in seconds.",
+)
+@click.pass_context
+def debug_step(
+    ctx: click.Context, project: str, port: int, timeout: float,
+) -> None:
+    """Step one frame (pauses first if running)."""
+    config: GlobalConfig = ctx.obj
+    backend = GodotBackend(binary_path=config.godot_path)
+    try:
+        result = asyncio.run(
+            _run_with_session(
+                project_path=Path(project),
+                port=port,
+                timeout=timeout,
+                backend=backend,
+                fn=step_frame,
+            )
+        )
+    except (DebuggerError, GdautoError) as exc:
+        emit_error(exc, ctx)
+        return
+    data = result.to_dict()
+    emit(data, lambda d, verbose=False: _print_game_state(d, verbose, "stepped"), ctx)
+
+
+@debug.command("speed")
+@click.argument("multiplier", type=float, required=False, default=None)
+@click.option(
+    "--project",
+    type=click.Path(exists=True),
+    default=".",
+    help="Path to Godot project directory.",
+)
+@click.option(
+    "--port",
+    type=int,
+    default=6007,
+    help="TCP port for debugger connection.",
+)
+@click.option(
+    "--timeout",
+    type=float,
+    default=30.0,
+    help="Connection timeout in seconds.",
+)
+@click.pass_context
+def debug_speed(
+    ctx: click.Context,
+    multiplier: float | None,
+    project: str,
+    port: int,
+    timeout: float,
+) -> None:
+    """Get or set game speed multiplier.
+
+    MULTIPLIER is a positive float (e.g., 10 for 10x speed, 0.5 for
+    half speed). Omit MULTIPLIER to query the current speed.
+    """
+    config: GlobalConfig = ctx.obj
+    backend = GodotBackend(binary_path=config.godot_path)
+
+    if multiplier is None:
+        async def _query(session: DebugSession) -> GameState:
+            return get_speed(session)
+
+        try:
+            result = asyncio.run(
+                _run_with_session(
+                    project_path=Path(project),
+                    port=port,
+                    timeout=timeout,
+                    backend=backend,
+                    fn=_query,
+                )
+            )
+        except (DebuggerError, GdautoError) as exc:
+            emit_error(exc, ctx)
+            return
+        data = result.to_dict()
+        emit(
+            data,
+            lambda d, verbose=False: _print_game_state(d, verbose, "speed_query"),
+            ctx,
+        )
+    else:
+        async def _set(session: DebugSession) -> GameState:
+            return await set_speed(session, multiplier)  # type: ignore[arg-type]
+
+        try:
+            result = asyncio.run(
+                _run_with_session(
+                    project_path=Path(project),
+                    port=port,
+                    timeout=timeout,
+                    backend=backend,
+                    fn=_set,
+                )
+            )
+        except (DebuggerError, GdautoError) as exc:
+            emit_error(exc, ctx)
+            return
+        data = result.to_dict()
+        emit(
+            data,
+            lambda d, verbose=False: _print_game_state(d, verbose, "speed_set"),
+            ctx,
+        )
