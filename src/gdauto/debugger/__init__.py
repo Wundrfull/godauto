@@ -7,7 +7,13 @@ from gdauto.debugger.errors import (
     DebuggerTimeoutError,
     ProtocolError,
 )
+from gdauto.debugger.models import GameState, NodeProperty, SceneNode, SessionInfo
 from gdauto.debugger.session import DebugSession
+from gdauto.debugger.session_file import (
+    cleanup_session,
+    read_session_file,
+    write_session_file,
+)
 from gdauto.debugger.variant import VariantType, decode, encode
 
 __all__ = [
@@ -16,9 +22,16 @@ __all__ = [
     "DebuggerConnectionError",
     "DebuggerError",
     "DebuggerTimeoutError",
+    "GameState",
+    "NodeProperty",
     "ProtocolError",
+    "SceneNode",
+    "SessionInfo",
     "VariantType",
     "async_connect",
+    "cleanup_session",
     "decode",
     "encode",
+    "read_session_file",
+    "write_session_file",
 ]

@@ -24,6 +24,7 @@ from gdauto.debugger.errors import (
     DebuggerTimeoutError,
     ProtocolError,
 )
+from gdauto.debugger.models import GameState
 from gdauto.debugger.protocol import read_message, write_message
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,8 @@ class DebugSession:
     _output_buffer: list[list[Any]] = field(default_factory=list, init=False, repr=False)
     _error_buffer: list[list[Any]] = field(default_factory=list, init=False, repr=False)
     _closed: bool = field(default=False, init=False, repr=False)
+    game_paused: bool = field(default=False, init=False, repr=False)
+    current_speed: float = field(default=1.0, init=False, repr=False)
 
     async def start(self) -> None:
         """Start the TCP server and begin listening for connections.
@@ -128,6 +131,10 @@ class DebugSession:
         """Route a received message to the correct handler."""
         if command in self._pending:
             self._pending.pop(command).set_result(data)
+        elif command == "debug_enter":
+            self.game_paused = True
+        elif command == "debug_exit":
+            self.game_paused = False
         elif command == "output":
             self._append_buffer(self._output_buffer, data)
         elif command == "error":
@@ -150,12 +157,18 @@ class DebugSession:
         command: str,
         data: list[Any] | None = None,
         timeout: float = 10.0,
+        response_key: str | None = None,
     ) -> list[Any]:
         """Send a command to the game and wait for its response.
 
-        Creates a Future keyed by command name, sends the message, and
-        awaits the response with a timeout. The recv_loop dispatches the
-        response to the Future when it arrives.
+        Creates a Future keyed by response_key (or command name if not
+        specified), sends the message, and awaits the response with a
+        timeout. The recv_loop dispatches the response to the Future
+        when it arrives.
+
+        The response_key parameter handles commands where the request
+        and response have different names (e.g. "scene:request_scene_tree"
+        sends the request but "scene:scene_tree" is the response).
 
         Raises DebuggerConnectionError if not connected.
         Raises DebuggerTimeoutError if the response does not arrive.
@@ -166,21 +179,61 @@ class DebugSession:
                 code="DEBUG_NOT_CONNECTED",
                 fix="Call start() and wait_for_connection() before sending commands",
             )
+        key = response_key if response_key is not None else command
         loop = asyncio.get_running_loop()
         future: asyncio.Future[list[Any]] = loop.create_future()
-        self._pending[command] = future
+        self._pending[key] = future
         thread_id = self._thread_id if self._thread_id is not None else 1
         await write_message(self._writer, command, data or [], thread_id)
         try:
             result = await asyncio.wait_for(future, timeout=timeout)
         except asyncio.TimeoutError:
-            self._pending.pop(command, None)
+            self._pending.pop(key, None)
             raise DebuggerTimeoutError(
                 message=f"Command '{command}' timed out after {timeout}s",
                 code="DEBUG_CMD_TIMEOUT",
                 fix=f"Command '{command}' did not receive a response within {timeout}s",
             )
         return result
+
+    async def send_fire_and_forget(
+        self, command: str, data: list[Any] | None = None,
+    ) -> None:
+        """Send a command without waiting for a response.
+
+        Used for execution control commands (pause, resume, step, speed)
+        where Godot confirms state changes via unsolicited debug_enter/
+        debug_exit messages rather than matching responses.
+        """
+        if self._writer is None or self._closed:
+            raise DebuggerConnectionError(
+                message="Not connected to a game",
+                code="DEBUG_NOT_CONNECTED",
+                fix="Call start() and wait_for_connection() before sending commands",
+            )
+        thread_id = self._thread_id if self._thread_id is not None else 1
+        await write_message(self._writer, command, data or [], thread_id)
+
+    def drain_output(self) -> list[list[Any]]:
+        """Return buffered output messages and clear the buffer."""
+        result = list(self._output_buffer)
+        self._output_buffer.clear()
+        return result
+
+    def drain_errors(self) -> list[list[Any]]:
+        """Return buffered error messages and clear the buffer."""
+        result = list(self._error_buffer)
+        self._error_buffer.clear()
+        return result
+
+    @property
+    def game_state(self) -> GameState:
+        """Return a snapshot of the game's execution state."""
+        return GameState(
+            paused=self.game_paused,
+            speed=self.current_speed,
+            frame=0,
+        )
 
     async def close(self) -> None:
         """Shut down the session, cancelling background tasks and closing sockets."""
@@ -209,6 +262,8 @@ class DebugSession:
         self._pending.clear()
         self._output_buffer.clear()
         self._error_buffer.clear()
+        self.game_paused = False
+        self.current_speed = 1.0
 
     @property
     def connected(self) -> bool:
