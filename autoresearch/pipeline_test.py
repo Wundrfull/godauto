@@ -699,7 +699,131 @@ def run_pipeline(base_dir: Path) -> PipelineRunner:
     p.run("Final project info", "project",
           ["project", "info", pg])
 
-    # ── Phase 25: Cross-cutting Operations ──────────────────────────
+    # ── Phase 25: Asset Pipeline (Aseprite -> Godot) ───────────────
+
+    # Create mock Aseprite JSON export (simulates what Aseprite CLI produces)
+    sprites_dir = project_dir / "assets" / "sprites" / "cookie"
+    sprites_dir.mkdir(parents=True, exist_ok=True)
+
+    aseprite_json = sprites_dir / "cookie.json"
+    aseprite_json.write_text(json.dumps({
+        "frames": [
+            {"frame": {"x": 0, "y": 0, "w": 32, "h": 32}, "rotated": False,
+             "trimmed": False, "spriteSourceSize": {"x": 0, "y": 0, "w": 32, "h": 32},
+             "sourceSize": {"w": 32, "h": 32}, "duration": 100},
+            {"frame": {"x": 32, "y": 0, "w": 32, "h": 32}, "rotated": False,
+             "trimmed": False, "spriteSourceSize": {"x": 0, "y": 0, "w": 32, "h": 32},
+             "sourceSize": {"w": 32, "h": 32}, "duration": 100},
+            {"frame": {"x": 64, "y": 0, "w": 32, "h": 32}, "rotated": False,
+             "trimmed": False, "spriteSourceSize": {"x": 0, "y": 0, "w": 32, "h": 32},
+             "sourceSize": {"w": 32, "h": 32}, "duration": 100},
+            {"frame": {"x": 96, "y": 0, "w": 32, "h": 32}, "rotated": False,
+             "trimmed": False, "spriteSourceSize": {"x": 0, "y": 0, "w": 32, "h": 32},
+             "sourceSize": {"w": 32, "h": 32}, "duration": 200},
+        ],
+        "meta": {
+            "app": "http://www.aseprite.org/",
+            "version": "1.3.17",
+            "image": "cookie_sheet.png",
+            "format": "RGBA8888",
+            "size": {"w": 128, "h": 32},
+            "scale": "1",
+            "frameTags": [
+                {"name": "idle", "from": 0, "to": 1, "direction": "forward",
+                 "color": "#000000ff", "repeat": "0", "data": ""},
+                {"name": "bounce", "from": 2, "to": 3, "direction": "pingpong",
+                 "color": "#000000ff", "repeat": "0", "data": ""},
+            ],
+            "layers": [{"name": "Layer 1", "opacity": 255, "blendMode": "normal"}],
+            "slices": []
+        }
+    }))
+
+    # Create dummy PNG files so project validation passes
+    # (In real workflow, Aseprite CLI would create these)
+    (sprites_dir / "cookie_sheet.png").write_bytes(b'\x89PNG\r\n\x1a\n')
+
+    # 25a: Import Aseprite JSON to SpriteFrames .tres
+    cookie_tres = str(sprites_dir / "cookie.tres")
+    p.run("Import Aseprite JSON to SpriteFrames", "sprite",
+          ["sprite", "import-aseprite", str(aseprite_json),
+           "-o", cookie_tres,
+           "--res-path", "res://assets/sprites/cookie/cookie_sheet.png"])
+
+    # 25b: Validate the generated SpriteFrames
+    p.run("Validate imported SpriteFrames", "sprite",
+          ["sprite", "validate", cookie_tres])
+
+    # 25c: List animations in SpriteFrames
+    p.run("List SpriteFrames animations", "sprite",
+          ["sprite", "list-animations", cookie_tres])
+
+    # 25d: Add AnimatedSprite2D to a scene and assign SpriteFrames
+    p.run("Add AnimatedSprite2D node", "scene",
+          ["scene", "add-node", "--scene", ms,
+           "--parent", "Main", "--type", "AnimatedSprite2D",
+           "--name", "CookieSprite"])
+
+    p.run("Assign SpriteFrames to AnimatedSprite2D", "scene",
+          ["scene", "set-resource", "--scene", ms,
+           "--node", "CookieSprite",
+           "--property", "sprite_frames",
+           "--resource", "res://assets/sprites/cookie/cookie.tres",
+           "--type", "SpriteFrames"])
+
+    # 25e: Create a second Aseprite mock for cursor/click effect
+    click_sprites_dir = project_dir / "assets" / "sprites" / "click_fx"
+    click_sprites_dir.mkdir(parents=True, exist_ok=True)
+
+    click_json = click_sprites_dir / "click_fx.json"
+    click_json.write_text(json.dumps({
+        "frames": [
+            {"frame": {"x": 0, "y": 0, "w": 16, "h": 16}, "rotated": False,
+             "trimmed": False, "spriteSourceSize": {"x": 0, "y": 0, "w": 16, "h": 16},
+             "sourceSize": {"w": 16, "h": 16}, "duration": 50},
+            {"frame": {"x": 16, "y": 0, "w": 16, "h": 16}, "rotated": False,
+             "trimmed": False, "spriteSourceSize": {"x": 0, "y": 0, "w": 16, "h": 16},
+             "sourceSize": {"w": 16, "h": 16}, "duration": 50},
+            {"frame": {"x": 32, "y": 0, "w": 16, "h": 16}, "rotated": False,
+             "trimmed": False, "spriteSourceSize": {"x": 0, "y": 0, "w": 16, "h": 16},
+             "sourceSize": {"w": 16, "h": 16}, "duration": 50},
+        ],
+        "meta": {
+            "app": "http://www.aseprite.org/",
+            "version": "1.3.17",
+            "image": "click_fx_sheet.png",
+            "format": "RGBA8888",
+            "size": {"w": 48, "h": 16},
+            "scale": "1",
+            "frameTags": [
+                {"name": "pop", "from": 0, "to": 2, "direction": "forward",
+                 "color": "#000000ff", "repeat": "0", "data": ""},
+            ],
+            "layers": [{"name": "Layer 1", "opacity": 255, "blendMode": "normal"}],
+            "slices": []
+        }
+    }))
+
+    (click_sprites_dir / "click_fx_sheet.png").write_bytes(b'\x89PNG\r\n\x1a\n')
+    click_tres = str(click_sprites_dir / "click_fx.tres")
+    p.run("Import click effect sprites", "sprite",
+          ["sprite", "import-aseprite", str(click_json),
+           "-o", click_tres,
+           "--res-path", "res://assets/sprites/click_fx/click_fx_sheet.png"])
+
+    p.run("Validate click effect SpriteFrames", "sprite",
+          ["sprite", "validate", click_tres])
+
+    # 25f: Aseprite export command (wraps Aseprite CLI)
+    # This will fail if Aseprite is not available, but tests the command exists
+    p.run("Export from Aseprite (command exists)", "sprite",
+          ["sprite", "export", "--help"])
+
+    # 25g: Batch export (command exists)
+    p.run("Batch export (command exists)", "sprite",
+          ["sprite", "export-all", "--help"])
+
+    # ── Phase 26: Cross-cutting Operations ──────────────────────────
 
     # Verify the generated main.tscn has expected node count
     p.run("Verify main scene node count", "scene",

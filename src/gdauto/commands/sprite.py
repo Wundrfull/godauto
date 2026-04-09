@@ -692,3 +692,343 @@ def _print_validate_result(data: dict[str, Any], verbose: bool = False) -> None:
         )
         for issue in data["issues"]:
             click.echo(f"  - {issue}")
+
+
+# ---------------------------------------------------------------------------
+# sprite list-animations
+# ---------------------------------------------------------------------------
+
+
+@sprite.command("list-animations")
+@click.argument("tres_file", type=click.Path(exists=True))
+@click.pass_context
+def list_animations(ctx: click.Context, tres_file: str) -> None:
+    """List animations in a SpriteFrames .tres resource.
+
+    Examples:
+
+      gdauto sprite list-animations sprites/character.tres
+    """
+    from gdauto.formats.tres import parse_tres_file
+    from gdauto.formats.values import serialize_value
+
+    try:
+        path = Path(tres_file)
+        resource = parse_tres_file(path)
+
+        if resource.type != "SpriteFrames":
+            emit_error(
+                GdautoError(
+                    message=f"Not a SpriteFrames resource: {resource.type}",
+                    code="INVALID_RESOURCE_TYPE",
+                    fix="Provide a SpriteFrames .tres file",
+                ),
+                ctx,
+            )
+            return
+
+        animations: list[dict[str, Any]] = []
+        for sub in resource.sub_resources:
+            if sub.type == "SpriteFrames":
+                anim_data = sub.properties.get("animations")
+                if anim_data:
+                    # Parse animation array from the resource properties
+                    pass
+
+        # The animations are stored in the main resource properties
+        anim_prop = resource.resource_properties.get("animations")
+        if anim_prop and isinstance(anim_prop, list):
+            for anim in anim_prop:
+                if isinstance(anim, dict):
+                    name = anim.get("name", "unknown")
+                    if hasattr(name, "value"):
+                        name = name.value
+                    frames = anim.get("frames", [])
+                    frame_count = len(frames) if isinstance(frames, list) else 0
+                    speed = anim.get("speed", 5.0)
+                    loop = anim.get("loop", True)
+                    animations.append({
+                        "name": str(name),
+                        "frames": frame_count,
+                        "speed": speed,
+                        "loop": loop,
+                    })
+
+        data = {
+            "animations": animations,
+            "count": len(animations),
+            "file": tres_file,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Animations in {data['file']} ({data['count']}):")
+            for anim in data["animations"]:
+                click.echo(
+                    f"  {anim['name']}: {anim['frames']} frames, "
+                    f"{anim['speed']} FPS, loop={anim['loop']}"
+                )
+            if not data["animations"]:
+                click.echo("  (none)")
+
+        emit(data, _human, ctx)
+    except Exception as exc:
+        emit_error(
+            GdautoError(
+                message=f"Failed to read SpriteFrames: {exc}",
+                code="PARSE_ERROR",
+                fix="Ensure the file is a valid SpriteFrames .tres",
+            ),
+            ctx,
+        )
+
+
+# ---------------------------------------------------------------------------
+# sprite export
+# ---------------------------------------------------------------------------
+
+# Aseprite binary path (from CLAUDE.md game dev toolkit)
+_DEFAULT_ASEPRITE = r"C:\Program Files (x86)\Steam\steamapps\common\Aseprite\Aseprite.exe"
+
+
+@sprite.command("export")
+@click.argument("aseprite_file", type=click.Path())
+@click.option("-o", "--output-dir", type=click.Path(), default=None,
+              help="Output directory. Default: same directory as input file.")
+@click.option("--aseprite-path", type=click.Path(), default=None, envvar="ASEPRITE_PATH",
+              help="Path to Aseprite binary. Default: ASEPRITE_PATH env or standard install.")
+@click.option("--sheet-type", type=click.Choice(["packed", "rows", "horizontal", "vertical"]),
+              default="packed", help="Sprite sheet layout (default: packed).")
+@click.option("--trim/--no-trim", default=True, help="Trim transparent pixels (default: yes).")
+@click.option("--import-tres/--no-import-tres", "do_import", default=True,
+              help="Also generate SpriteFrames .tres (default: yes).")
+@click.pass_context
+def export_sprite(
+    ctx: click.Context,
+    aseprite_file: str,
+    output_dir: str | None,
+    aseprite_path: str | None,
+    sheet_type: str,
+    trim: bool,
+    do_import: bool,
+) -> None:
+    """Export an Aseprite file to PNG sprite sheet + JSON metadata.
+
+    Calls the Aseprite CLI to export a .aseprite/.ase file into a sprite
+    sheet PNG and JSON metadata, then optionally imports to SpriteFrames .tres.
+
+    Requires Aseprite installed. Set ASEPRITE_PATH env var or use --aseprite-path
+    if not in the default Steam location.
+
+    Examples:
+
+      gdauto sprite export art/cookie.aseprite
+
+      gdauto sprite export art/player.ase -o assets/sprites/player
+
+      gdauto sprite export art/enemy.aseprite --no-import-tres
+    """
+    import subprocess
+
+    try:
+        ase_path = Path(aseprite_file)
+        if not ase_path.exists():
+            emit_error(
+                GdautoError(
+                    message=f"Aseprite file not found: {aseprite_file}",
+                    code="FILE_NOT_FOUND",
+                    fix="Check the path to the .aseprite file",
+                ),
+                ctx,
+            )
+            return
+
+        # Find Aseprite binary
+        ase_bin = aseprite_path or _DEFAULT_ASEPRITE
+        if not Path(ase_bin).exists():
+            import shutil
+            found = shutil.which("aseprite")
+            if found:
+                ase_bin = found
+            else:
+                emit_error(
+                    GdautoError(
+                        message=f"Aseprite not found at: {ase_bin}",
+                        code="ASEPRITE_NOT_FOUND",
+                        fix="Install Aseprite or set ASEPRITE_PATH environment variable",
+                    ),
+                    ctx,
+                )
+                return
+
+        # Determine output paths
+        basename = ase_path.stem
+        out_dir = Path(output_dir) if output_dir else ase_path.parent
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        sheet_png = out_dir / f"{basename}_sheet.png"
+        sheet_json = out_dir / f"{basename}.json"
+
+        # Build Aseprite CLI command
+        cmd = [
+            str(ase_bin), "-b", str(ase_path),
+            "--sheet", str(sheet_png),
+            "--data", str(sheet_json),
+            "--format", "json-array",
+            "--sheet-type", sheet_type,
+            "--list-tags",
+        ]
+        if trim:
+            cmd.append("--trim")
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode != 0:
+            emit_error(
+                GdautoError(
+                    message=f"Aseprite export failed: {result.stderr.strip()}",
+                    code="ASEPRITE_EXPORT_FAILED",
+                    fix="Check the Aseprite file and export settings",
+                ),
+                ctx,
+            )
+            return
+
+        files_created = [str(sheet_png), str(sheet_json)]
+
+        # Optionally import to SpriteFrames
+        tres_path = None
+        if do_import and sheet_json.exists():
+            tres_path = out_dir / f"{basename}.tres"
+            _do_import_aseprite(ctx, str(sheet_json), str(tres_path), None)
+            files_created.append(str(tres_path))
+
+        data = {
+            "exported": True,
+            "source": aseprite_file,
+            "files": files_created,
+            "sheet": str(sheet_png),
+            "json": str(sheet_json),
+            "tres": str(tres_path) if tres_path else None,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Exported: {data['source']}")
+            for f in data["files"]:
+                click.echo(f"  -> {f}")
+
+        emit(data, _human, ctx)
+    except subprocess.TimeoutExpired:
+        emit_error(
+            GdautoError(
+                message="Aseprite export timed out after 30 seconds",
+                code="ASEPRITE_TIMEOUT",
+                fix="Try exporting manually or increase timeout",
+            ),
+            ctx,
+        )
+    except Exception as exc:
+        emit_error(
+            GdautoError(
+                message=f"Export failed: {exc}",
+                code="EXPORT_ERROR",
+                fix="Check the Aseprite file and installation",
+            ),
+            ctx,
+        )
+
+
+# ---------------------------------------------------------------------------
+# sprite export-all
+# ---------------------------------------------------------------------------
+
+
+@sprite.command("export-all")
+@click.argument("source_dir", type=click.Path(), default="art")
+@click.option("-o", "--output-dir", type=click.Path(), default="assets/sprites",
+              help="Base output directory (default: assets/sprites).")
+@click.option("--aseprite-path", type=click.Path(), default=None, envvar="ASEPRITE_PATH",
+              help="Path to Aseprite binary.")
+@click.option("--import-tres/--no-import-tres", "do_import", default=True,
+              help="Also generate SpriteFrames .tres for each.")
+@click.pass_context
+def export_all(
+    ctx: click.Context,
+    source_dir: str,
+    output_dir: str,
+    aseprite_path: str | None,
+    do_import: bool,
+) -> None:
+    """Batch export all Aseprite files from a directory.
+
+    Finds all .aseprite and .ase files in the source directory and
+    exports each to a sprite sheet PNG + JSON, organized by name.
+
+    Examples:
+
+      gdauto sprite export-all
+
+      gdauto sprite export-all art -o sprites
+
+      gdauto sprite export-all art --no-import-tres
+    """
+    try:
+        src = Path(source_dir)
+        if not src.exists():
+            emit_error(
+                GdautoError(
+                    message=f"Source directory not found: {source_dir}",
+                    code="DIR_NOT_FOUND",
+                    fix="Check the path to the art source directory",
+                ),
+                ctx,
+            )
+            return
+
+        files = list(src.glob("*.aseprite")) + list(src.glob("*.ase"))
+        if not files:
+            emit_error(
+                GdautoError(
+                    message=f"No .aseprite or .ase files found in {source_dir}",
+                    code="NO_FILES_FOUND",
+                    fix="Ensure the source directory contains Aseprite files",
+                ),
+                ctx,
+            )
+            return
+
+        results: list[dict[str, Any]] = []
+        for f in sorted(files):
+            name = f.stem
+            dest = Path(output_dir) / name
+            dest.mkdir(parents=True, exist_ok=True)
+            # Invoke export for each file
+            sub_result = ctx.invoke(
+                export_sprite,
+                aseprite_file=str(f),
+                output_dir=str(dest),
+                aseprite_path=aseprite_path,
+                sheet_type="packed",
+                trim=True,
+                do_import=do_import,
+            )
+            results.append({"file": str(f), "output": str(dest)})
+
+        data = {
+            "exported": len(results),
+            "source_dir": source_dir,
+            "output_dir": output_dir,
+            "files": results,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Exported {data['exported']} files from {data['source_dir']}")
+
+        emit(data, _human, ctx)
+    except Exception as exc:
+        emit_error(
+            GdautoError(
+                message=f"Batch export failed: {exc}",
+                code="BATCH_EXPORT_ERROR",
+                fix="Check the source directory and Aseprite installation",
+            ),
+            ctx,
+        )
