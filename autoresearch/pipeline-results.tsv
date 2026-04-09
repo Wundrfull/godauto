@@ -7,3 +7,4 @@ iteration	timestamp	metric	best	kept	guard	commit	description
 5	2026-04-09T11:38:00-04:00	98	98	keep	pass	6518653	+2: scene find-nodes command + 76 new tests. Pipeline: 98 steps, 1347 tests
 6	2026-04-09T11:42:00-04:00	111	111	keep	pass	296ab8c	+13: save system, game state, full validation. 111 total steps
 7	2026-04-09T11:45:00-04:00	117	117	keep	pass	c51e623	+6: cross-cutting verification steps. All 117 steps pass
+8	2026-04-09T11:50:00-04:00	120	120	keep	pass	376d69c	+3: scene validate command (structural verification). 120 total steps
