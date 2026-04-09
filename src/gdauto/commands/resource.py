@@ -11,11 +11,11 @@ import rich_click as click
 from rich.console import Console
 from rich.tree import Tree
 
-from gdauto.errors import GdautoError, ResourceNotFoundError
-from gdauto.formats.tres import GdResource, parse_tres_file
+from gdauto.errors import GdautoError, ProjectError, ResourceNotFoundError
+from gdauto.formats.tres import GdResource, parse_tres_file, serialize_tres_file
 from gdauto.formats.tscn import GdScene, parse_tscn_file
-from gdauto.formats.values import GodotJSONEncoder
-from gdauto.output import GlobalConfig, emit_error
+from gdauto.formats.values import Color, GodotJSONEncoder
+from gdauto.output import GlobalConfig, emit, emit_error
 
 
 @click.group(invoke_without_command=True)
@@ -194,3 +194,180 @@ def _inspect_tscn(
         )
     elif not config.quiet:
         _display_tscn_human(data, verbose=config.verbose)
+
+
+# ---------------------------------------------------------------------------
+# resource create-gradient
+# ---------------------------------------------------------------------------
+
+
+def _parse_gradient_color(s: str) -> tuple[float, Color]:
+    """Parse 'offset:color' string (e.g., '0:#ff0000' or '0.5:white')."""
+    from gdauto.commands.theme import _parse_color
+    if ":" not in s:
+        raise ProjectError(
+            message=f"Invalid gradient stop: '{s}'. Expected 'offset:color'",
+            code="INVALID_GRADIENT_STOP",
+            fix="Use format 'offset:color', e.g., '0:#ff0000' or '0.5:white'",
+        )
+    offset_str, color_str = s.split(":", 1)
+    offset = float(offset_str)
+    color = _parse_color(color_str)
+    return offset, color
+
+
+class _RawGodotStr:
+    """Raw Godot value for serialize_value fallback."""
+
+    def __init__(self, raw: str) -> None:
+        self._raw = raw
+
+    def __str__(self) -> str:
+        return self._raw
+
+    def __repr__(self) -> str:
+        return self._raw
+
+
+@resource.command("create-gradient")
+@click.option(
+    "--stop", "stops", multiple=True, required=True,
+    help="Gradient stops as 'offset:color' (e.g., '0:#000000', '1:#ffffff', '0.5:red')",
+)
+@click.argument("output_path", type=click.Path())
+@click.pass_context
+def create_gradient(
+    ctx: click.Context,
+    stops: tuple[str, ...],
+    output_path: str,
+) -> None:
+    """Create a Gradient .tres resource.
+
+    Examples:
+
+      gdauto resource create-gradient --stop "0:black" --stop "1:white" gradients/fade.tres
+
+      gdauto resource create-gradient --stop "0:#ff0000" --stop "0.5:#ffff00" --stop "1:#00ff00" gradients/health.tres
+    """
+    try:
+        parsed = [_parse_gradient_color(s) for s in stops]
+        parsed.sort(key=lambda x: x[0])
+
+        offsets = _RawGodotStr(
+            "PackedFloat32Array(" + ", ".join(str(o) for o, _ in parsed) + ")"
+        )
+        colors = _RawGodotStr(
+            "PackedColorArray(" + ", ".join(
+                f"{c.r}, {c.g}, {c.b}, {c.a}" for _, c in parsed
+            ) + ")"
+        )
+
+        resource_obj = GdResource(
+            type="Gradient",
+            format=3,
+            uid=None,
+            load_steps=None,
+            ext_resources=[],
+            sub_resources=[],
+            resource_properties={
+                "offsets": offsets,
+                "colors": colors,
+            },
+        )
+
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        serialize_tres_file(resource_obj, out)
+
+        data = {
+            "created": True,
+            "path": str(out),
+            "stop_count": len(parsed),
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Created gradient at {data['path']} ({data['stop_count']} stops)")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# resource create-curve
+# ---------------------------------------------------------------------------
+
+
+@resource.command("create-curve")
+@click.option(
+    "--point", "points", multiple=True, required=True,
+    help="Curve points as 'x,y' (e.g., '0,0', '0.5,1', '1,0')",
+)
+@click.argument("output_path", type=click.Path())
+@click.pass_context
+def create_curve(
+    ctx: click.Context,
+    points: tuple[str, ...],
+    output_path: str,
+) -> None:
+    """Create a Curve .tres resource for gameplay values.
+
+    Examples:
+
+      gdauto resource create-curve --point "0,0" --point "0.5,1" --point "1,0" curves/damage_falloff.tres
+
+      gdauto resource create-curve --point "0,0" --point "1,1" curves/linear.tres
+    """
+    try:
+        parsed_points: list[tuple[float, float]] = []
+        for p in points:
+            parts = p.split(",")
+            if len(parts) != 2:
+                raise ProjectError(
+                    message=f"Invalid curve point: '{p}'. Expected 'x,y'",
+                    code="INVALID_CURVE_POINT",
+                    fix="Use format 'x,y', e.g., '0.5,1.0'",
+                )
+            parsed_points.append((float(parts[0]), float(parts[1])))
+
+        # Build the _data PackedFloat32Array
+        # Godot Curve _data format: [x, y, left_tangent, left_mode, right_tangent, right_mode, ...]
+        data_values: list[float] = []
+        for x, y in parsed_points:
+            data_values.extend([x, y, 0.0, 0.0, 0.0, 0.0])
+
+        curve_data = _RawGodotStr(
+            "PackedFloat32Array(" + ", ".join(str(v) for v in data_values) + ")"
+        )
+
+        resource_obj = GdResource(
+            type="Curve",
+            format=3,
+            uid=None,
+            load_steps=None,
+            ext_resources=[],
+            sub_resources=[],
+            resource_properties={
+                "min_value": 0.0,
+                "max_value": 1.0,
+                "point_count": len(parsed_points),
+                "_data": curve_data,
+            },
+        )
+
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        serialize_tres_file(resource_obj, out)
+
+        data = {
+            "created": True,
+            "path": str(out),
+            "point_count": len(parsed_points),
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Created curve at {data['path']} ({data['point_count']} points)")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
