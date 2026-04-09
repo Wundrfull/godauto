@@ -1,0 +1,2 @@
+iteration	timestamp	metric	best	kept	guard	commit	description
+0	2026-04-09T11:20:00-04:00	58	58	baseline	pass	n/a	Baseline: 58/65 pipeline steps pass. 7 blockers: scene set-resource, project set-main-scene, scene rename-node, scene reorder-node, resource list, project set-config

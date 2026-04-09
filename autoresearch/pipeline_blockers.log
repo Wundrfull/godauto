@@ -1,0 +1,133 @@
+# Pipeline Blockers Log - 2026-04-09T15:21:09Z
+# Score: 58/65
+
+## Summary by Category
+  animation: 2/2 [PASS]
+  audio: 3/3 [PASS]
+  particle: 1/1 [PASS]
+  preset: 2/2 [PASS]
+  project: 10/12 [PARTIAL]
+  resource: 3/4 [PARTIAL]
+  scene: 26/30 [PARTIAL]
+  script: 4/4 [PASS]
+  shader: 2/2 [PASS]
+  signal: 3/3 [PASS]
+  theme: 2/2 [PASS]
+
+## Blockers (7 steps failed)
+
+### BLOCKER: Assign theme to main [scene]
+  Command: gdauto scene set-resource --scene C:\Users\dared\AppData\Local\Temp\gdauto_pipeline_nfc4t1q9\idle_clicker\IdleClicker\scenes\main.tscn --node Main --property theme --resource res://theme/game_theme.tres --type Theme
+  Exit code: 2
+  Output: Usage: cli scene [OPTIONS] COMMAND [ARGS]...                                  
+                                                                               
+ Try 'cli scene --help' for help                                               
+┌─ Error ────────────────────────────────────────────────────
+
+### BLOCKER: Set main scene [project]
+  Command: gdauto project set-main-scene --scene res://scenes/main.tscn C:\Users\dared\AppData\Local\Temp\gdauto_pipeline_nfc4t1q9\idle_clicker\IdleClicker\project.godot
+  Exit code: 2
+  Output: Usage: cli project [OPTIONS] COMMAND [ARGS]...                                
+                                                                               
+ Try 'cli project --help' for help                                             
+┌─ Error ────────────────────────────────────────────────────
+
+### BLOCKER: Rename a node [scene]
+  Command: gdauto scene rename-node --scene C:\Users\dared\AppData\Local\Temp\gdauto_pipeline_nfc4t1q9\idle_clicker\IdleClicker\scenes\main.tscn --node RateLabel --parent Layout --new-name CoinsPerSecLabel
+  Exit code: 2
+  Output: Usage: cli scene [OPTIONS] COMMAND [ARGS]...                                  
+                                                                               
+ Try 'cli scene --help' for help                                               
+┌─ Error ────────────────────────────────────────────────────
+
+### BLOCKER: Reorder node to first child [scene]
+  Command: gdauto scene reorder-node --scene C:\Users\dared\AppData\Local\Temp\gdauto_pipeline_nfc4t1q9\idle_clicker\IdleClicker\scenes\main.tscn --node ScoreLabel --parent Layout --index 0
+  Exit code: 2
+  Output: Usage: cli scene [OPTIONS] COMMAND [ARGS]...                                  
+                                                                               
+ Try 'cli scene --help' for help                                               
+┌─ Error ────────────────────────────────────────────────────
+
+### BLOCKER: List scene resources [resource]
+  Command: gdauto resource list --scene C:\Users\dared\AppData\Local\Temp\gdauto_pipeline_nfc4t1q9\idle_clicker\IdleClicker\scenes\main.tscn
+  Exit code: 2
+  Output: Usage: cli resource [OPTIONS] COMMAND [ARGS]...                               
+                                                                               
+ Try 'cli resource --help' for help                                            
+┌─ Error ────────────────────────────────────────────────────
+
+### BLOCKER: Assign stylebox to button [scene]
+  Command: gdauto scene set-resource --scene C:\Users\dared\AppData\Local\Temp\gdauto_pipeline_nfc4t1q9\idle_clicker\IdleClicker\scenes\main.tscn --node ClickButton --parent Layout --property theme_override_styles/normal --resource res://theme/button_style.tres --type StyleBoxFlat
+  Exit code: 2
+  Output: Usage: cli scene [OPTIONS] COMMAND [ARGS]...                                  
+                                                                               
+ Try 'cli scene --help' for help                                               
+┌─ Error ────────────────────────────────────────────────────
+
+### BLOCKER: Set window title [project]
+  Command: gdauto project set-config --section application --key config/name --value Idle Clicker C:\Users\dared\AppData\Local\Temp\gdauto_pipeline_nfc4t1q9\idle_clicker\IdleClicker\project.godot
+  Exit code: 2
+  Output: Usage: cli project [OPTIONS] COMMAND [ARGS]...                                
+                                                                               
+ Try 'cli project --help' for help                                             
+┌─ Error ────────────────────────────────────────────────────
+
+## Passed (58 steps)
+  OK: Create project [project]
+  OK: Set display 720x1280 portrait [project]
+  OK: Set rendering to mobile [project]
+  OK: Add click input action [project]
+  OK: Add ui_upgrade input [project]
+  OK: Name physics layer 1 [project]
+  OK: Create main scene [scene]
+  OK: Add VBoxContainer layout [scene]
+  OK: Add score Label [scene]
+  OK: Set score label text [scene]
+  OK: Add click Button [scene]
+  OK: Set button text [scene]
+  OK: Add upgrade Button [scene]
+  OK: Set upgrade button text [scene]
+  OK: Add coins-per-sec Label [scene]
+  OK: Set rate label text [scene]
+  OK: Create main game script [script]
+  OK: Attach main script to root [script]
+  OK: Create game manager autoload [script]
+  OK: Register game manager autoload [project]
+  OK: Connect click button pressed [signal]
+  OK: Connect upgrade button pressed [signal]
+  OK: List signals to verify [signal]
+  OK: Add passive income timer [scene]
+  OK: Create audio bus layout [audio]
+  OK: Add click sound player [audio]
+  OK: Add bg music player [audio]
+  OK: Add click particle effect [particle]
+  OK: Create UI theme [theme]
+  OK: Create button stylebox [theme]
+  OK: Create score popup animation [animation]
+  OK: Add scale track to popup [animation]
+  OK: Create flash shader [shader]
+  OK: Create shader material [shader]
+  OK: Create HUD subscene [scene]
+  OK: Add HUD label [scene]
+  OK: Instance HUD into main [scene]
+  OK: Add camera to main [scene]
+  OK: Group click button as clickable [scene]
+  OK: Duplicate upgrade button [scene]
+  OK: Create upgrade curve [resource]
+  OK: Create gradient for UI [resource]
+  OK: Set button anchor preset [scene]
+  OK: Set layout size flags [scene]
+  OK: Add AnimationPlayer node [scene]
+  OK: Create script with signals and exports [script]
+  OK: Remove duplicate button [scene]
+  OK: Bulk set node properties [scene]
+  OK: Add background ColorRect [scene]
+  OK: Add TextureRect for UI art [scene]
+  OK: List scenes in project [scene]
+  OK: List nodes in main scene [scene]
+  OK: Inspect main scene [resource]
+  OK: Validate project [project]
+  OK: Project stats [project]
+  OK: Project info [project]
+  OK: Create export preset [preset]
+  OK: List export presets [preset]
