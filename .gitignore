@@ -33,3 +33,14 @@ htmlcov/
 
 # ruff
 .ruff_cache/
+
+# Godot
+.godot/
+*.import
+
+# pixel-mcp / tools
+tools/bin/
+.tmp/
+
+# Exported builds
+export/

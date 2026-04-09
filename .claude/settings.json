@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "aseprite": {
+      "command": "C:\\Users\\dared\\Documents\\Ai\\godot\\godauto\\tools\\bin\\pixel-mcp.exe",
+      "env": {}
+    }
+  }
+}

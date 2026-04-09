@@ -127,6 +127,44 @@ Conventions not yet established. Will populate as patterns emerge during develop
 Architecture not yet mapped. Follow existing patterns found in the codebase.
 <!-- GSD:architecture-end -->
 
+## Game Development Toolkit
+
+### Paths
+- **Aseprite**: `C:\Program Files (x86)\Steam\steamapps\common\Aseprite\Aseprite.exe` (v1.3.17)
+- **Godot 4.6**: `C:\Users\dared\Documents\GameDev\Godot_v4.6-stable_win64_console.exe`
+- **Godot 4.6 GUI**: `C:\Users\dared\Documents\GameDev\Godot_v4.6-stable_win64.exe`
+- **pixel-mcp**: `tools/bin/pixel-mcp.exe` (v0.5.0, MCP server for Aseprite automation)
+
+### Directory Layout (Game Assets)
+- `art/` -- Raw .aseprite source files (Claude creates via pixel-mcp)
+- `assets/sprites/` -- Exported PNGs and spritesheets (Godot res://assets/)
+- `assets/ui/` -- UI textures and 9-slice panels
+- `assets/fonts/` -- Pixel fonts
+- `scenes/` -- Godot .tscn scene files
+- `scripts/` -- GDScript files
+- `scripts/autoload/` -- Singleton managers
+- `tools/` -- PowerShell helper scripts
+- `autoresearch/` -- Iteration tracking (results.tsv)
+
+### Asset Naming
+- Sprites: `res://assets/sprites/<entity>/<entity>_<action>.png`
+- Spritesheets: `res://assets/sprites/<entity>/<entity>_sheet.png`
+- Scenes: `res://scenes/<name>.tscn`
+- Scripts: `res://scripts/<name>.gd`
+
+### GDScript Style
+- snake_case for variables and functions, PascalCase for classes
+- Godot 4.6 API, GDScript (not C#)
+- Type hints on all declarations
+- Static typing with `:=` inference where type is obvious
+
+### Workflow
+1. Create pixel art via pixel-mcp MCP tools (create_canvas, draw_pixels, etc.)
+2. Export from Aseprite: `tools\export_sprite.ps1 art\<name>.aseprite`
+3. Import into Godot: `tools\godot_cli.ps1 import`
+4. Run game: `tools\godot_cli.ps1 run`
+5. Track iterations: `tools\autoresearch.ps1 -Description "..." -Metric 0.5 -Kept kept`
+
 <!-- GSD:workflow-start source:GSD defaults -->
 ## GSD Workflow Enforcement
 

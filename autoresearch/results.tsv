@@ -1,0 +1,2 @@
+iteration	timestamp	metric	kept	commit	description
+0	2026-04-09T00:00:00	0.1	baseline	initial	Skeleton project with main scene and click handler

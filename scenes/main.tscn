@@ -1,0 +1,110 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.12, 0.12, 0.18, 1)
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 4
+
+[node name="TopBar" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="ScoreLabel" type="Label" parent="VBox/TopBar"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "0"
+horizontal_alignment = 1
+
+[node name="PerSecLabel" type="Label" parent="VBox/TopBar"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+text = "0/s"
+vertical_alignment = 1
+
+[node name="GameArea" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="ClickPanel" type="CenterContainer" parent="VBox/GameArea"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 2.0
+
+[node name="ClickVBox" type="VBoxContainer" parent="VBox/GameArea/ClickPanel"]
+layout_mode = 2
+alignment = 1
+
+[node name="ClickButton" type="TextureButton" parent="VBox/GameArea/ClickPanel/ClickVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(64, 64)
+stretch_mode = 5
+
+[node name="ClickPlaceholder" type="ColorRect" parent="VBox/GameArea/ClickPanel/ClickVBox/ClickButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.9, 0.65, 0.2, 1)
+
+[node name="ClickParticles" type="CPUParticles2D" parent="VBox/GameArea/ClickPanel/ClickVBox/ClickButton"]
+unique_name_in_owner = true
+position = Vector2(32, 32)
+emitting = false
+amount = 8
+lifetime = 0.5
+one_shot = true
+speed_min = 40.0
+speed_max = 80.0
+gravity = Vector2(0, 60)
+color = Color(1, 0.85, 0.3, 1)
+
+[node name="ClickLabel" type="Label" parent="VBox/GameArea/ClickPanel/ClickVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Click! (+1)"
+horizontal_alignment = 1
+
+[node name="UpgradePanel" type="PanelContainer" parent="VBox/GameArea"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="UpgradeScroll" type="ScrollContainer" parent="VBox/GameArea/UpgradePanel"]
+layout_mode = 2
+
+[node name="UpgradeContainer" type="VBoxContainer" parent="VBox/GameArea/UpgradePanel/UpgradeScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
