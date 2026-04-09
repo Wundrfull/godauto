@@ -838,3 +838,143 @@ def add_input(
         emit(data, _human, ctx)
     except ProjectError as exc:
         emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# project set-display
+# ---------------------------------------------------------------------------
+
+
+@project.command("set-display")
+@click.option("--width", type=int, help="Viewport width in pixels")
+@click.option("--height", type=int, help="Viewport height in pixels")
+@click.option("--window-width", type=int, help="Window width override")
+@click.option("--window-height", type=int, help="Window height override")
+@click.option(
+    "--stretch-mode",
+    type=click.Choice(["disabled", "canvas_items", "viewport"]),
+    help="Stretch mode",
+)
+@click.option(
+    "--stretch-aspect",
+    type=click.Choice(["ignore", "keep", "keep_width", "keep_height", "expand"]),
+    help="Stretch aspect",
+)
+@click.option(
+    "--texture-filter",
+    type=click.Choice(["nearest", "linear"]),
+    help="Default texture filter (nearest for pixel art)",
+)
+@click.argument("project_path", default=".", type=click.Path())
+@click.pass_context
+def set_display(
+    ctx: click.Context,
+    width: int | None,
+    height: int | None,
+    window_width: int | None,
+    window_height: int | None,
+    stretch_mode: str | None,
+    stretch_aspect: str | None,
+    texture_filter: str | None,
+    project_path: str,
+) -> None:
+    """Configure display/window settings in project.godot.
+
+    Examples:
+
+      gdauto project set-display --width 320 --height 180 --window-width 1280 --window-height 720
+
+      gdauto project set-display --stretch-mode viewport --stretch-aspect keep --texture-filter nearest
+    """
+    try:
+        project_godot = _find_project_godot(project_path)
+        changed: list[str] = []
+        settings: list[tuple[str, str, str]] = []
+
+        if width is not None:
+            settings.append(("display", "window/size/viewport_width", str(width)))
+            changed.append(f"viewport_width={width}")
+        if height is not None:
+            settings.append(("display", "window/size/viewport_height", str(height)))
+            changed.append(f"viewport_height={height}")
+        if window_width is not None:
+            settings.append(("display", "window/size/window_width_override", str(window_width)))
+            changed.append(f"window_width={window_width}")
+        if window_height is not None:
+            settings.append(("display", "window/size/window_height_override", str(window_height)))
+            changed.append(f"window_height={window_height}")
+        if stretch_mode is not None:
+            settings.append(("display", "window/stretch/mode", f'"{stretch_mode}"'))
+            changed.append(f"stretch_mode={stretch_mode}")
+        if stretch_aspect is not None:
+            settings.append(("display", "window/stretch/aspect", f'"{stretch_aspect}"'))
+            changed.append(f"stretch_aspect={stretch_aspect}")
+        if texture_filter is not None:
+            val = "0" if texture_filter == "nearest" else "1"
+            settings.append(("rendering", "textures/canvas_textures/default_texture_filter", val))
+            changed.append(f"texture_filter={texture_filter}")
+
+        if not settings:
+            raise ProjectError(
+                message="No display settings specified",
+                code="NO_SETTINGS",
+                fix="Provide at least one display option (--width, --height, etc.)",
+            )
+
+        for section, key, value in settings:
+            _set_project_value(project_godot, section, key, value)
+
+        data = {
+            "updated": True,
+            "changes": changed,
+            "count": len(changed),
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Updated display: {', '.join(data['changes'])}")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+def _set_project_value(
+    project_godot: Path, section: str, key: str, value: str
+) -> None:
+    """Set a key=value in a section of project.godot, creating if needed."""
+    text = project_godot.read_text(encoding="utf-8")
+    lines = text.split("\n")
+
+    section_idx = None
+    key_idx = None
+
+    for i, line in enumerate(lines):
+        if line.strip() == f"[{section}]":
+            section_idx = i
+
+    if section_idx is not None:
+        for i in range(section_idx + 1, len(lines)):
+            stripped = lines[i].strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                break
+            if stripped.startswith(f"{key}="):
+                key_idx = i
+                break
+
+    entry_line = f"{key}={value}"
+
+    if key_idx is not None:
+        lines[key_idx] = entry_line
+    elif section_idx is not None:
+        insert_idx = section_idx + 1
+        while insert_idx < len(lines) and lines[insert_idx].strip() == "":
+            insert_idx += 1
+        lines.insert(insert_idx, entry_line)
+    else:
+        if lines and lines[-1].strip() != "":
+            lines.append("")
+        lines.append(f"[{section}]")
+        lines.append("")
+        lines.append(entry_line)
+
+    project_godot.write_text("\n".join(lines), encoding="utf-8")
