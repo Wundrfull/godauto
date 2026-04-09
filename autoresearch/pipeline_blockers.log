@@ -1,5 +1,5 @@
-# Pipeline Blockers Log - 2026-04-09T16:29:16Z
-# Score: 129/129
+# Pipeline Blockers Log - 2026-04-09T16:30:38Z
+# Score: 133/133
 
 ## Summary by Category
   animation: 2/2 [PASS]
@@ -12,12 +12,12 @@
   script: 25/25 [PASS]
   shader: 2/2 [PASS]
   signal: 3/3 [PASS]
-  sprite: 7/7 [PASS]
+  sprite: 11/11 [PASS]
   theme: 2/2 [PASS]
 
 ## No blockers! All steps passed.
 
-## Passed (129 steps)
+## Passed (133 steps)
   OK: Create project [project]
   OK: Set display 720x1280 portrait [project]
   OK: Set rendering to mobile [project]
@@ -130,6 +130,10 @@
   OK: Validate click effect SpriteFrames [sprite]
   OK: Export from Aseprite (command exists) [sprite]
   OK: Batch export (command exists) [sprite]
+  OK: List all sprite resources [sprite]
+  OK: Import trimmed ping-pong sprite [sprite]
+  OK: Validate trimmed sprite [sprite]
+  OK: List upgrade animations [sprite]
   OK: Verify main scene node count [scene]
   OK: Verify shop scene [scene]
   OK: Find instances in main [scene]

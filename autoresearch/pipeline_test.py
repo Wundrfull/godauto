@@ -815,13 +815,70 @@ def run_pipeline(base_dir: Path) -> PipelineRunner:
           ["sprite", "validate", click_tres])
 
     # 25f: Aseprite export command (wraps Aseprite CLI)
-    # This will fail if Aseprite is not available, but tests the command exists
     p.run("Export from Aseprite (command exists)", "sprite",
           ["sprite", "export", "--help"])
 
     # 25g: Batch export (command exists)
     p.run("Batch export (command exists)", "sprite",
           ["sprite", "export-all", "--help"])
+
+    # 25h: Asset pipeline summary -- what we just built
+    p.run("List all sprite resources", "sprite",
+          ["sprite", "list-animations", click_tres])
+
+    # 25i: Create a third sprite set using a more complex Aseprite export
+    upgrade_sprites_dir = project_dir / "assets" / "sprites" / "upgrade_icon"
+    upgrade_sprites_dir.mkdir(parents=True, exist_ok=True)
+
+    # Complex animation: trimmed sprites with ping-pong
+    upgrade_json = upgrade_sprites_dir / "upgrade_icon.json"
+    upgrade_json.write_text(json.dumps({
+        "frames": [
+            {"frame": {"x": 0, "y": 0, "w": 24, "h": 24}, "rotated": False,
+             "trimmed": True,
+             "spriteSourceSize": {"x": 4, "y": 4, "w": 24, "h": 24},
+             "sourceSize": {"w": 32, "h": 32}, "duration": 150},
+            {"frame": {"x": 24, "y": 0, "w": 28, "h": 28}, "rotated": False,
+             "trimmed": True,
+             "spriteSourceSize": {"x": 2, "y": 2, "w": 28, "h": 28},
+             "sourceSize": {"w": 32, "h": 32}, "duration": 100},
+            {"frame": {"x": 52, "y": 0, "w": 32, "h": 32}, "rotated": False,
+             "trimmed": False,
+             "spriteSourceSize": {"x": 0, "y": 0, "w": 32, "h": 32},
+             "sourceSize": {"w": 32, "h": 32}, "duration": 100},
+            {"frame": {"x": 84, "y": 0, "w": 28, "h": 28}, "rotated": False,
+             "trimmed": True,
+             "spriteSourceSize": {"x": 2, "y": 2, "w": 28, "h": 28},
+             "sourceSize": {"w": 32, "h": 32}, "duration": 150},
+        ],
+        "meta": {
+            "app": "http://www.aseprite.org/",
+            "version": "1.3.17",
+            "image": "upgrade_icon_sheet.png",
+            "format": "RGBA8888",
+            "size": {"w": 112, "h": 32},
+            "scale": "1",
+            "frameTags": [
+                {"name": "pulse", "from": 0, "to": 3, "direction": "pingpong",
+                 "color": "#ffcc00ff", "repeat": "0", "data": ""},
+            ],
+            "layers": [{"name": "Layer 1", "opacity": 255, "blendMode": "normal"}],
+            "slices": []
+        }
+    }))
+    (upgrade_sprites_dir / "upgrade_icon_sheet.png").write_bytes(b'\x89PNG\r\n\x1a\n')
+
+    upgrade_tres = str(upgrade_sprites_dir / "upgrade_icon.tres")
+    p.run("Import trimmed ping-pong sprite", "sprite",
+          ["sprite", "import-aseprite", str(upgrade_json),
+           "-o", upgrade_tres,
+           "--res-path", "res://assets/sprites/upgrade_icon/upgrade_icon_sheet.png"])
+
+    p.run("Validate trimmed sprite", "sprite",
+          ["sprite", "validate", upgrade_tres])
+
+    p.run("List upgrade animations", "sprite",
+          ["sprite", "list-animations", upgrade_tres])
 
     # ── Phase 26: Cross-cutting Operations ──────────────────────────
 
