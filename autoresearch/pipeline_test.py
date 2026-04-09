@@ -560,7 +560,71 @@ def run_pipeline(base_dir: Path) -> PipelineRunner:
     p.run("Get scene tree JSON", "scene",
           ["--json", "scene", "list-nodes", ms])
 
-    # ── Phase 19: Inspection & Validation ───────────────────────────
+    # ── Phase 19: Build a complete shop scene with template ─────────
+    p.run("Create shop from template", "scene",
+          ["scene", "from-template", "--template", "ui-panel",
+           "--output", str(project_dir / "scenes" / "shop.tscn"),
+           "--title", "Upgrades"])
+
+    # Add buttons to the shop content area
+    p.run("Add shop upgrade 1", "scene",
+          ["scene", "add-node", "--scene", str(project_dir / "scenes" / "shop.tscn"),
+           "--parent", "Content", "--type", "Button", "--name", "Upgrade1",
+           "--property", "text=Auto Clicker ($50)"])
+
+    p.run("Add shop upgrade 2", "scene",
+          ["scene", "add-node", "--scene", str(project_dir / "scenes" / "shop.tscn"),
+           "--parent", "Content", "--type", "Button", "--name", "Upgrade2",
+           "--property", "text=Double Click ($100)"])
+
+    # Create shop script
+    p.run("Create shop script", "script",
+          ["script", "create", "--extends", "PanelContainer",
+           "--class-name", "Shop", "--ready",
+           str(scripts_dir / "shop.gd")])
+
+    p.run("Add shop vars", "script",
+          ["script", "add-var", "--file", str(scripts_dir / "shop.gd"),
+           "--name", "upgrades", "--type", "Dictionary", "--value", "{}"])
+
+    p.run("Add shop signal", "script",
+          ["script", "add-signal", "--file", str(scripts_dir / "shop.gd"),
+           "--name", "upgrade_purchased",
+           "--params", "upgrade_name: String, cost: int"])
+
+    p.run("Add shop buy method", "script",
+          ["script", "add-method", "--file", str(scripts_dir / "shop.gd"),
+           "--name", "_on_upgrade_pressed",
+           "--params", "upgrade_name: String",
+           "--body", 'var cost: int = upgrades[upgrade_name]\n\tupgrade_purchased.emit(upgrade_name, cost)'])
+
+    p.run("Attach shop script", "script",
+          ["script", "attach",
+           "--scene", str(project_dir / "scenes" / "shop.tscn"),
+           "--node", "Panel",
+           "--script", "res://scripts/shop.gd"])
+
+    # Instance shop into main
+    p.run("Instance shop into main", "scene",
+          ["scene", "add-instance", "--scene", ms,
+           "--parent", "Main",
+           "--instance", "res://scenes/shop.tscn",
+           "--name", "Shop"])
+
+    # ── Phase 20: Create player-2d scene from template ───────────
+    p.run("Create player scene", "scene",
+          ["scene", "from-template", "--template", "player-2d",
+           "--output", str(project_dir / "scenes" / "player.tscn")])
+
+    p.run("Create player script", "script",
+          ["script", "create", "--extends", "CharacterBody2D",
+           "--class-name", "Player",
+           "--export", "speed:float=200.0",
+           "--export", "jump_force:float=400.0",
+           "--ready", "--physics",
+           str(scripts_dir / "player.gd")])
+
+    # ── Phase 21: Full Inspection ───────────────────────────────────
     p.run("List scenes in project", "scene",
           ["scene", "list", pd])
 
