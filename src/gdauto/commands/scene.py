@@ -535,3 +535,128 @@ def set_property(
         emit(data, _human, ctx)
     except ProjectError as exc:
         emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# scene add-instance
+# ---------------------------------------------------------------------------
+
+
+@scene.command("add-instance")
+@click.option(
+    "--scene", "scene_path", required=True,
+    type=click.Path(exists=True),
+    help="Path to the .tscn scene file to modify",
+)
+@click.option(
+    "--name", "node_name", required=True,
+    help="Name for the instanced node",
+)
+@click.option(
+    "--instance", "instance_path", required=True,
+    help="res:// path to the scene to instance (e.g., res://scenes/player.tscn)",
+)
+@click.option(
+    "--parent", "parent_path", default=None,
+    help="Parent node path (default: root)",
+)
+@click.option(
+    "--property", "properties", multiple=True,
+    help="Override properties as 'key=value'",
+)
+@click.pass_context
+def add_instance(
+    ctx: click.Context,
+    scene_path: str,
+    node_name: str,
+    instance_path: str,
+    parent_path: str | None,
+    properties: tuple[str, ...],
+) -> None:
+    """Add a scene instance to an existing scene file.
+
+    Examples:
+
+      gdauto scene add-instance --scene scenes/level.tscn --name Player --instance res://scenes/player.tscn
+
+      gdauto scene add-instance --scene scenes/level.tscn --name Enemy1 --instance res://scenes/enemy.tscn --property "position=Vector2(100, 50)"
+    """
+    try:
+        from gdauto.formats.tscn import ExtResource
+        from gdauto.formats.values import ExtResourceRef
+        import re
+
+        path = Path(scene_path)
+        text = path.read_text(encoding="utf-8")
+        scene_data = parse_tscn(text)
+
+        parent = parent_path or "."
+
+        for node in scene_data.nodes:
+            if node.name == node_name and node.parent == parent:
+                raise ProjectError(
+                    message=f"Node '{node_name}' already exists",
+                    code="NODE_EXISTS",
+                    fix="Choose a different name",
+                )
+
+        # Add ext_resource for the instanced scene
+        existing_ids = {ext.id for ext in scene_data.ext_resources}
+        counter = 1
+        ext_id = f"{counter}_instance"
+        while ext_id in existing_ids:
+            counter += 1
+            ext_id = f"{counter}_instance"
+
+        scene_data.ext_resources.append(ExtResource(
+            type="PackedScene",
+            path=instance_path,
+            id=ext_id,
+            uid=None,
+        ))
+
+        # Parse override properties
+        parsed_props: dict[str, Any] = {}
+        for prop in properties:
+            if "=" not in prop:
+                raise ProjectError(
+                    message=f"Invalid property format: '{prop}'",
+                    code="INVALID_PROPERTY",
+                    fix="Use 'key=value' format",
+                )
+            key, value_str = prop.split("=", 1)
+            parsed_props[key.strip()] = parse_value(value_str.strip())
+
+        # Instance nodes have no type, they have instance
+        scene_data.nodes.append(SceneNode(
+            name=node_name,
+            type=None,
+            parent=parent,
+            properties=parsed_props,
+            instance=f'ExtResource("{ext_id}")',
+        ))
+
+        # Update load_steps
+        scene_data.load_steps = len(scene_data.ext_resources) + len(scene_data.sub_resources) + 1
+
+        scene_data._raw_header = None
+        scene_data._raw_sections = None
+        output = serialize_tscn(scene_data)
+        path.write_text(output, encoding="utf-8")
+
+        data = {
+            "added": True,
+            "name": node_name,
+            "instance": instance_path,
+            "parent": parent,
+            "overrides": len(parsed_props),
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(
+                f"Added instance '{data['name']}' of {data['instance']}"
+            )
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
