@@ -981,6 +981,87 @@ def _set_project_value(
 
 
 # ---------------------------------------------------------------------------
+# project set-rendering
+# ---------------------------------------------------------------------------
+
+
+@project.command("set-rendering")
+@click.option(
+    "--method",
+    type=click.Choice(["forward_plus", "mobile", "gl_compatibility"]),
+    help="Rendering method",
+)
+@click.option(
+    "--msaa-2d",
+    type=click.Choice(["disabled", "2x", "4x", "8x"]),
+    help="MSAA for 2D",
+)
+@click.option(
+    "--msaa-3d",
+    type=click.Choice(["disabled", "2x", "4x", "8x"]),
+    help="MSAA for 3D",
+)
+@click.argument("project_path", default=".", type=click.Path())
+@click.pass_context
+def set_rendering(
+    ctx: click.Context,
+    method: str | None,
+    msaa_2d: str | None,
+    msaa_3d: str | None,
+    project_path: str,
+) -> None:
+    """Configure rendering settings in project.godot.
+
+    Examples:
+
+      gdauto project set-rendering --method gl_compatibility
+
+      gdauto project set-rendering --msaa-2d 4x --msaa-3d 4x
+    """
+    try:
+        project_godot = _find_project_godot(project_path)
+        changed: list[str] = []
+        settings: list[tuple[str, str, str]] = []
+
+        if method is not None:
+            settings.append(("rendering", "renderer/rendering_method", f'"{method}"'))
+            changed.append(f"method={method}")
+        if msaa_2d is not None:
+            val_map = {"disabled": "0", "2x": "1", "4x": "2", "8x": "3"}
+            settings.append((
+                "rendering", "anti_aliasing/quality/msaa_2d",
+                val_map.get(msaa_2d, "0"),
+            ))
+            changed.append(f"msaa_2d={msaa_2d}")
+        if msaa_3d is not None:
+            val_map = {"disabled": "0", "2x": "1", "4x": "2", "8x": "3"}
+            settings.append((
+                "rendering", "anti_aliasing/quality/msaa_3d",
+                val_map.get(msaa_3d, "0"),
+            ))
+            changed.append(f"msaa_3d={msaa_3d}")
+
+        if not settings:
+            raise ProjectError(
+                message="No rendering settings specified",
+                code="NO_SETTINGS",
+                fix="Provide at least one rendering option",
+            )
+
+        for section, key, value in settings:
+            _set_project_value(project_godot, section, key, value)
+
+        data = {"updated": True, "changes": changed, "count": len(changed)}
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Updated rendering: {', '.join(data['changes'])}")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
 # project add-layer
 # ---------------------------------------------------------------------------
 
