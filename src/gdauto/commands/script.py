@@ -206,6 +206,102 @@ def _parse_exports(exports: tuple[str, ...]) -> list[tuple[str, str, str]]:
     return result
 
 
+@script.command("attach")
+@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True), help="Scene file to modify")
+@click.option("--node", "node_name", required=True, help="Node name to attach the script to")
+@click.option("--script", "script_path", required=True, help="res:// path to the script (e.g., res://scripts/player.gd)")
+@click.option("--parent", "parent_path", default=None, help="Parent node path to disambiguate")
+@click.pass_context
+def attach(
+    ctx: click.Context,
+    scene_path: str,
+    node_name: str,
+    script_path: str,
+    parent_path: str | None,
+) -> None:
+    """Attach a GDScript to a node in a scene file.
+
+    Creates the ext_resource reference and sets the script property on the
+    target node. If the script is already attached, reports it.
+
+    Examples:
+
+      gdauto script attach --scene scenes/main.tscn --node Player --script res://scripts/player.gd
+
+      gdauto script attach --scene scenes/level.tscn --node Enemy --script res://scripts/enemy.gd --parent Enemies
+    """
+    try:
+        from gdauto.formats.tscn import ExtResource, parse_tscn, serialize_tscn
+        from gdauto.formats.values import ExtResourceRef
+        import re
+
+        path = Path(scene_path)
+        text = path.read_text(encoding="utf-8")
+        scene = parse_tscn(text)
+
+        # Find target node
+        target = None
+        for node in scene.nodes:
+            if node.name == node_name:
+                if parent_path is None or node.parent == parent_path:
+                    target = node
+                    break
+
+        if target is None:
+            raise ProjectError(
+                message=f"Node '{node_name}' not found in scene",
+                code="NODE_NOT_FOUND",
+                fix="Check the node name and parent path",
+            )
+
+        # Check if script already attached
+        if "script" in target.properties:
+            raise ProjectError(
+                message=f"Node '{node_name}' already has a script attached",
+                code="SCRIPT_EXISTS",
+                fix="Remove the existing script first or choose a different node",
+            )
+
+        # Add ext_resource for the script
+        existing_ids = {ext.id for ext in scene.ext_resources}
+        counter = 1
+        ext_id = f"{counter}_script"
+        while ext_id in existing_ids:
+            counter += 1
+            ext_id = f"{counter}_script"
+
+        scene.ext_resources.append(ExtResource(
+            type="Script",
+            path=script_path,
+            id=ext_id,
+            uid=None,
+        ))
+
+        target.properties["script"] = ExtResourceRef(ext_id)
+
+        # Update load_steps
+        scene.load_steps = len(scene.ext_resources) + len(scene.sub_resources) + 1
+
+        scene._raw_header = None
+        scene._raw_sections = None
+        output = serialize_tscn(scene)
+        path.write_text(output, encoding="utf-8")
+
+        data = {
+            "attached": True,
+            "node": node_name,
+            "script": script_path,
+            "scene": scene_path,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Attached {data['script']} to '{data['node']}'")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
 def _parse_onready(onready_vars: tuple[str, ...]) -> list[tuple[str, str, str]]:
     """Parse 'name:Type=NodePath' strings into (name, type, path) tuples."""
     result: list[tuple[str, str, str]] = []
