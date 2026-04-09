@@ -322,3 +322,296 @@ def _parse_onready(onready_vars: tuple[str, ...]) -> list[tuple[str, str, str]]:
         name, var_type = left.split(":", 1)
         result.append((name.strip(), var_type.strip(), node_path.strip()))
     return result
+
+
+# ---------------------------------------------------------------------------
+# Script editing helpers
+# ---------------------------------------------------------------------------
+
+
+def _read_script(file_path: str) -> tuple[Path, str]:
+    """Read a GDScript file, raising ProjectError if not found."""
+    path = Path(file_path)
+    if not path.exists():
+        raise ProjectError(
+            message=f"Script not found: {file_path}",
+            code="SCRIPT_NOT_FOUND",
+            fix="Check the file path",
+        )
+    return path, path.read_text(encoding="utf-8")
+
+
+def _find_insert_point(lines: list[str], section: str) -> int:
+    """Find the right line index to insert a new element into a GDScript.
+
+    section can be: "var", "signal", "export", "method"
+    Returns the line index where the new content should be inserted.
+    """
+    if section == "method":
+        # Methods go at the end of the file
+        return len(lines)
+
+    # Variables, signals, exports go after the last of their kind,
+    # or after extends/class_name if none exist yet
+    markers = {
+        "var": ("var ", "@onready", "@export"),
+        "signal": ("signal ",),
+        "export": ("@export ",),
+    }
+
+    target_prefixes = markers.get(section, ())
+    last_match = -1
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        for prefix in target_prefixes:
+            if stripped.startswith(prefix):
+                last_match = i
+
+    if last_match >= 0:
+        return last_match + 1
+
+    # No existing matches; insert after extends/class_name block
+    insert_after = 0
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("extends ") or stripped.startswith("class_name "):
+            insert_after = i + 1
+        elif stripped == "" and insert_after > 0:
+            insert_after = i + 1
+        elif stripped and insert_after > 0:
+            break
+
+    return insert_after
+
+
+# ---------------------------------------------------------------------------
+# script add-method
+# ---------------------------------------------------------------------------
+
+
+@script.command("add-method")
+@click.option("--file", "file_path", required=True, type=click.Path(),
+              help="Path to the .gd script file")
+@click.option("--name", "method_name", required=True,
+              help="Method name (e.g., _on_button_pressed)")
+@click.option("--body", default="pass",
+              help="Method body (use \\n for newlines)")
+@click.option("--params", default="",
+              help="Method parameters (e.g., 'delta: float')")
+@click.option("--return-type", "return_type", default="void",
+              help="Return type (default: void)")
+@click.pass_context
+def add_method(
+    ctx: click.Context,
+    file_path: str,
+    method_name: str,
+    body: str,
+    params: str,
+    return_type: str,
+) -> None:
+    """Add a method to an existing GDScript file.
+
+    Examples:
+
+      gdauto script add-method --file scripts/main.gd --name _on_button_pressed --body "score += 1"
+
+      gdauto script add-method --file scripts/player.gd --name take_damage --params "amount: int" --body "health -= amount"
+    """
+    try:
+        path, text = _read_script(file_path)
+        lines = text.split("\n")
+
+        # Check if method already exists
+        for line in lines:
+            if line.strip().startswith(f"func {method_name}("):
+                raise ProjectError(
+                    message=f"Method '{method_name}' already exists in {file_path}",
+                    code="METHOD_EXISTS",
+                    fix="Choose a different name or edit the existing method",
+                )
+
+        # Build method
+        param_str = params if params else ""
+        method_lines = [
+            "",
+            "",
+            f"func {method_name}({param_str}) -> {return_type}:",
+        ]
+        for body_line in body.replace("\\n", "\n").split("\n"):
+            method_lines.append(f"\t{body_line}")
+
+        insert_idx = _find_insert_point(lines, "method")
+        for i, ml in enumerate(method_lines):
+            lines.insert(insert_idx + i, ml)
+
+        result_text = "\n".join(lines)
+        if not result_text.endswith("\n"):
+            result_text += "\n"
+        path.write_text(result_text, encoding="utf-8")
+
+        data = {"added": True, "method": method_name, "file": file_path}
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Added method '{data['method']}' to {data['file']}")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# script add-var
+# ---------------------------------------------------------------------------
+
+
+@script.command("add-var")
+@click.option("--file", "file_path", required=True, type=click.Path(),
+              help="Path to the .gd script file")
+@click.option("--name", "var_name", required=True, help="Variable name")
+@click.option("--type", "var_type", required=True, help="Variable type (e.g., int, float, String)")
+@click.option("--value", "default_value", default=None, help="Default value")
+@click.pass_context
+def add_var(
+    ctx: click.Context,
+    file_path: str,
+    var_name: str,
+    var_type: str,
+    default_value: str | None,
+) -> None:
+    """Add a variable declaration to an existing GDScript file.
+
+    Examples:
+
+      gdauto script add-var --file scripts/main.gd --name score --type int --value 0
+
+      gdauto script add-var --file scripts/player.gd --name health --type float --value 100.0
+    """
+    try:
+        path, text = _read_script(file_path)
+        lines = text.split("\n")
+
+        if default_value is not None:
+            new_line = f"var {var_name}: {var_type} = {default_value}"
+        else:
+            new_line = f"var {var_name}: {var_type}"
+
+        insert_idx = _find_insert_point(lines, "var")
+        lines.insert(insert_idx, new_line)
+
+        result_text = "\n".join(lines)
+        if not result_text.endswith("\n"):
+            result_text += "\n"
+        path.write_text(result_text, encoding="utf-8")
+
+        data = {"added": True, "var": var_name, "type": var_type, "file": file_path}
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Added var '{data['var']}: {data['type']}' to {data['file']}")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# script add-export
+# ---------------------------------------------------------------------------
+
+
+@script.command("add-export")
+@click.option("--file", "file_path", required=True, type=click.Path(),
+              help="Path to the .gd script file")
+@click.option("--name", "var_name", required=True, help="Variable name")
+@click.option("--type", "var_type", required=True, help="Variable type")
+@click.option("--value", "default_value", default=None, help="Default value")
+@click.pass_context
+def add_export(
+    ctx: click.Context,
+    file_path: str,
+    var_name: str,
+    var_type: str,
+    default_value: str | None,
+) -> None:
+    """Add an @export variable to an existing GDScript file.
+
+    Examples:
+
+      gdauto script add-export --file scripts/main.gd --name speed --type float --value 100.0
+    """
+    try:
+        path, text = _read_script(file_path)
+        lines = text.split("\n")
+
+        if default_value is not None:
+            new_line = f"@export var {var_name}: {var_type} = {default_value}"
+        else:
+            new_line = f"@export var {var_name}: {var_type}"
+
+        insert_idx = _find_insert_point(lines, "export")
+        lines.insert(insert_idx, new_line)
+
+        result_text = "\n".join(lines)
+        if not result_text.endswith("\n"):
+            result_text += "\n"
+        path.write_text(result_text, encoding="utf-8")
+
+        data = {"added": True, "export": var_name, "type": var_type, "file": file_path}
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Added @export '{data['export']}: {data['type']}' to {data['file']}")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# script add-signal
+# ---------------------------------------------------------------------------
+
+
+@script.command("add-signal")
+@click.option("--file", "file_path", required=True, type=click.Path(),
+              help="Path to the .gd script file")
+@click.option("--name", "signal_name", required=True, help="Signal name")
+@click.option("--params", default=None,
+              help="Signal parameters (e.g., 'new_score: int, old_score: int')")
+@click.pass_context
+def add_signal(
+    ctx: click.Context,
+    file_path: str,
+    signal_name: str,
+    params: str | None,
+) -> None:
+    """Add a signal declaration to an existing GDScript file.
+
+    Examples:
+
+      gdauto script add-signal --file scripts/main.gd --name score_changed --params "new_score: int"
+    """
+    try:
+        path, text = _read_script(file_path)
+        lines = text.split("\n")
+
+        if params:
+            new_line = f"signal {signal_name}({params})"
+        else:
+            new_line = f"signal {signal_name}"
+
+        insert_idx = _find_insert_point(lines, "signal")
+        lines.insert(insert_idx, new_line)
+
+        result_text = "\n".join(lines)
+        if not result_text.endswith("\n"):
+            result_text += "\n"
+        path.write_text(result_text, encoding="utf-8")
+
+        data = {"added": True, "signal": signal_name, "file": file_path}
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Added signal '{data['signal']}' to {data['file']}")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)

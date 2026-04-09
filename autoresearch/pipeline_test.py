@@ -450,7 +450,89 @@ def run_pipeline(base_dir: Path) -> PipelineRunner:
           ["project", "set-config", "--section", "application",
            "--key", "config/name", "--value", "Idle Clicker", pg])
 
-    # ── Phase 15: Inspection & Validation ───────────────────────────
+    # ── Phase 15: Advanced Scene Operations ──────────────────────────
+
+    # 15a: Move a node to a different parent
+    p.run("Move node to different parent", "scene",
+          ["scene", "move-node", "--scene", ms,
+           "--node", "Camera", "--new-parent", "Layout"])
+
+    # 15b: Create a scene directly from CLI args (no JSON file needed)
+    shop_scene = str(project_dir / "scenes" / "shop.tscn")
+    p.run("Create scene from CLI args", "scene",
+          ["scene", "create-simple", "--root-type", "Control", "--root-name", "Shop",
+           "--output", shop_scene])
+
+    # 15c: Copy properties from one node to another
+    p.run("Copy node properties", "scene",
+          ["scene", "copy-properties", "--scene", ms,
+           "--from-node", "ClickButton", "--to-node", "UpgradeButton",
+           "--parent", "Layout"])
+
+    # 15d: List all node types used in a scene
+    p.run("List node types in scene", "scene",
+          ["scene", "list-types", ms])
+
+    # 15e: Set multiple resources at once (e.g., theme + material)
+    p.run("Set material on button", "scene",
+          ["scene", "set-resource", "--scene", ms,
+           "--node", "ClickButton", "--parent", "Layout",
+           "--property", "material",
+           "--resource", "res://shaders/flash_material.tres",
+           "--type", "ShaderMaterial"])
+
+    # 15f: Add margin container for UI padding
+    p.run("Add MarginContainer", "scene",
+          ["scene", "add-node", "--scene", ms,
+           "--parent", "Main", "--type", "MarginContainer", "--name", "Margins",
+           "--property", "theme_override_constants/margin_left=20",
+           "--property", "theme_override_constants/margin_right=20"])
+
+    # 15g: Script edit: add a method to existing script
+    p.run("Add method to script", "script",
+          ["script", "add-method", "--file", str(scripts_dir / "main.gd"),
+           "--name", "_on_click_button_pressed",
+           "--body", "score += click_value\nscore_label.text = str(score)"])
+
+    # 15h: Script edit: add a variable to existing script
+    p.run("Add variable to script", "script",
+          ["script", "add-var", "--file", str(scripts_dir / "main.gd"),
+           "--name", "score", "--type", "int", "--value", "0"])
+
+    # 15i: Script edit: add an export variable
+    p.run("Add export to script", "script",
+          ["script", "add-export", "--file", str(scripts_dir / "main.gd"),
+           "--name", "click_value", "--type", "int", "--value", "1"])
+
+    # 15j: Script edit: add a signal declaration
+    p.run("Add signal to script", "script",
+          ["script", "add-signal", "--file", str(scripts_dir / "main.gd"),
+           "--name", "score_changed",
+           "--params", "new_score: int"])
+
+    # 15k: Inspect a specific node
+    p.run("Inspect specific node", "scene",
+          ["scene", "inspect-node", "--scene", ms,
+           "--node", "ClickButton", "--parent", "Layout"])
+
+    # 15l: Project add-plugin (enable a plugin in project.godot)
+    p.run("Enable a plugin", "project",
+          ["project", "add-plugin", "--name", "gut",
+           "--path", "res://addons/gut/plugin.cfg", pg])
+
+    # 15m: Scene set-anchor (set anchor preset on Control node)
+    p.run("Set full rect anchor", "scene",
+          ["scene", "set-anchor", "--scene", ms,
+           "--node", "Main", "--preset", "full_rect"])
+
+    # 15n: Scene from template (create common scene patterns)
+    ui_scene = str(project_dir / "scenes" / "ui_panel.tscn")
+    p.run("Create UI panel from template", "scene",
+          ["scene", "from-template", "--template", "ui-panel",
+           "--output", ui_scene,
+           "--title", "Upgrades"])
+
+    # ── Phase 16: Inspection & Validation ───────────────────────────
     p.run("List scenes in project", "scene",
           ["scene", "list", pd])
 

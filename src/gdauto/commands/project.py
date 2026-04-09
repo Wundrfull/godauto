@@ -1280,3 +1280,66 @@ def set_main_scene(
         emit(data, _human, ctx)
     except ProjectError as exc:
         emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# project add-plugin
+# ---------------------------------------------------------------------------
+
+
+@project.command("add-plugin")
+@click.option("--name", "plugin_name", required=True, help="Plugin name (e.g., gut)")
+@click.option("--path", "plugin_path", required=True,
+              help="Plugin config path (e.g., res://addons/gut/plugin.cfg)")
+@click.argument("project_path", default=".", type=click.Path())
+@click.pass_context
+def add_plugin(
+    ctx: click.Context,
+    plugin_name: str,
+    plugin_path: str,
+    project_path: str,
+) -> None:
+    """Enable a plugin in project.godot.
+
+    Sets the editor_plugins/enabled array to include the plugin.
+
+    Examples:
+
+      gdauto project add-plugin --name gut --path res://addons/gut/plugin.cfg
+    """
+    try:
+        project_godot = _find_project_godot(project_path)
+        text = project_godot.read_text(encoding="utf-8")
+        cfg = parse_project_config(text)
+
+        # Check if plugin is already enabled
+        existing = cfg.get_value("editor_plugins", "enabled")
+        if existing and plugin_path in existing:
+            raise ProjectError(
+                message=f"Plugin '{plugin_name}' is already enabled",
+                code="PLUGIN_EXISTS",
+                fix="Plugin is already in editor_plugins/enabled",
+            )
+
+        # Build the new PackedStringArray value
+        if existing:
+            # Parse existing array and add new entry
+            import re
+            entries = re.findall(r'"([^"]*)"', existing)
+            if plugin_path not in entries:
+                entries.append(plugin_path)
+            quoted = ', '.join(f'"{e}"' for e in entries)
+            value = f"PackedStringArray({quoted})"
+        else:
+            value = f'PackedStringArray("{plugin_path}")'
+
+        _set_project_value(project_godot, "editor_plugins", "enabled", value)
+
+        data = {"added": True, "name": plugin_name, "path": plugin_path}
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Enabled plugin '{data['name']}' ({data['path']})")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)

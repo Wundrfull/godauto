@@ -214,6 +214,50 @@ def scene_create(ctx: click.Context, json_file: str, output: str | None) -> None
     )
 
 
+@scene.command("create-simple")
+@click.option("--root-type", required=True, help="Root node type (e.g., Node2D, Control)")
+@click.option("--root-name", required=True, help="Root node name (e.g., Main, Player)")
+@click.option("-o", "--output", required=True, type=click.Path(), help="Output .tscn path")
+@click.pass_context
+def create_simple(
+    ctx: click.Context,
+    root_type: str,
+    root_name: str,
+    output: str,
+) -> None:
+    """Create a scene from CLI arguments (no JSON file needed).
+
+    Examples:
+
+      gdauto scene create-simple --root-type Node2D --root-name Level --output scenes/level.tscn
+
+      gdauto scene create-simple --root-type Control --root-name Menu --output scenes/menu.tscn
+    """
+    try:
+        definition = {
+            "root": {
+                "name": root_name,
+                "type": root_type,
+            }
+        }
+        gd_scene = build_scene(definition)
+        output_path = Path(output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        serialize_tscn_file(gd_scene, output_path)
+
+        if gd_scene.uid:
+            write_uid_file(output_path, gd_scene.uid)
+
+        data = {"path": str(output_path), "root_type": root_type, "root_name": root_name}
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Created scene: {data['path']} ({data['root_type']} '{data['root_name']}')")
+
+        emit(data, _human, ctx)
+    except (ValidationError, GdautoError) as exc:
+        emit_error(exc, ctx)
+
+
 def _load_json(json_path: Path, ctx: click.Context) -> dict[str, Any] | None:
     """Load and parse a JSON file, emitting errors on failure."""
     try:
@@ -1406,3 +1450,448 @@ def set_resource(
         emit(data, _human, ctx)
     except ProjectError as exc:
         emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# scene inspect-node
+# ---------------------------------------------------------------------------
+
+
+@scene.command("inspect-node")
+@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True),
+              help="Path to the .tscn scene file")
+@click.option("--node", "node_name", required=True, help="Name of the node to inspect")
+@click.option("--parent", "parent_path", default=None, help="Parent node path to disambiguate")
+@click.pass_context
+def inspect_node(
+    ctx: click.Context,
+    scene_path: str,
+    node_name: str,
+    parent_path: str | None,
+) -> None:
+    """Inspect a specific node, showing all properties and metadata.
+
+    Examples:
+
+      gdauto scene inspect-node --scene scenes/main.tscn --node Player
+
+      gdauto scene inspect-node --scene scenes/main.tscn --node Button --parent HUD
+    """
+    try:
+        path = Path(scene_path)
+        text = path.read_text(encoding="utf-8")
+        scene_data = parse_tscn(text)
+
+        target = _find_node(scene_data, node_name, parent_path)
+        if target is None:
+            raise ProjectError(
+                message=f"Node '{node_name}' not found in scene",
+                code="NODE_NOT_FOUND",
+                fix="Check the node name and parent path",
+            )
+
+        props_serialized = {}
+        for k, v in target.properties.items():
+            try:
+                props_serialized[k] = serialize_value(v) if not isinstance(v, str) else v
+            except Exception:
+                props_serialized[k] = str(v)
+
+        data: dict[str, Any] = {
+            "name": target.name,
+            "type": target.type,
+            "parent": target.parent,
+            "properties": props_serialized,
+            "groups": target.groups,
+            "instance": target.instance,
+            "scene": scene_path,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Node: {data['name']}")
+            click.echo(f"  Type: {data['type'] or '(instance)'}")
+            click.echo(f"  Parent: {data['parent'] or '(root)'}")
+            if data.get("groups"):
+                click.echo(f"  Groups: {', '.join(data['groups'])}")
+            if data.get("instance"):
+                click.echo(f"  Instance: {data['instance']}")
+            props = data.get("properties", {})
+            if props:
+                click.echo(f"  Properties ({len(props)}):")
+                for k, v in props.items():
+                    click.echo(f"    {k} = {v}")
+            else:
+                click.echo("  Properties: (none)")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# scene move-node
+# ---------------------------------------------------------------------------
+
+
+@scene.command("move-node")
+@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True),
+              help="Path to the .tscn scene file")
+@click.option("--node", "node_name", required=True, help="Name of the node to move")
+@click.option("--parent", "parent_path", default=None, help="Current parent to disambiguate")
+@click.option("--new-parent", required=True, help="New parent node path")
+@click.pass_context
+def move_node(
+    ctx: click.Context,
+    scene_path: str,
+    node_name: str,
+    parent_path: str | None,
+    new_parent: str,
+) -> None:
+    """Move a node to a different parent in a scene file.
+
+    Examples:
+
+      gdauto scene move-node --scene scenes/main.tscn --node Camera --new-parent Player
+    """
+    try:
+        path = Path(scene_path)
+        text = path.read_text(encoding="utf-8")
+        scene_data = parse_tscn(text)
+
+        target = _find_node(scene_data, node_name, parent_path)
+        if target is None:
+            raise ProjectError(
+                message=f"Node '{node_name}' not found in scene",
+                code="NODE_NOT_FOUND",
+                fix="Check the node name and parent path",
+            )
+
+        old_parent = target.parent
+        if old_parent and old_parent != ".":
+            old_path = f"{old_parent}/{node_name}"
+        else:
+            old_path = node_name
+
+        new_full = f"{new_parent}/{node_name}" if new_parent != "." else node_name
+
+        target.parent = new_parent
+
+        for node in scene_data.nodes:
+            if node is target:
+                continue
+            if node.parent == old_path:
+                node.parent = new_full
+            elif node.parent and node.parent.startswith(old_path + "/"):
+                node.parent = new_full + node.parent[len(old_path):]
+
+        scene_data._raw_header = None
+        scene_data._raw_sections = None
+        path.write_text(serialize_tscn(scene_data), encoding="utf-8")
+
+        data = {"moved": True, "name": node_name, "from": old_parent, "to": new_parent, "scene": scene_path}
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Moved '{data['name']}' from '{data['from']}' to '{data['to']}'")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# scene list-types
+# ---------------------------------------------------------------------------
+
+
+@scene.command("list-types")
+@click.argument("scene_path", type=click.Path(exists=True))
+@click.pass_context
+def list_types(ctx: click.Context, scene_path: str) -> None:
+    """List all node types used in a scene file with counts.
+
+    Examples:
+
+      gdauto scene list-types scenes/main.tscn
+    """
+    try:
+        path = Path(scene_path)
+        text = path.read_text(encoding="utf-8")
+        scene_data = parse_tscn(text)
+
+        type_counts: dict[str, int] = {}
+        for node in scene_data.nodes:
+            ntype = node.type or "(instance)"
+            type_counts[ntype] = type_counts.get(ntype, 0) + 1
+
+        sorted_types = sorted(type_counts.items(), key=lambda x: (-x[1], x[0]))
+
+        data = {
+            "types": [{"type": t, "count": c} for t, c in sorted_types],
+            "total_types": len(type_counts),
+            "total_nodes": len(scene_data.nodes),
+            "scene": scene_path,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Node types in {data['scene']} ({data['total_types']} types, {data['total_nodes']} nodes):")
+            for entry in data["types"]:
+                click.echo(f"  {entry['type']}: {entry['count']}")
+
+        emit(data, _human, ctx)
+    except Exception as exc:
+        emit_error(
+            ProjectError(
+                message=f"Failed to parse scene: {exc}",
+                code="PARSE_ERROR",
+                fix="Ensure the file is a valid .tscn scene file",
+            ),
+            ctx,
+        )
+
+
+# ---------------------------------------------------------------------------
+# scene copy-properties
+# ---------------------------------------------------------------------------
+
+
+@scene.command("copy-properties")
+@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True),
+              help="Path to the .tscn scene file")
+@click.option("--from-node", required=True, help="Source node name")
+@click.option("--to-node", required=True, help="Destination node name")
+@click.option("--parent", "parent_path", default=None, help="Parent path (for both nodes)")
+@click.pass_context
+def copy_properties(
+    ctx: click.Context,
+    scene_path: str,
+    from_node: str,
+    to_node: str,
+    parent_path: str | None,
+) -> None:
+    """Copy properties from one node to another in a scene file.
+
+    Examples:
+
+      gdauto scene copy-properties --scene scenes/main.tscn --from-node Button1 --to-node Button2 --parent HUD
+    """
+    try:
+        path = Path(scene_path)
+        text = path.read_text(encoding="utf-8")
+        scene_data = parse_tscn(text)
+
+        source = _find_node(scene_data, from_node, parent_path)
+        if source is None:
+            raise ProjectError(
+                message=f"Source node '{from_node}' not found",
+                code="NODE_NOT_FOUND",
+                fix="Check the from-node name",
+            )
+
+        dest = _find_node(scene_data, to_node, parent_path)
+        if dest is None:
+            raise ProjectError(
+                message=f"Destination node '{to_node}' not found",
+                code="NODE_NOT_FOUND",
+                fix="Check the to-node name",
+            )
+
+        copied = 0
+        for key, value in source.properties.items():
+            if key != "script":
+                dest.properties[key] = value
+                copied += 1
+
+        scene_data._raw_header = None
+        scene_data._raw_sections = None
+        path.write_text(serialize_tscn(scene_data), encoding="utf-8")
+
+        data = {"copied": copied, "from": from_node, "to": to_node, "scene": scene_path}
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Copied {data['copied']} properties from '{data['from']}' to '{data['to']}'")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# scene set-anchor
+# ---------------------------------------------------------------------------
+
+_ANCHOR_PRESETS: dict[str, dict[str, float]] = {
+    "top_left": {"anchor_left": 0, "anchor_top": 0, "anchor_right": 0, "anchor_bottom": 0},
+    "top_right": {"anchor_left": 1, "anchor_top": 0, "anchor_right": 1, "anchor_bottom": 0},
+    "bottom_left": {"anchor_left": 0, "anchor_top": 1, "anchor_right": 0, "anchor_bottom": 1},
+    "bottom_right": {"anchor_left": 1, "anchor_top": 1, "anchor_right": 1, "anchor_bottom": 1},
+    "center": {"anchor_left": 0.5, "anchor_top": 0.5, "anchor_right": 0.5, "anchor_bottom": 0.5},
+    "center_top": {"anchor_left": 0.5, "anchor_top": 0, "anchor_right": 0.5, "anchor_bottom": 0},
+    "center_bottom": {"anchor_left": 0.5, "anchor_top": 1, "anchor_right": 0.5, "anchor_bottom": 1},
+    "center_left": {"anchor_left": 0, "anchor_top": 0.5, "anchor_right": 0, "anchor_bottom": 0.5},
+    "center_right": {"anchor_left": 1, "anchor_top": 0.5, "anchor_right": 1, "anchor_bottom": 0.5},
+    "full_rect": {"anchor_left": 0, "anchor_top": 0, "anchor_right": 1, "anchor_bottom": 1},
+    "top_wide": {"anchor_left": 0, "anchor_top": 0, "anchor_right": 1, "anchor_bottom": 0},
+    "bottom_wide": {"anchor_left": 0, "anchor_top": 1, "anchor_right": 1, "anchor_bottom": 1},
+    "left_wide": {"anchor_left": 0, "anchor_top": 0, "anchor_right": 0, "anchor_bottom": 1},
+    "right_wide": {"anchor_left": 1, "anchor_top": 0, "anchor_right": 1, "anchor_bottom": 1},
+    "hcenter_wide": {"anchor_left": 0, "anchor_top": 0.5, "anchor_right": 1, "anchor_bottom": 0.5},
+    "vcenter_wide": {"anchor_left": 0.5, "anchor_top": 0, "anchor_right": 0.5, "anchor_bottom": 1},
+}
+
+
+@scene.command("set-anchor")
+@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True),
+              help="Path to the .tscn scene file")
+@click.option("--node", "node_name", required=True, help="Control node name")
+@click.option("--parent", "parent_path", default=None, help="Parent path to disambiguate")
+@click.option("--preset", required=True, type=click.Choice(list(_ANCHOR_PRESETS.keys())),
+              help="Anchor preset name")
+@click.pass_context
+def set_anchor(
+    ctx: click.Context,
+    scene_path: str,
+    node_name: str,
+    parent_path: str | None,
+    preset: str,
+) -> None:
+    """Set anchor preset on a Control node.
+
+    Examples:
+
+      gdauto scene set-anchor --scene scenes/main.tscn --node Main --preset full_rect
+    """
+    try:
+        path = Path(scene_path)
+        text = path.read_text(encoding="utf-8")
+        scene_data = parse_tscn(text)
+
+        target = _find_node(scene_data, node_name, parent_path)
+        if target is None:
+            raise ProjectError(
+                message=f"Node '{node_name}' not found in scene",
+                code="NODE_NOT_FOUND",
+                fix="Check the node name",
+            )
+
+        anchors = _ANCHOR_PRESETS[preset]
+        for prop, val in anchors.items():
+            target.properties[prop] = val
+
+        scene_data._raw_header = None
+        scene_data._raw_sections = None
+        path.write_text(serialize_tscn(scene_data), encoding="utf-8")
+
+        data = {"set": True, "node": node_name, "preset": preset, "scene": scene_path}
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Set anchor preset '{data['preset']}' on '{data['node']}'")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# scene from-template
+# ---------------------------------------------------------------------------
+
+_SCENE_TEMPLATES: dict[str, dict[str, Any]] = {
+    "ui-panel": {
+        "root": {
+            "name": "Panel",
+            "type": "PanelContainer",
+            "children": [
+                {
+                    "name": "VBox",
+                    "type": "VBoxContainer",
+                    "children": [
+                        {"name": "TitleLabel", "type": "Label", "properties": {}},
+                        {"name": "Content", "type": "VBoxContainer", "properties": {}},
+                    ],
+                },
+            ],
+        },
+    },
+    "player-2d": {
+        "root": {
+            "name": "Player",
+            "type": "CharacterBody2D",
+            "children": [
+                {"name": "Sprite", "type": "Sprite2D", "properties": {}},
+                {"name": "Collision", "type": "CollisionShape2D", "properties": {}},
+                {"name": "Camera", "type": "Camera2D", "properties": {}},
+            ],
+        },
+    },
+    "level-2d": {
+        "root": {
+            "name": "Level",
+            "type": "Node2D",
+            "children": [
+                {"name": "TileMap", "type": "TileMapLayer", "properties": {}},
+                {"name": "Entities", "type": "Node2D", "properties": {}},
+                {"name": "Camera", "type": "Camera2D", "properties": {}},
+            ],
+        },
+    },
+}
+
+
+@scene.command("from-template")
+@click.option("--template", required=True, type=click.Choice(list(_SCENE_TEMPLATES.keys())),
+              help="Scene template name")
+@click.option("-o", "--output", required=True, type=click.Path(), help="Output .tscn path")
+@click.option("--title", default=None, help="Title text for ui-panel template")
+@click.pass_context
+def from_template(
+    ctx: click.Context,
+    template: str,
+    output: str,
+    title: str | None,
+) -> None:
+    """Create a scene from a built-in template.
+
+    Examples:
+
+      gdauto scene from-template --template ui-panel --output scenes/shop.tscn --title "Shop"
+
+      gdauto scene from-template --template player-2d --output scenes/player.tscn
+    """
+    try:
+        import copy
+        definition = copy.deepcopy(_SCENE_TEMPLATES[template])
+
+        if template == "ui-panel" and title:
+            _set_template_property(definition, "TitleLabel", "text", title)
+
+        gd_scene = build_scene(definition)
+        output_path = Path(output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        serialize_tscn_file(gd_scene, output_path)
+
+        if gd_scene.uid:
+            write_uid_file(output_path, gd_scene.uid)
+
+        data = {"path": str(output_path), "template": template}
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Created scene from template '{data['template']}': {data['path']}")
+
+        emit(data, _human, ctx)
+    except (ValidationError, GdautoError) as exc:
+        emit_error(exc, ctx)
+
+
+def _set_template_property(
+    definition: dict[str, Any], node_name: str, prop: str, value: str
+) -> None:
+    """Set a property on a named node in a template definition."""
+    def _walk(node: dict[str, Any]) -> bool:
+        if node.get("name") == node_name:
+            node.setdefault("properties", {})[prop] = value
+            return True
+        for child in node.get("children", []):
+            if _walk(child):
+                return True
+        return False
+    _walk(definition.get("root", {}))
