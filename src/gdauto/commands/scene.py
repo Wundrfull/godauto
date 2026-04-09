@@ -443,3 +443,95 @@ def remove_node(
         emit(data, _human, ctx)
     except ProjectError as exc:
         emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# scene set-property
+# ---------------------------------------------------------------------------
+
+
+@scene.command("set-property")
+@click.option(
+    "--scene", "scene_path", required=True,
+    type=click.Path(exists=True),
+    help="Path to the .tscn scene file",
+)
+@click.option(
+    "--node", "node_name", required=True,
+    help="Name of the node to modify",
+)
+@click.option(
+    "--parent", "parent_path", default=None,
+    help="Parent node path to disambiguate",
+)
+@click.option(
+    "--property", "properties", multiple=True, required=True,
+    help="Property as 'key=value' (e.g., 'visible=false', 'position=Vector2(10, 20)')",
+)
+@click.pass_context
+def set_property(
+    ctx: click.Context,
+    scene_path: str,
+    node_name: str,
+    parent_path: str | None,
+    properties: tuple[str, ...],
+) -> None:
+    """Set properties on an existing node in a scene file.
+
+    Examples:
+
+      gdauto scene set-property --scene scenes/main.tscn --node Player --property "visible=false"
+
+      gdauto scene set-property --scene scenes/main.tscn --node Sprite --parent Player --property "modulate=Color(1, 0, 0, 1)"
+    """
+    try:
+        path = Path(scene_path)
+        text = path.read_text(encoding="utf-8")
+        scene_data = parse_tscn(text)
+
+        target = None
+        for node in scene_data.nodes:
+            if node.name == node_name:
+                if parent_path is None or node.parent == parent_path:
+                    target = node
+                    break
+
+        if target is None:
+            raise ProjectError(
+                message=f"Node '{node_name}' not found",
+                code="NODE_NOT_FOUND",
+                fix="Check the node name and parent path",
+            )
+
+        changed: list[str] = []
+        for prop in properties:
+            if "=" not in prop:
+                raise ProjectError(
+                    message=f"Invalid property format: '{prop}'",
+                    code="INVALID_PROPERTY",
+                    fix="Use 'key=value' format",
+                )
+            key, value_str = prop.split("=", 1)
+            key = key.strip()
+            target.properties[key] = parse_value(value_str.strip())
+            changed.append(key)
+
+        scene_data._raw_header = None
+        scene_data._raw_sections = None
+        output = serialize_tscn(scene_data)
+        path.write_text(output, encoding="utf-8")
+
+        data = {
+            "updated": True,
+            "node": node_name,
+            "properties_changed": changed,
+            "count": len(changed),
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            props = ", ".join(data["properties_changed"])
+            click.echo(f"Set {props} on '{data['node']}'")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)

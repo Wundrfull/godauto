@@ -201,3 +201,73 @@ class TestRemoveNode:
             "--name", "Timer",
         ])
         assert "Timer" not in scene.read_text()
+
+
+class TestSetProperty:
+    """Verify scene set-property modifies node properties."""
+
+    def test_set_visible(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "set-property",
+            "--scene", str(scene),
+            "--node", "Player",
+            "--property", "visible=false",
+        ])
+        assert result.exit_code == 0, result.output
+        text = scene.read_text()
+        assert "visible = false" in text
+
+    def test_set_multiple_properties(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "set-property",
+            "--scene", str(scene),
+            "--node", "Player",
+            "--property", "visible=false",
+            "--property", "z_index=10",
+        ])
+        assert result.exit_code == 0
+        text = scene.read_text()
+        assert "visible = false" in text
+        assert "z_index = 10" in text
+
+    def test_set_with_parent(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "set-property",
+            "--scene", str(scene),
+            "--node", "Sprite",
+            "--parent", "Player",
+            "--property", "visible=false",
+        ])
+        assert result.exit_code == 0
+
+    def test_node_not_found_error(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "set-property",
+            "--scene", str(scene),
+            "--node", "Nonexistent",
+            "--property", "visible=false",
+        ])
+        assert result.exit_code != 0
+
+    def test_json_output(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "-j", "scene", "set-property",
+            "--scene", str(scene),
+            "--node", "Player",
+            "--property", "visible=true",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["updated"] is True
+        assert data["node"] == "Player"
+        assert data["count"] == 1
