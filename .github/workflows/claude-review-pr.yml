@@ -1,0 +1,63 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  pull_request_review_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+
+jobs:
+  # ---------------------------------------------------------------
+  # Auto-review new PRs and updated PRs
+  # ---------------------------------------------------------------
+  review:
+    if: >
+      github.event_name == 'pull_request' &&
+      !contains(github.event.pull_request.title, '[skip-review]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this PR for the gdauto project (a CLI tool for Godot Engine).
+
+            Focus on:
+            1. Correctness: Does the change actually fix what it claims?
+            2. Godot compatibility: Will generated .tscn/.tres files load in Godot 4.5+?
+            3. CLI contract: Does --json output follow {error, code, fix} on stderr?
+            4. Test coverage: Are the changes tested?
+            5. Security: No command injection, path traversal, or unsafe file ops.
+
+            Be concise. Only flag real issues, not style preferences.
+            If the PR looks good, say so briefly.
+          claude_args: "--model claude-sonnet-4-6 --max-turns 5 --max-budget-usd 1.00"
+
+  # ---------------------------------------------------------------
+  # Respond to @claude mentions in PR review comments
+  # ---------------------------------------------------------------
+  respond:
+    if: >
+      github.event_name == 'pull_request_review_comment' &&
+      contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: "--model claude-sonnet-4-6 --max-turns 10 --max-budget-usd 2.00"

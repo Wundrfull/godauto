@@ -180,6 +180,33 @@ Do not make direct repo edits outside a GSD workflow unless the user explicitly 
 
 
 
+## CI Agent Behavior (GitHub Actions)
+
+When running as an automated agent in CI (via `anthropics/claude-code-action`):
+
+### Issue Auto-Fix Protocol
+1. Read the issue title, body, and labels carefully
+2. Search the codebase in `src/gdauto/` to find the relevant code
+3. Identify the root cause; do not guess
+4. Implement a minimal, focused fix; do not refactor surrounding code
+5. Run `python -m pytest tests/unit/ -x -q` and confirm all tests pass
+6. Create a branch named `fix/issue-{number}-{short-description}`
+7. Commit with message: `fix: {description} (#{number})`
+8. Open a PR with `Fixes #{number}` in the body
+9. If the fix is unclear or requires design decisions, comment on the issue with findings and add the `needs-human` label instead of creating a PR
+
+### PR Review Protocol
+- Focus on correctness, Godot file compatibility, CLI contract compliance, and test coverage
+- Be concise; only flag real issues
+- Check that generated .tscn/.tres files follow Godot's expected format
+- Verify --json output uses `{error, code, fix}` on stderr for errors
+
+### What NOT to do in CI
+- Do not modify CLAUDE.md, pyproject.toml, or workflow files
+- Do not add new dependencies without human approval
+- Do not make changes unrelated to the issue being fixed
+- Do not bypass the test suite
+
 <!-- GSD:profile-start -->
 ## Developer Profile
 
