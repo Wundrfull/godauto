@@ -978,3 +978,84 @@ def _set_project_value(
         lines.append(entry_line)
 
     project_godot.write_text("\n".join(lines), encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# project add-layer
+# ---------------------------------------------------------------------------
+
+
+_LAYER_TYPES = {
+    "2d_physics": "layer_names/2d_physics/layer_",
+    "2d_render": "layer_names/2d_render/layer_",
+    "3d_physics": "layer_names/3d_physics/layer_",
+    "3d_render": "layer_names/3d_render/layer_",
+    "2d_navigation": "layer_names/2d_navigation/layer_",
+    "3d_navigation": "layer_names/3d_navigation/layer_",
+    "avoidance": "layer_names/avoidance/layer_",
+}
+
+
+@project.command("add-layer")
+@click.option(
+    "--type", "layer_type", required=True,
+    type=click.Choice(sorted(_LAYER_TYPES)),
+    help="Layer type",
+)
+@click.option(
+    "--index", required=True, type=int,
+    help="Layer index (1-32)",
+)
+@click.option(
+    "--name", "layer_name", required=True,
+    help="Layer name",
+)
+@click.argument("project_path", default=".", type=click.Path())
+@click.pass_context
+def add_layer(
+    ctx: click.Context,
+    layer_type: str,
+    index: int,
+    layer_name: str,
+    project_path: str,
+) -> None:
+    """Name a physics/render/navigation layer in project.godot.
+
+    Examples:
+
+      gdauto project add-layer --type 2d_physics --index 1 --name player
+
+      gdauto project add-layer --type 2d_physics --index 2 --name enemy
+
+      gdauto project add-layer --type 2d_render --index 1 --name foreground
+    """
+    try:
+        if index < 1 or index > 32:
+            raise ProjectError(
+                message=f"Layer index must be 1-32, got {index}",
+                code="INVALID_LAYER_INDEX",
+                fix="Use a layer index between 1 and 32",
+            )
+
+        project_godot = _find_project_godot(project_path)
+        prefix = _LAYER_TYPES[layer_type]
+        key = f"{prefix}{index}"
+        value = f'"{layer_name}"'
+
+        _set_project_value(project_godot, "layer_names", key, value)
+
+        data = {
+            "added": True,
+            "layer_type": layer_type,
+            "index": index,
+            "name": layer_name,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(
+                f"Named {data['layer_type']} layer {data['index']} = '{data['name']}'"
+            )
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
