@@ -45,6 +45,46 @@ _BASE_CLASSES = {
 }
 
 
+def _check_autoload_conflict(
+    class_name: str, output_path: str, warnings_list: list[str]
+) -> None:
+    """Warn if class_name matches an existing autoload singleton name.
+
+    Walks up from the output path to find project.godot and checks its
+    [autoload] section. Also warns if the script is in an autoload
+    directory and the class_name matches the expected singleton pattern.
+    """
+    out = Path(output_path).resolve()
+    for parent in [out.parent] + list(out.parent.parents):
+        project_file = parent / "project.godot"
+        if project_file.exists():
+            try:
+                from gdauto.formats.project_cfg import parse_project_config
+                cfg = parse_project_config(project_file.read_text(encoding="utf-8"))
+                autoload_section = cfg.sections.get("autoload")
+                if autoload_section:
+                    for name, _val in autoload_section:
+                        if name == class_name:
+                            warnings_list.append(
+                                f"class_name '{class_name}' conflicts with autoload "
+                                f"singleton '{name}'. Godot 4.x will refuse to load "
+                                f"scripts where class_name equals the autoload name. "
+                                f"Remove the class_name or use a different name."
+                            )
+                            return
+            except Exception:
+                pass
+            return
+    # No project.godot found; warn if path suggests autoload usage
+    if "autoload" in str(output_path).lower():
+        warnings_list.append(
+            f"class_name '{class_name}' may conflict if this script is registered "
+            f"as an autoload with the same name. Godot 4.x rejects scripts where "
+            f"class_name equals the autoload singleton name."
+        )
+
+
+
 def _generate_script(
     extends: str,
     class_name: str | None,
@@ -151,6 +191,13 @@ def create(
         parsed_exports = _parse_exports(exports)
         parsed_onready = _parse_onready(onready_vars)
 
+        warnings_list: list[str] = []
+
+        # Warn if class_name matches an autoload name (#21). Godot 4.x
+        # rejects scripts where class_name equals the autoload singleton name.
+        if class_name:
+            _check_autoload_conflict(class_name, output_path, warnings_list)
+
         source = _generate_script(
             extends=extends,
             class_name=class_name,
@@ -175,10 +222,13 @@ def create(
             "signals": list(signals),
             "exports": [f"{n}:{t}={d}" if d else f"{n}:{t}" for n, t, d in parsed_exports],
             "lines": source.count("\n"),
+            "warnings": warnings_list,
         }
 
         def _human(data: dict[str, Any], verbose: bool = False) -> None:
             click.echo(f"Created {data['path']} (extends {data['extends']}, {data['lines']} lines)")
+            for w in data.get("warnings", []):
+                click.echo(f"Warning: {w}", err=True)
 
         emit(data, _human, ctx)
     except ProjectError as exc:

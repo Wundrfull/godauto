@@ -446,6 +446,21 @@ def create(ctx: click.Context, name: str, output: str) -> None:
         emit_error(exc, ctx)
 
 
+def _detect_godot_version() -> str:
+    """Detect the installed Godot engine version, falling back to 4.5."""
+    try:
+        backend = GodotBackend()
+        backend.ensure_binary()
+        version_str = backend._version or ""
+        import re
+        match = re.search(r"(\d+\.\d+)", version_str)
+        if match:
+            return match.group(1)
+    except Exception:
+        pass
+    return "4.5"
+
+
 def _scaffold_project(target: Path, name: str) -> list[str]:
     """Create project directory structure and files."""
     created: list[str] = []
@@ -454,6 +469,8 @@ def _scaffold_project(target: Path, name: str) -> list[str]:
     target.mkdir(parents=True)
     for subdir in ("scenes", "scripts", "assets", "sprites", "tilesets"):
         (target / subdir).mkdir()
+
+    godot_version = _detect_godot_version()
 
     # project.godot
     project_godot = target / "project.godot"
@@ -466,7 +483,7 @@ def _scaffold_project(target: Path, name: str) -> list[str]:
         f'\n'
         f'config/name="{name}"\n'
         f'run/main_scene="res://scenes/main.tscn"\n'
-        f'config/features=PackedStringArray("4.5", "GL Compatibility")\n'
+        f'config/features=PackedStringArray("{godot_version}", "GL Compatibility")\n'
         f'config/icon="res://icon.svg"\n',
         encoding="utf-8",
     )
@@ -543,6 +560,23 @@ def add_autoload(
                     fix=f"Remove the existing autoload or choose a different name",
                 )
 
+        # Check if the target script has a class_name that conflicts (#21)
+        warnings_list: list[str] = []
+        script_file = project_godot.parent / script_path.removeprefix("res://")
+        if script_file.exists():
+            try:
+                import re
+                script_text = script_file.read_text(encoding="utf-8")
+                match = re.search(r'^class_name\s+(\w+)', script_text, re.MULTILINE)
+                if match and match.group(1) == name:
+                    warnings_list.append(
+                        f"Script has class_name '{name}' which conflicts with "
+                        f"autoload singleton name '{name}'. Godot 4.x will refuse "
+                        f"to load it. Remove the class_name from the script."
+                    )
+            except Exception:
+                pass
+
         # Build the value with or without singleton prefix
         prefix = "" if no_singleton else "*"
         value = f'"{prefix}{script_path}"'
@@ -555,6 +589,7 @@ def add_autoload(
             "name": name,
             "path": script_path,
             "singleton": not no_singleton,
+            "warnings": warnings_list,
         }
 
         def _human(data: dict[str, Any], verbose: bool = False) -> None:
@@ -562,8 +597,261 @@ def add_autoload(
                 f"Registered autoload '{data['name']}' -> {data['path']}"
                 f"{' (singleton)' if data['singleton'] else ''}"
             )
+            for w in data.get("warnings", []):
+                click.echo(f"Warning: {w}", err=True)
 
         emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# project run
+# ---------------------------------------------------------------------------
+
+
+@project.command("run")
+@click.argument("path", default=".", type=click.Path())
+@click.option(
+    "--quit-after", type=int, default=3,
+    help="Seconds to run before quitting (default: 3).",
+)
+@click.pass_context
+def run_project(ctx: click.Context, path: str, quit_after: int) -> None:
+    """Run headless Godot smoke test: load the project, quit after N seconds.
+
+    Captures any engine errors or warnings. Exit code 0 means the project
+    loaded cleanly; non-zero means errors were detected.
+
+    Examples:
+
+      gdauto project run
+
+      gdauto project run --quit-after 5
+
+      gdauto --json project run
+    """
+    try:
+        project_godot = _find_project_godot(path)
+        project_root = project_godot.parent
+
+        config: GlobalConfig = ctx.obj
+        backend = GodotBackend(binary_path=config.godot_path)
+
+        import subprocess
+        binary = backend.ensure_binary()
+        cmd = [
+            binary, "--headless",
+            "--path", str(project_root),
+            "--quit-after", str(quit_after),
+        ]
+        result = subprocess.run(
+            cmd, capture_output=True, text=True,
+            timeout=quit_after + 30,
+        )
+
+        stdout_lines = result.stdout.strip().splitlines() if result.stdout else []
+        stderr_lines = result.stderr.strip().splitlines() if result.stderr else []
+
+        errors = [l for l in stderr_lines if "ERROR" in l or "SCRIPT ERROR" in l]
+        warnings = [l for l in stderr_lines if "WARNING" in l]
+
+        data = {
+            "success": result.returncode == 0 and len(errors) == 0,
+            "exit_code": result.returncode,
+            "errors": errors,
+            "warnings": warnings,
+            "stdout_lines": len(stdout_lines),
+            "stderr_lines": len(stderr_lines),
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            if data["success"]:
+                click.echo("Project loaded cleanly (no errors)")
+            else:
+                click.echo(f"Project load found {len(data['errors'])} error(s):")
+                for e in data["errors"]:
+                    click.echo(f"  {e}")
+            if data["warnings"] and verbose:
+                click.echo(f"\nWarnings ({len(data['warnings'])}):")
+                for w in data["warnings"]:
+                    click.echo(f"  {w}")
+
+        emit(data, _human, ctx)
+
+        if not data["success"]:
+            ctx.exit(1)
+    except GodotBinaryError as exc:
+        emit_error(exc, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+    except Exception as exc:
+        from gdauto.errors import GdautoError
+        emit_error(
+            GdautoError(
+                message=f"Run failed: {exc}",
+                code="PROJECT_RUN_FAILED",
+                fix="Ensure Godot is installed and the project is valid",
+            ),
+            ctx,
+        )
+
+
+# ---------------------------------------------------------------------------
+# project test
+# ---------------------------------------------------------------------------
+
+
+@project.command("test")
+@click.argument("path", default=".", type=click.Path())
+@click.option(
+    "--quit-after", type=int, default=3,
+    help="Seconds to run in headless smoke test (default: 3).",
+)
+@click.option(
+    "--check-only", is_flag=True,
+    help="Also run Godot --check-only for GDScript syntax validation.",
+)
+@click.pass_context
+def test_project(ctx: click.Context, path: str, quit_after: int, check_only: bool) -> None:
+    """Full project validation: text checks + headless load test.
+
+    Combines `project validate` (text-format checks), optional `--check-only`
+    (GDScript syntax), and a headless Godot run to catch runtime errors.
+
+    Examples:
+
+      gdauto project test
+
+      gdauto --json project test --check-only
+    """
+    try:
+        project_godot = _find_project_godot(path)
+        project_root = project_godot.parent
+
+        # Step 1: text validation (same as project validate)
+        missing, all_refs = _collect_res_paths(project_root)
+        config_text = project_godot.read_text(encoding="utf-8")
+        cfg = parse_project_config(config_text)
+        _check_project_godot_refs(cfg, project_root, missing)
+
+        autoload_section = cfg.sections.get("autoload")
+        if autoload_section:
+            for _key, val in autoload_section:
+                clean = _strip_quotes(val).lstrip("*")
+                if clean.startswith("res://"):
+                    all_refs.add(clean)
+
+        orphans = _collect_orphan_scripts(project_root, all_refs)
+
+        # Step 2: optional --check-only
+        script_errors: list[str] = []
+        if check_only:
+            config: GlobalConfig = ctx.obj
+            backend = GodotBackend(binary_path=config.godot_path)
+            try:
+                result = backend.check_only(project_root)
+                if result.stderr:
+                    script_errors = [
+                        l for l in result.stderr.strip().splitlines()
+                        if "ERROR" in l or "error" in l.lower()
+                    ]
+            except Exception as exc:
+                script_errors.append(str(exc))
+
+        # Step 3: headless smoke test
+        runtime_errors: list[str] = []
+        runtime_warnings: list[str] = []
+        runtime_success = True
+        try:
+            config_obj: GlobalConfig = ctx.obj
+            backend = GodotBackend(binary_path=config_obj.godot_path)
+            import subprocess
+            binary = backend.ensure_binary()
+            cmd = [
+                binary, "--headless",
+                "--path", str(project_root),
+                "--quit-after", str(quit_after),
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True,
+                timeout=quit_after + 30,
+            )
+            if result.stderr:
+                for line in result.stderr.strip().splitlines():
+                    if "ERROR" in line or "SCRIPT ERROR" in line:
+                        runtime_errors.append(line)
+                    elif "WARNING" in line:
+                        runtime_warnings.append(line)
+            if result.returncode != 0 or runtime_errors:
+                runtime_success = False
+        except GodotBinaryError:
+            runtime_errors.append("Godot binary not found; skipped headless test")
+            runtime_success = False
+        except Exception as exc:
+            runtime_errors.append(f"Headless test failed: {exc}")
+            runtime_success = False
+
+        all_ok = (
+            len(missing) == 0
+            and len(script_errors) == 0
+            and runtime_success
+        )
+
+        data = {
+            "success": all_ok,
+            "text_validation": {
+                "missing_resources": missing,
+                "orphan_scripts": orphans,
+                "issues": len(missing),
+            },
+            "script_check": {
+                "errors": script_errors,
+                "ran": check_only,
+            },
+            "runtime_test": {
+                "success": runtime_success,
+                "errors": runtime_errors,
+                "warnings": runtime_warnings,
+            },
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            tv = data["text_validation"]
+            rt = data["runtime_test"]
+            sc = data["script_check"]
+
+            if tv["issues"] > 0:
+                click.echo(f"Text validation: {tv['issues']} issue(s)")
+                for r in tv["missing_resources"]:
+                    click.echo(f"  Missing: {r}")
+            else:
+                click.echo("Text validation: passed")
+
+            if sc["ran"]:
+                if sc["errors"]:
+                    click.echo(f"Script check: {len(sc['errors'])} error(s)")
+                    for e in sc["errors"]:
+                        click.echo(f"  {e}")
+                else:
+                    click.echo("Script check: passed")
+
+            if rt["success"]:
+                click.echo("Runtime test: passed")
+            else:
+                click.echo(f"Runtime test: {len(rt['errors'])} error(s)")
+                for e in rt["errors"]:
+                    click.echo(f"  {e}")
+
+            if data["success"]:
+                click.echo("\nAll checks passed.")
+            else:
+                click.echo("\nSome checks failed.")
+
+        emit(data, _human, ctx)
+
+        if not all_ok:
+            ctx.exit(1)
     except ProjectError as exc:
         emit_error(exc, ctx)
 

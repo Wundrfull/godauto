@@ -7,9 +7,19 @@ and propagated to subcommands via Click's context object.
 
 from __future__ import annotations
 
+import io
 import os
+import sys
 from pathlib import Path
 from typing import Any
+
+# Ensure UTF-8 output on Windows to prevent UnicodeEncodeError with
+# non-ASCII filenames (CJK, emoji, etc.) when using click.echo (#15, #16).
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 import rich_click as click
 
@@ -119,6 +129,86 @@ def _print_import_result(data: dict[str, Any], verbose: bool = False) -> None:
     click.echo(f"Import complete: {data['project']}")
 
 
+@click.command("setup")
+@click.option("--auto", "auto_detect", is_flag=True, help="Auto-detect tools without prompting.")
+@click.pass_context
+def setup_cmd(ctx: click.Context, auto_detect: bool) -> None:
+    """Detect and configure external tools (Godot, Aseprite).
+
+    Scans common install locations for Godot and Aseprite, validates
+    versions, and reports the results. Use --auto for non-interactive mode.
+
+    Examples:
+
+      gdauto setup
+
+      gdauto --json setup --auto
+    """
+    import shutil
+
+    results: dict[str, Any] = {"tools": {}}
+
+    # Detect Godot
+    godot_info = _detect_tool("Godot", [
+        os.environ.get("GODOT_PATH", ""),
+        shutil.which("godot") or "",
+        str(Path.home() / "Documents/GameDev/Godot_v4.6-stable_win64_console.exe"),
+        str(Path.home() / "Documents/GameDev/Godot_v4.5-stable_win64_console.exe"),
+        "C:/Program Files/Godot/godot.exe",
+        "/usr/local/bin/godot",
+        "/Applications/Godot.app/Contents/MacOS/Godot",
+    ])
+    results["tools"]["godot"] = godot_info
+
+    # Detect Aseprite
+    aseprite_info = _detect_tool("Aseprite", [
+        os.environ.get("ASEPRITE_PATH", ""),
+        shutil.which("aseprite") or "",
+        "C:/Program Files (x86)/Steam/steamapps/common/Aseprite/Aseprite.exe",
+        "C:/Program Files/Aseprite/Aseprite.exe",
+        str(Path.home() / "Library/Application Support/Steam/steamapps/common/Aseprite/aseprite"),
+        "/usr/bin/aseprite",
+    ])
+    results["tools"]["aseprite"] = aseprite_info
+
+    # Detect pixel-mcp
+    pixel_mcp_found = False
+    for candidate in ["tools/bin/pixel-mcp.exe", "tools/bin/pixel-mcp"]:
+        if Path(candidate).exists():
+            pixel_mcp_found = True
+            results["tools"]["pixel_mcp"] = {"found": True, "path": candidate}
+            break
+    if not pixel_mcp_found:
+        results["tools"]["pixel_mcp"] = {"found": False, "path": None}
+
+    results["all_found"] = all(
+        t.get("found", False) for t in results["tools"].values()
+    )
+
+    def _human(data: dict[str, Any], verbose: bool = False) -> None:
+        click.echo("gdauto environment setup:")
+        for name, info in data["tools"].items():
+            status = "FOUND" if info.get("found") else "NOT FOUND"
+            path = info.get("path", "")
+            click.echo(f"  {name}: [{status}] {path or ''}")
+        if data["all_found"]:
+            click.echo("\nAll tools detected. Ready to go.")
+        else:
+            missing = [n for n, i in data["tools"].items() if not i.get("found")]
+            click.echo(f"\nMissing: {', '.join(missing)}")
+            click.echo("Set GODOT_PATH or ASEPRITE_PATH environment variables to configure.")
+
+    emit(results, _human, ctx)
+
+
+def _detect_tool(name: str, candidates: list[str]) -> dict[str, Any]:
+    """Try each candidate path and return the first that exists."""
+    for candidate in candidates:
+        if candidate and Path(candidate).exists():
+            return {"found": True, "path": candidate, "name": name}
+    return {"found": False, "path": None, "name": name}
+
+
 # Register command groups
 cli.add_command(animation)
 cli.add_command(audio)
@@ -137,4 +227,5 @@ cli.add_command(shader)
 cli.add_command(signal)
 cli.add_command(theme)
 cli.add_command(import_cmd, name="import")
+cli.add_command(setup_cmd, name="setup")
 cli.add_command(skill)

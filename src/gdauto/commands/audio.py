@@ -138,7 +138,8 @@ def add_player(
         if volume_db != 0.0:
             properties["volume_db"] = volume_db
         if bus != "Master":
-            properties["bus"] = f'"{bus}"'
+            from gdauto.formats.values import StringName
+            properties["bus"] = StringName(bus)
         if autoplay:
             properties["autoplay"] = True
 
@@ -315,3 +316,138 @@ def _parse_bus_layout(text: str) -> list[dict[str, Any]]:
         buses[idx][key] = value
 
     return [buses[i] for i in sorted(buses)]
+
+
+# ---------------------------------------------------------------------------
+# audio generate-placeholder
+# ---------------------------------------------------------------------------
+
+# Preset sound types with parameters: (frequency_hz, duration_ms, wave_type)
+_SOUND_PRESETS: dict[str, tuple[float, int, str]] = {
+    "click": (800.0, 50, "sine"),
+    "beep": (440.0, 200, "sine"),
+    "coin": (1200.0, 150, "sine"),
+    "whoosh": (0.0, 300, "noise"),
+    "hurt": (200.0, 200, "sawtooth"),
+    "jump": (400.0, 150, "sine_sweep"),
+}
+
+
+@audio.command("generate-placeholder")
+@click.option(
+    "--type", "sound_type",
+    type=click.Choice(list(_SOUND_PRESETS.keys()) + ["tone"]),
+    default="beep",
+    help="Sound type preset (default: beep).",
+)
+@click.option(
+    "--frequency", type=float, default=None,
+    help="Frequency in Hz (overrides preset, used with --type tone).",
+)
+@click.option(
+    "--duration", type=int, default=None,
+    help="Duration in milliseconds (overrides preset).",
+)
+@click.option(
+    "--sample-rate", type=int, default=22050,
+    help="Sample rate (default: 22050).",
+)
+@click.argument("output_path", type=click.Path())
+@click.pass_context
+def generate_placeholder(
+    ctx: click.Context,
+    sound_type: str,
+    frequency: float | None,
+    duration: int | None,
+    sample_rate: int,
+    output_path: str,
+) -> None:
+    """Generate a placeholder WAV audio file for CLI-only workflows.
+
+    Creates simple synthesized sounds (clicks, beeps, coin sounds, etc.)
+    using Python's wave module. No external dependencies required.
+
+    Examples:
+
+      gdauto audio generate-placeholder assets/audio/click.wav
+
+      gdauto audio generate-placeholder --type coin assets/audio/coin.wav
+
+      gdauto audio generate-placeholder --type tone --frequency 880 --duration 500 assets/audio/tone.wav
+    """
+    import math
+    import struct
+    import wave
+
+    try:
+        # Resolve parameters from preset or overrides
+        if sound_type == "tone":
+            freq = frequency or 440.0
+            dur_ms = duration or 200
+            wave_type = "sine"
+        else:
+            preset_freq, preset_dur, wave_type = _SOUND_PRESETS[sound_type]
+            freq = frequency if frequency is not None else preset_freq
+            dur_ms = duration if duration is not None else preset_dur
+
+        num_samples = int(sample_rate * dur_ms / 1000)
+        samples: list[int] = []
+
+        import random
+        for i in range(num_samples):
+            t = i / sample_rate
+            if wave_type == "noise":
+                val = random.uniform(-1.0, 1.0)
+            elif wave_type == "sawtooth":
+                val = 2.0 * (t * freq - math.floor(t * freq + 0.5))
+            elif wave_type == "sine_sweep":
+                sweep_freq = freq + (freq * 2 - freq) * (i / num_samples)
+                val = math.sin(2.0 * math.pi * sweep_freq * t)
+            else:
+                val = math.sin(2.0 * math.pi * freq * t)
+
+            # Apply fade-out envelope to avoid clicks
+            envelope = 1.0 - (i / num_samples) ** 2
+            sample = int(val * envelope * 32767 * 0.8)
+            sample = max(-32768, min(32767, sample))
+            samples.append(sample)
+
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+
+        with wave.open(str(out), "w") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(sample_rate)
+            wf.writeframes(struct.pack(f"<{len(samples)}h", *samples))
+
+        data = {
+            "created": True,
+            "path": str(out),
+            "type": sound_type,
+            "frequency": freq,
+            "duration_ms": dur_ms,
+            "sample_rate": sample_rate,
+            "file_size": out.stat().st_size,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(
+                f"Generated {data['type']} sound: {data['path']} "
+                f"({data['duration_ms']}ms, {data['frequency']}Hz, "
+                f"{data['file_size']} bytes)"
+            )
+
+        from gdauto.output import emit
+        emit(data, _human, ctx)
+    except Exception as exc:
+        from gdauto.errors import GdautoError
+        from gdauto.output import emit_error
+        emit_error(
+            GdautoError(
+                message=f"Failed to generate audio: {exc}",
+                code="AUDIO_GENERATE_FAILED",
+                fix="Check the output path and parameters",
+            ),
+            ctx,
+        )

@@ -13,7 +13,7 @@ from rich.tree import Tree
 from gdauto.errors import GdautoError, ProjectError, ValidationError
 from gdauto.formats.tscn import SceneNode, parse_tscn, serialize_tscn, serialize_tscn_file
 from gdauto.formats.uid import write_uid_file
-from gdauto.formats.values import parse_value
+from gdauto.formats.values import ExtResourceRef, StringName, parse_value
 from gdauto.output import GlobalConfig, emit, emit_error
 from gdauto.scene.builder import build_scene
 from gdauto.scene.lister import list_scenes
@@ -535,10 +535,16 @@ def set_property(
     parent_path: str | None,
     properties: tuple[str, ...],
 ) -> None:
-    """Set properties on an existing node in a scene file.
+    r"""Set properties on an existing node in a scene file.
 
-    Examples:
+    \b
+    SHELL ESCAPING:
+      Values containing $ must use single quotes to prevent shell expansion:
+        --property 'text=Buy ($50)'    (correct)
+        --property "text=Buy ($50)"    (WRONG: $50 expands to empty)
 
+    \b
+    EXAMPLES:
       gdauto scene set-property --scene scenes/main.tscn --node Player --property "visible=false"
 
       gdauto scene set-property --scene scenes/main.tscn --node Sprite --parent Player --property "modulate=Color(1, 0, 0, 1)"
@@ -1482,7 +1488,7 @@ def set_resource(
             ext_id = existing_ext.id
 
         # Set the property to reference the ext_resource
-        target.properties[prop_name] = f'ExtResource("{ext_id}")'
+        target.properties[prop_name] = ExtResourceRef(ext_id)
 
         # Update load_steps
         scene_data.load_steps = len(scene_data.ext_resources) + len(scene_data.sub_resources) + 1

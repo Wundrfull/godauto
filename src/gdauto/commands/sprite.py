@@ -169,26 +169,51 @@ def _do_import_aseprite(
     )
 
 
+def _find_project_root(start: Path) -> Path | None:
+    """Walk up from start to find a directory containing project.godot."""
+    current = start.resolve()
+    for parent in [current] + list(current.parents):
+        if (parent / "project.godot").exists():
+            return parent
+    return None
+
+
 def _resolve_image_path(
     res_path: str | None, meta_image: str, output: str | None
 ) -> str:
     """Determine the Godot res:// path for the sprite sheet texture.
 
-    Priority: explicit --res-path > inferred from -o directory > flat filename.
-    When -o is a relative path with subdirectories (e.g., sprites/char.tres),
-    the image path is inferred as res://<output_dir>/<image_filename> so agents
-    get correct paths by default. Absolute output paths are not used for
-    inference since they are not valid Godot res:// paths.
+    Priority: explicit --res-path > inferred from output path relative to
+    project root > inferred from output directory > flat filename.
+    When an output path is given, the function locates project.godot and
+    computes the res:// path relative to the project root so that agents
+    get correct paths regardless of CWD or absolute/relative output paths.
     """
     if res_path is not None:
         return res_path
+
+    image_name = Path(meta_image).name
+
     if output is not None:
-        output_path = Path(output)
-        if not output_path.is_absolute():
-            output_dir = output_path.parent
-            if str(output_dir) != ".":
-                return "res://" + (output_dir / Path(meta_image).name).as_posix()
-    return "res://" + meta_image
+        output_path = Path(output).resolve()
+        output_dir = output_path.parent
+
+        # Try to find project root and compute res:// path relative to it
+        project_root = _find_project_root(output_dir)
+        if project_root is not None:
+            try:
+                rel = (output_dir / image_name).relative_to(project_root)
+                return "res://" + rel.as_posix()
+            except ValueError:
+                pass
+
+        # Fallback: use the output path as given (relative paths only)
+        if not Path(output).is_absolute():
+            out_dir = Path(output).parent
+            if str(out_dir) != ".":
+                return "res://" + (out_dir / image_name).as_posix()
+
+    return "res://" + image_name
 
 
 def _resolve_output_path(output: str | None, json_path: Path) -> Path:
@@ -215,11 +240,13 @@ def _build_resource(
             direction=AniDirection.FORWARD, repeat=0,
         )]
 
+    # Omit UID so Godot assigns its own on first import. Random UIDs
+    # cause "invalid UID" warnings and break resource loading (#20).
     ext = ExtResource(
         type="Texture2D",
         path=image_res_path,
         id=generate_resource_id("Texture2D"),
-        uid=uid_to_text(generate_uid()),
+        uid=None,
     )
 
     successful_animations: list[dict[str, Any]] = []
