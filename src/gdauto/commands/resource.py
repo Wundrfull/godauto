@@ -371,3 +371,66 @@ def create_curve(
         emit(data, _human, ctx)
     except ProjectError as exc:
         emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# resource list
+# ---------------------------------------------------------------------------
+
+
+@resource.command("list")
+@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True),
+              help="Path to a .tscn or .tres file")
+@click.pass_context
+def list_resources(ctx: click.Context, scene_path: str) -> None:
+    """List external resources referenced by a scene or resource file.
+
+    Examples:
+
+      gdauto resource list --scene scenes/main.tscn
+    """
+    try:
+        file_path = Path(scene_path)
+        suffix = file_path.suffix.lower()
+
+        if suffix == ".tscn":
+            scene_data = parse_tscn_file(file_path)
+            resources = [
+                {"id": ext.id, "type": ext.type, "path": ext.path, "uid": ext.uid}
+                for ext in scene_data.ext_resources
+            ]
+        elif suffix == ".tres":
+            res_data = parse_tres_file(file_path)
+            resources = [
+                {"id": ext.id, "type": ext.type, "path": ext.path, "uid": ext.uid}
+                for ext in res_data.ext_resources
+            ]
+        else:
+            raise ProjectError(
+                message=f"Unsupported file type: {suffix}",
+                code="INVALID_FILE_TYPE",
+                fix="Provide a .tscn or .tres file",
+            )
+
+        data = {"resources": resources, "count": len(resources), "file": scene_path}
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Resources in {data['file']} ({data['count']}):")
+            for res in data["resources"]:
+                uid_str = f" uid={res['uid']}" if res.get("uid") else ""
+                click.echo(f"  [{res['id']}] {res['type']}: {res['path']}{uid_str}")
+            if not data["resources"]:
+                click.echo("  (none)")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+    except Exception as exc:
+        emit_error(
+            ProjectError(
+                message=f"Failed to parse file: {exc}",
+                code="PARSE_ERROR",
+                fix="Ensure the file is a valid .tscn or .tres file",
+            ),
+            ctx,
+        )

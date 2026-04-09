@@ -19,6 +19,21 @@ from gdauto.scene.builder import build_scene
 from gdauto.scene.lister import list_scenes
 
 
+def _find_node(
+    scene_data: Any, node_name: str, parent_path: str | None
+) -> SceneNode | None:
+    """Find a node by name and optional parent path."""
+    from gdauto.formats.tscn import GdScene
+
+    for node in scene_data.nodes:
+        if node.name == node_name:
+            if parent_path is None:
+                return node
+            if node.parent == parent_path:
+                return node
+    return None
+
+
 @click.group(invoke_without_command=True)
 @click.pass_context
 def scene(ctx: click.Context) -> None:
@@ -1118,3 +1133,276 @@ def list_nodes(ctx: click.Context, scene_path: str) -> None:
             ),
             ctx,
         )
+
+
+# ---------------------------------------------------------------------------
+# scene rename-node
+# ---------------------------------------------------------------------------
+
+
+@scene.command("rename-node")
+@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True),
+              help="Path to the .tscn scene file")
+@click.option("--node", "node_name", required=True, help="Current name of the node")
+@click.option("--parent", "parent_path", default=None, help="Parent node path to disambiguate")
+@click.option("--new-name", required=True, help="New name for the node")
+@click.pass_context
+def rename_node(
+    ctx: click.Context,
+    scene_path: str,
+    node_name: str,
+    parent_path: str | None,
+    new_name: str,
+) -> None:
+    """Rename a node in a scene file.
+
+    Updates the node name and all parent references from other nodes
+    that reference the renamed node.
+
+    Examples:
+
+      gdauto scene rename-node --scene scenes/main.tscn --node Timer --new-name SpawnTimer
+
+      gdauto scene rename-node --scene scenes/main.tscn --node Label --parent HUD --new-name ScoreLabel
+    """
+    try:
+        path = Path(scene_path)
+        text = path.read_text(encoding="utf-8")
+        scene_data = parse_tscn(text)
+
+        target = _find_node(scene_data, node_name, parent_path)
+        if target is None:
+            raise ProjectError(
+                message=f"Node '{node_name}' not found in scene",
+                code="NODE_NOT_FOUND",
+                fix="Check the node name and parent path",
+            )
+
+        old_name = target.name
+        # Build the old path for parent reference updates
+        if target.parent is None or target.parent == ".":
+            old_path = old_name
+        else:
+            old_path = f"{target.parent}/{old_name}" if target.parent != "." else old_name
+
+        new_path = f"{target.parent}/{new_name}" if target.parent and target.parent != "." else new_name
+
+        # Rename the node
+        target.name = new_name
+
+        # Update parent references in child nodes
+        for node in scene_data.nodes:
+            if node.parent == old_path:
+                node.parent = new_path
+            elif node.parent and node.parent.startswith(old_path + "/"):
+                node.parent = new_path + node.parent[len(old_path):]
+
+        # Update connection references
+        for conn in scene_data.connections:
+            if conn.from_node == old_name:
+                conn.from_node = new_name
+            if conn.to_node == old_name:
+                conn.to_node = new_name
+
+        scene_data._raw_header = None
+        scene_data._raw_sections = None
+        path.write_text(serialize_tscn(scene_data), encoding="utf-8")
+
+        data = {"renamed": True, "old_name": old_name, "new_name": new_name, "scene": scene_path}
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Renamed '{data['old_name']}' -> '{data['new_name']}' in {data['scene']}")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# scene reorder-node
+# ---------------------------------------------------------------------------
+
+
+@scene.command("reorder-node")
+@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True),
+              help="Path to the .tscn scene file")
+@click.option("--node", "node_name", required=True, help="Name of the node to move")
+@click.option("--parent", "parent_path", default=None, help="Parent node path to disambiguate")
+@click.option("--index", "target_index", required=True, type=int,
+              help="Target child index (0-based)")
+@click.pass_context
+def reorder_node(
+    ctx: click.Context,
+    scene_path: str,
+    node_name: str,
+    parent_path: str | None,
+    target_index: int,
+) -> None:
+    """Reorder a node among its siblings in a scene file.
+
+    Moves the node to the specified child index within its parent.
+
+    Examples:
+
+      gdauto scene reorder-node --scene scenes/main.tscn --node ScoreLabel --parent HUD --index 0
+    """
+    try:
+        path = Path(scene_path)
+        text = path.read_text(encoding="utf-8")
+        scene_data = parse_tscn(text)
+
+        target = _find_node(scene_data, node_name, parent_path)
+        if target is None:
+            raise ProjectError(
+                message=f"Node '{node_name}' not found in scene",
+                code="NODE_NOT_FOUND",
+                fix="Check the node name and parent path",
+            )
+
+        # Find the parent path for sibling lookup
+        node_parent = target.parent
+
+        # Gather siblings (nodes with the same parent), preserving order
+        siblings = [n for n in scene_data.nodes if n.parent == node_parent]
+
+        if target not in siblings:
+            raise ProjectError(
+                message=f"Node '{node_name}' not found among siblings",
+                code="NODE_NOT_FOUND",
+                fix="Check the node name and parent path",
+            )
+
+        # Remove target from current position
+        scene_data.nodes.remove(target)
+
+        # Find where siblings start in the main node list
+        remaining_siblings = [n for n in scene_data.nodes if n.parent == node_parent]
+
+        if target_index <= 0 or not remaining_siblings:
+            # Insert before first sibling
+            if remaining_siblings:
+                insert_pos = scene_data.nodes.index(remaining_siblings[0])
+            else:
+                insert_pos = len(scene_data.nodes)
+        elif target_index >= len(remaining_siblings):
+            # Insert after last sibling
+            insert_pos = scene_data.nodes.index(remaining_siblings[-1]) + 1
+        else:
+            insert_pos = scene_data.nodes.index(remaining_siblings[target_index])
+
+        scene_data.nodes.insert(insert_pos, target)
+
+        scene_data._raw_header = None
+        scene_data._raw_sections = None
+        path.write_text(serialize_tscn(scene_data), encoding="utf-8")
+
+        data = {"reordered": True, "name": node_name, "index": target_index, "scene": scene_path}
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Moved '{data['name']}' to index {data['index']} in {data['scene']}")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# scene set-resource
+# ---------------------------------------------------------------------------
+
+
+@scene.command("set-resource")
+@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True),
+              help="Path to the .tscn scene file")
+@click.option("--node", "node_name", required=True, help="Name of the node to modify")
+@click.option("--parent", "parent_path", default=None, help="Parent node path to disambiguate")
+@click.option("--property", "prop_name", required=True,
+              help="Property name to set (e.g., theme, material, texture)")
+@click.option("--resource", required=True,
+              help="res:// path to the resource (e.g., res://theme/game_theme.tres)")
+@click.option("--type", "res_type", required=True,
+              help="Resource type (e.g., Theme, ShaderMaterial, Texture2D)")
+@click.pass_context
+def set_resource(
+    ctx: click.Context,
+    scene_path: str,
+    node_name: str,
+    parent_path: str | None,
+    prop_name: str,
+    resource: str,
+    res_type: str,
+) -> None:
+    """Assign an external resource to a node property.
+
+    Creates (or reuses) an ext_resource entry and sets the property
+    on the target node to reference it.
+
+    Examples:
+
+      gdauto scene set-resource --scene scenes/main.tscn --node Main --property theme --resource res://theme/game_theme.tres --type Theme
+
+      gdauto scene set-resource --scene scenes/player.tscn --node Sprite --property material --resource res://shaders/flash_material.tres --type ShaderMaterial
+    """
+    from gdauto.formats.tres import ExtResource
+
+    try:
+        path = Path(scene_path)
+        text = path.read_text(encoding="utf-8")
+        scene_data = parse_tscn(text)
+
+        target = _find_node(scene_data, node_name, parent_path)
+        if target is None:
+            raise ProjectError(
+                message=f"Node '{node_name}' not found in scene",
+                code="NODE_NOT_FOUND",
+                fix="Check the node name and parent path",
+            )
+
+        # Check if an ext_resource with this path already exists
+        existing_ext = None
+        for ext in scene_data.ext_resources:
+            if ext.path == resource:
+                existing_ext = ext
+                break
+
+        if existing_ext is None:
+            # Allocate a new ext_resource ID
+            used_ids = {int(ext.id) for ext in scene_data.ext_resources if ext.id.isdigit()}
+            new_id = str(max(used_ids, default=0) + 1)
+            new_ext = ExtResource(
+                type=res_type,
+                path=resource,
+                id=new_id,
+            )
+            scene_data.ext_resources.append(new_ext)
+            ext_id = new_id
+        else:
+            ext_id = existing_ext.id
+
+        # Set the property to reference the ext_resource
+        target.properties[prop_name] = f'ExtResource("{ext_id}")'
+
+        # Update load_steps
+        scene_data.load_steps = len(scene_data.ext_resources) + len(scene_data.sub_resources) + 1
+
+        scene_data._raw_header = None
+        scene_data._raw_sections = None
+        path.write_text(serialize_tscn(scene_data), encoding="utf-8")
+
+        data = {
+            "set": True,
+            "node": node_name,
+            "property": prop_name,
+            "resource": resource,
+            "type": res_type,
+            "scene": scene_path,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(
+                f"Set {data['node']}.{data['property']} = {data['resource']} ({data['type']})"
+            )
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)

@@ -1193,3 +1193,90 @@ def add_layer(
         emit(data, _human, ctx)
     except ProjectError as exc:
         emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# project set-config
+# ---------------------------------------------------------------------------
+
+
+@project.command("set-config")
+@click.option("--section", required=True, help="Section name (e.g., application, display).")
+@click.option("--key", required=True, help="Setting key (e.g., config/name, run/main_scene).")
+@click.option("--value", required=True, help="Value to set.")
+@click.argument("project_path", default=".", type=click.Path())
+@click.pass_context
+def set_config(
+    ctx: click.Context,
+    section: str,
+    key: str,
+    value: str,
+    project_path: str,
+) -> None:
+    """Set a key-value pair in project.godot.
+
+    Generic setter for any project.godot configuration. Creates the
+    section if it does not exist, updates in place if the key exists.
+
+    Examples:
+
+      gdauto project set-config --section application --key config/name --value "My Game"
+
+      gdauto project set-config --section display --key window/size/viewport_width --value 1920
+    """
+    try:
+        project_godot = _find_project_godot(project_path)
+        _set_project_value(project_godot, section, key, value)
+
+        data = {
+            "updated": True,
+            "section": section,
+            "key": key,
+            "value": value,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Set [{data['section']}] {data['key']} = {data['value']}")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# project set-main-scene
+# ---------------------------------------------------------------------------
+
+
+@project.command("set-main-scene")
+@click.option("--scene", required=True, help="Scene path (e.g., res://scenes/main.tscn).")
+@click.argument("project_path", default=".", type=click.Path())
+@click.pass_context
+def set_main_scene(
+    ctx: click.Context,
+    scene: str,
+    project_path: str,
+) -> None:
+    """Set the main scene in project.godot.
+
+    Examples:
+
+      gdauto project set-main-scene --scene res://scenes/main.tscn
+    """
+    try:
+        project_godot = _find_project_godot(project_path)
+        _set_project_value(
+            project_godot, "application", "run/main_scene", f'"{scene}"'
+        )
+
+        data = {
+            "updated": True,
+            "main_scene": scene,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Main scene set to: {data['main_scene']}")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
