@@ -1,0 +1,203 @@
+"""Tests for scene add-node and remove-node commands."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from click.testing import CliRunner
+
+from gdauto.cli import cli
+
+
+def _make_scene(tmp_path: Path) -> Path:
+    """Create a scene with some existing nodes."""
+    scene_file = tmp_path / "main.tscn"
+    scene_file.write_text(
+        '[gd_scene format=3]\n'
+        '\n'
+        '[node name="Main" type="Node2D"]\n'
+        '\n'
+        '[node name="Player" type="CharacterBody2D" parent="."]\n'
+        '\n'
+        '[node name="Sprite" type="Sprite2D" parent="Player"]\n',
+        encoding="utf-8",
+    )
+    return scene_file
+
+
+class TestAddNode:
+    """Verify scene add-node adds nodes to scenes."""
+
+    def test_add_timer(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "add-node",
+            "--scene", str(scene),
+            "--name", "Timer",
+            "--type", "Timer",
+        ])
+        assert result.exit_code == 0, result.output
+        text = scene.read_text()
+        assert 'name="Timer"' in text
+        assert 'type="Timer"' in text
+
+    def test_add_with_parent(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "add-node",
+            "--scene", str(scene),
+            "--name", "CollisionShape",
+            "--type", "CollisionShape2D",
+            "--parent", "Player",
+        ])
+        assert result.exit_code == 0
+        text = scene.read_text()
+        assert 'parent="Player"' in text
+
+    def test_add_with_properties(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "add-node",
+            "--scene", str(scene),
+            "--name", "Label",
+            "--type", "Label",
+            "--property", 'text="Hello"',
+        ])
+        assert result.exit_code == 0
+        text = scene.read_text()
+        assert 'name="Label"' in text
+
+    def test_add_duplicate_error(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "add-node",
+            "--scene", str(scene),
+            "--name", "Player",
+            "--type", "Node2D",
+        ])
+        assert result.exit_code != 0
+
+    def test_add_json_output(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "-j", "scene", "add-node",
+            "--scene", str(scene),
+            "--name", "Camera",
+            "--type", "Camera2D",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["added"] is True
+        assert data["name"] == "Camera"
+        assert data["type"] == "Camera2D"
+
+    def test_add_multiple_nodes(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        nodes = [
+            ("Timer", "Timer"),
+            ("Camera", "Camera2D"),
+            ("HUD", "CanvasLayer"),
+        ]
+        for name, node_type in nodes:
+            result = runner.invoke(cli, [
+                "scene", "add-node",
+                "--scene", str(scene),
+                "--name", name,
+                "--type", node_type,
+            ])
+            assert result.exit_code == 0, f"Failed for {name}: {result.output}"
+        text = scene.read_text()
+        for name, _ in nodes:
+            assert f'name="{name}"' in text
+
+
+class TestRemoveNode:
+    """Verify scene remove-node removes nodes from scenes."""
+
+    def test_remove_leaf_node(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "remove-node",
+            "--scene", str(scene),
+            "--name", "Sprite",
+            "--parent", "Player",
+        ])
+        assert result.exit_code == 0, result.output
+        text = scene.read_text()
+        assert "Sprite" not in text
+        assert "Player" in text  # Parent preserved
+
+    def test_remove_with_children(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "remove-node",
+            "--scene", str(scene),
+            "--name", "Player",
+        ])
+        assert result.exit_code == 0
+        text = scene.read_text()
+        assert "Player" not in text
+        assert "Sprite" not in text  # Child removed too
+
+    def test_remove_nonexistent_error(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "remove-node",
+            "--scene", str(scene),
+            "--name", "Nonexistent",
+        ])
+        assert result.exit_code != 0
+
+    def test_cannot_remove_root(self, tmp_path: Path) -> None:
+        scene = tmp_path / "simple.tscn"
+        scene.write_text(
+            '[gd_scene format=3]\n\n[node name="Root" type="Node2D"]\n',
+            encoding="utf-8",
+        )
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "remove-node",
+            "--scene", str(scene),
+            "--name", "Root",
+        ])
+        assert result.exit_code != 0
+
+    def test_remove_json_output(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "-j", "scene", "remove-node",
+            "--scene", str(scene),
+            "--name", "Player",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["removed"] is True
+        assert data["nodes_removed"] == 2  # Player + Sprite child
+
+    def test_add_then_remove(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        runner.invoke(cli, [
+            "scene", "add-node",
+            "--scene", str(scene),
+            "--name", "Timer",
+            "--type", "Timer",
+        ])
+        assert "Timer" in scene.read_text()
+        runner.invoke(cli, [
+            "scene", "remove-node",
+            "--scene", str(scene),
+            "--name", "Timer",
+        ])
+        assert "Timer" not in scene.read_text()

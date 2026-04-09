@@ -11,8 +11,9 @@ from rich.console import Console
 from rich.tree import Tree
 
 from gdauto.errors import GdautoError, ProjectError, ValidationError
-from gdauto.formats.tscn import serialize_tscn_file
+from gdauto.formats.tscn import SceneNode, parse_tscn, serialize_tscn, serialize_tscn_file
 from gdauto.formats.uid import write_uid_file
+from gdauto.formats.values import parse_value
 from gdauto.output import GlobalConfig, emit, emit_error
 from gdauto.scene.builder import build_scene
 from gdauto.scene.lister import list_scenes
@@ -222,3 +223,223 @@ def _resolve_scene_output(output: str | None, json_path: Path) -> Path:
     if json_path.suffix == ".json":
         return json_path.with_suffix(".tscn")
     return Path(str(json_path) + ".tscn")
+
+
+# ---------------------------------------------------------------------------
+# scene add-node
+# ---------------------------------------------------------------------------
+
+
+@scene.command("add-node")
+@click.option(
+    "--scene", "scene_path", required=True,
+    type=click.Path(exists=True),
+    help="Path to the .tscn scene file",
+)
+@click.option(
+    "--name", "node_name", required=True,
+    help="Name for the new node",
+)
+@click.option(
+    "--type", "node_type", required=True,
+    help="Godot node type (e.g., Sprite2D, Label, Timer, Node2D)",
+)
+@click.option(
+    "--parent", "parent_path", default=None,
+    help="Parent node path (default: root node)",
+)
+@click.option(
+    "--property", "properties", multiple=True,
+    help="Node properties as 'key=value' (e.g., 'visible=false', 'position=Vector2(10, 20)')",
+)
+@click.pass_context
+def add_node(
+    ctx: click.Context,
+    scene_path: str,
+    node_name: str,
+    node_type: str,
+    parent_path: str | None,
+    properties: tuple[str, ...],
+) -> None:
+    """Add a node to an existing scene file.
+
+    Examples:
+
+      gdauto scene add-node --scene scenes/main.tscn --name Timer --type Timer
+
+      gdauto scene add-node --scene scenes/main.tscn --name Label --type Label --parent HUD --property "text=Score: 0"
+
+      gdauto scene add-node --scene scenes/player.tscn --name Sprite --type Sprite2D --property "position=Vector2(0, -16)"
+    """
+    try:
+        path = Path(scene_path)
+        text = path.read_text(encoding="utf-8")
+        scene_data = parse_tscn(text)
+
+        parent = parent_path or "."
+
+        # Check for duplicate
+        for node in scene_data.nodes:
+            if node.name == node_name and node.parent == parent:
+                raise ProjectError(
+                    message=f"Node '{node_name}' already exists at parent '{parent}'",
+                    code="NODE_EXISTS",
+                    fix="Choose a different name or remove the existing node",
+                )
+
+        # Parse properties
+        parsed_props: dict[str, Any] = {}
+        for prop in properties:
+            if "=" not in prop:
+                raise ProjectError(
+                    message=f"Invalid property format: '{prop}'. Expected 'key=value'",
+                    code="INVALID_PROPERTY",
+                    fix="Use 'key=value' format, e.g., 'visible=false'",
+                )
+            key, value_str = prop.split("=", 1)
+            parsed_props[key.strip()] = parse_value(value_str.strip())
+
+        scene_data.nodes.append(SceneNode(
+            name=node_name,
+            type=node_type,
+            parent=parent,
+            properties=parsed_props,
+        ))
+
+        scene_data._raw_header = None
+        scene_data._raw_sections = None
+        output = serialize_tscn(scene_data)
+        path.write_text(output, encoding="utf-8")
+
+        data = {
+            "added": True,
+            "name": node_name,
+            "type": node_type,
+            "parent": parent,
+            "property_count": len(parsed_props),
+            "scene": scene_path,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(
+                f"Added {data['type']} '{data['name']}' to {data['scene']}"
+            )
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# scene remove-node
+# ---------------------------------------------------------------------------
+
+
+@scene.command("remove-node")
+@click.option(
+    "--scene", "scene_path", required=True,
+    type=click.Path(exists=True),
+    help="Path to the .tscn scene file",
+)
+@click.option(
+    "--name", "node_name", required=True,
+    help="Name of the node to remove",
+)
+@click.option(
+    "--parent", "parent_path", default=None,
+    help="Parent node path to disambiguate (if multiple nodes share the name)",
+)
+@click.pass_context
+def remove_node(
+    ctx: click.Context,
+    scene_path: str,
+    node_name: str,
+    parent_path: str | None,
+) -> None:
+    """Remove a node (and its children) from a scene file.
+
+    Examples:
+
+      gdauto scene remove-node --scene scenes/main.tscn --name Timer
+
+      gdauto scene remove-node --scene scenes/main.tscn --name Sprite --parent Player
+    """
+    try:
+        path = Path(scene_path)
+        text = path.read_text(encoding="utf-8")
+        scene_data = parse_tscn(text)
+
+        # Find the node to remove
+        target_idx = None
+        for i, node in enumerate(scene_data.nodes):
+            if node.name == node_name:
+                if parent_path is None or node.parent == parent_path:
+                    target_idx = i
+                    break
+
+        if target_idx is None:
+            raise ProjectError(
+                message=f"Node '{node_name}' not found in scene",
+                code="NODE_NOT_FOUND",
+                fix="Check the node name and parent path",
+            )
+
+        # Build the path prefix for this node to remove children
+        target_node = scene_data.nodes[target_idx]
+        if target_node.parent is None:
+            # Removing root node
+            raise ProjectError(
+                message="Cannot remove root node",
+                code="CANNOT_REMOVE_ROOT",
+                fix="Remove the scene file instead",
+            )
+
+        # Build the full path of this node
+        if target_node.parent == ".":
+            node_full_path = node_name
+        else:
+            node_full_path = f"{target_node.parent}/{node_name}"
+
+        # Remove this node and all children
+        indices_to_remove: set[int] = {target_idx}
+        for i, node in enumerate(scene_data.nodes):
+            if node.parent == node_full_path or (
+                node.parent and node.parent.startswith(node_full_path + "/")
+            ):
+                indices_to_remove.add(i)
+
+        removed_count = len(indices_to_remove)
+        scene_data.nodes = [
+            n for i, n in enumerate(scene_data.nodes)
+            if i not in indices_to_remove
+        ]
+
+        # Also remove connections involving the removed node
+        scene_data.connections = [
+            c for c in scene_data.connections
+            if c.from_node != node_name
+            and c.to_node != node_name
+            and not c.from_node.startswith(node_full_path)
+            and not c.to_node.startswith(node_full_path)
+        ]
+
+        scene_data._raw_header = None
+        scene_data._raw_sections = None
+        output = serialize_tscn(scene_data)
+        path.write_text(output, encoding="utf-8")
+
+        data = {
+            "removed": True,
+            "name": node_name,
+            "nodes_removed": removed_count,
+            "scene": scene_path,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(
+                f"Removed '{data['name']}' ({data['nodes_removed']} node(s)) from {data['scene']}"
+            )
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
