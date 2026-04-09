@@ -24,6 +24,7 @@ from gdauto.commands.project import project
 from gdauto.commands.resource import resource
 from gdauto.commands.scene import scene
 from gdauto.commands.script import script
+from gdauto.commands.shader import shader
 from gdauto.commands.signal import signal
 from gdauto.commands.skill import skill
 from gdauto.commands.sprite import sprite
@@ -128,6 +129,7 @@ cli.add_command(sprite)
 cli.add_command(tileset)
 cli.add_command(scene)
 cli.add_command(script)
+cli.add_command(shader)
 cli.add_command(signal)
 cli.add_command(theme)
 cli.add_command(import_cmd, name="import")
