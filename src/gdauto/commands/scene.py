@@ -1057,3 +1057,64 @@ def duplicate_node(
         emit(data, _human, ctx)
     except ProjectError as exc:
         emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# scene list-nodes
+# ---------------------------------------------------------------------------
+
+
+@scene.command("list-nodes")
+@click.argument("scene_path", type=click.Path(exists=True))
+@click.pass_context
+def list_nodes(ctx: click.Context, scene_path: str) -> None:
+    """List all nodes in a scene file with their types and parents.
+
+    Examples:
+
+      gdauto scene list-nodes scenes/main.tscn
+    """
+    try:
+        text = Path(scene_path).read_text(encoding="utf-8")
+        scene_data = parse_tscn(text)
+
+        nodes_info: list[dict[str, Any]] = []
+        for node in scene_data.nodes:
+            info: dict[str, Any] = {
+                "name": node.name,
+                "type": node.type,
+                "parent": node.parent,
+            }
+            if node.groups:
+                info["groups"] = node.groups
+            if node.instance:
+                info["instance"] = node.instance
+            prop_count = len(node.properties)
+            if prop_count > 0:
+                info["property_count"] = prop_count
+            nodes_info.append(info)
+
+        data = {
+            "nodes": nodes_info,
+            "count": len(nodes_info),
+            "scene": scene_path,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Nodes in {data['scene']} ({data['count']}):")
+            for node in data["nodes"]:
+                type_str = f" [{node['type']}]" if node.get("type") else " [instance]"
+                parent_str = f" parent={node['parent']}" if node["parent"] else ""
+                groups_str = f" groups={node['groups']}" if node.get("groups") else ""
+                click.echo(f"  {node['name']}{type_str}{parent_str}{groups_str}")
+
+        emit(data, _human, ctx)
+    except Exception as exc:
+        emit_error(
+            ProjectError(
+                message=f"Failed to parse scene: {exc}",
+                code="PARSE_ERROR",
+                fix="Ensure the file is a valid .tscn scene file",
+            ),
+            ctx,
+        )
