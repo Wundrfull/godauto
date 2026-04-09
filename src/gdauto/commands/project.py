@@ -572,34 +572,269 @@ def _add_autoload_entry(
     project_godot: Path, name: str, value: str
 ) -> None:
     """Append an autoload entry to project.godot, creating the section if needed."""
+    _add_section_entry(project_godot, "autoload", name, value)
+
+
+def _add_section_entry(
+    project_godot: Path, section: str, name: str, value: str
+) -> None:
+    """Append a key=value entry to a section, creating the section if needed."""
     text = project_godot.read_text(encoding="utf-8")
     lines = text.split("\n")
 
-    # Find [autoload] section
-    autoload_idx = None
+    section_idx = None
     for i, line in enumerate(lines):
-        if line.strip() == "[autoload]":
-            autoload_idx = i
+        if line.strip() == f"[{section}]":
+            section_idx = i
             break
 
     entry_line = f"{name}={value}"
 
-    if autoload_idx is not None:
-        # Find the end of the autoload section (next section header or EOF)
-        insert_idx = autoload_idx + 1
+    if section_idx is not None:
+        insert_idx = section_idx + 1
         while insert_idx < len(lines):
             stripped = lines[insert_idx].strip()
             if stripped.startswith("[") and stripped.endswith("]"):
                 break
             insert_idx += 1
-        # Insert before the next section (or at EOF), after any trailing blank
         lines.insert(insert_idx, entry_line)
     else:
-        # Add [autoload] section at the end
         if lines and lines[-1].strip() != "":
             lines.append("")
-        lines.append("[autoload]")
+        lines.append(f"[{section}]")
         lines.append("")
         lines.append(entry_line)
 
     project_godot.write_text("\n".join(lines), encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# project add-input
+# ---------------------------------------------------------------------------
+
+# Godot physical keycode mapping (common keys)
+_KEY_CODES: dict[str, int] = {
+    "a": 65, "b": 66, "c": 67, "d": 68, "e": 69, "f": 70,
+    "g": 71, "h": 72, "i": 73, "j": 74, "k": 75, "l": 76,
+    "m": 77, "n": 78, "o": 79, "p": 80, "q": 81, "r": 82,
+    "s": 83, "t": 84, "u": 85, "v": 86, "w": 87, "x": 88,
+    "y": 89, "z": 90,
+    "0": 48, "1": 49, "2": 50, "3": 51, "4": 52,
+    "5": 53, "6": 54, "7": 55, "8": 56, "9": 57,
+    "space": 32, "escape": 4194305, "enter": 4194309,
+    "tab": 4194306, "backspace": 4194308,
+    "up": 4194320, "down": 4194322, "left": 4194319, "right": 4194321,
+    "shift": 4194325, "ctrl": 4194326, "alt": 4194328,
+    "f1": 4194332, "f2": 4194333, "f3": 4194334, "f4": 4194335,
+    "f5": 4194336, "f6": 4194337, "f7": 4194338, "f8": 4194339,
+    "f9": 4194340, "f10": 4194341, "f11": 4194342, "f12": 4194343,
+}
+
+# Mouse button indices for Godot
+_MOUSE_BUTTONS: dict[str, int] = {
+    "left": 1, "right": 2, "middle": 3,
+    "wheel_up": 4, "wheel_down": 5,
+}
+
+# Joypad button indices
+_JOY_BUTTONS: dict[str, int] = {
+    "a": 0, "b": 1, "x": 2, "y": 3,
+    "lb": 9, "rb": 10, "lt": -1, "rt": -1,
+    "start": 6, "select": 4,
+    "l3": 7, "r3": 8,
+    "dpad_up": 11, "dpad_down": 12, "dpad_left": 13, "dpad_right": 14,
+}
+
+
+def _build_key_event(key_name: str) -> str:
+    """Build a Godot InputEventKey Object() string for a key name."""
+    lower = key_name.lower()
+    if lower not in _KEY_CODES:
+        raise ProjectError(
+            message=f"Unknown key: '{key_name}'. Valid keys: {', '.join(sorted(_KEY_CODES))}",
+            code="INVALID_KEY",
+            fix="Use a key name like 'w', 'space', 'escape', 'up', 'f1', etc.",
+        )
+    physical_keycode = _KEY_CODES[lower]
+    return (
+        'Object(InputEventKey,'
+        '"resource_local_to_scene":false,'
+        '"resource_name":"",'
+        '"device":-1,'
+        '"window_id":0,'
+        '"alt_pressed":false,'
+        '"shift_pressed":false,'
+        '"ctrl_pressed":false,'
+        '"meta_pressed":false,'
+        '"pressed":false,'
+        '"keycode":0,'
+        f'"physical_keycode":{physical_keycode},'
+        '"key_label":0,'
+        '"unicode":0,'
+        '"location":0,'
+        '"echo":false,'
+        '"script":null'
+        ')'
+    )
+
+
+def _build_mouse_event(button_name: str) -> str:
+    """Build a Godot InputEventMouseButton Object() string."""
+    lower = button_name.lower()
+    if lower not in _MOUSE_BUTTONS:
+        raise ProjectError(
+            message=f"Unknown mouse button: '{button_name}'. Valid: {', '.join(sorted(_MOUSE_BUTTONS))}",
+            code="INVALID_MOUSE_BUTTON",
+            fix="Use 'left', 'right', 'middle', 'wheel_up', or 'wheel_down'.",
+        )
+    button_index = _MOUSE_BUTTONS[lower]
+    return (
+        'Object(InputEventMouseButton,'
+        '"resource_local_to_scene":false,'
+        '"resource_name":"",'
+        '"device":-1,'
+        '"window_id":0,'
+        '"alt_pressed":false,'
+        '"shift_pressed":false,'
+        '"ctrl_pressed":false,'
+        '"meta_pressed":false,'
+        f'"button_mask":{button_index},'
+        f'"position":Vector2(0, 0),'
+        f'"global_position":Vector2(0, 0),'
+        f'"factor":1.0,'
+        f'"button_index":{button_index},'
+        '"cancelled":false,'
+        '"pressed":true,'
+        '"double_click":false,'
+        '"script":null'
+        ')'
+    )
+
+
+def _build_joypad_event(button_name: str) -> str:
+    """Build a Godot InputEventJoypadButton Object() string."""
+    lower = button_name.lower()
+    if lower not in _JOY_BUTTONS:
+        raise ProjectError(
+            message=f"Unknown joypad button: '{button_name}'. Valid: {', '.join(sorted(_JOY_BUTTONS))}",
+            code="INVALID_JOY_BUTTON",
+            fix="Use 'a', 'b', 'x', 'y', 'lb', 'rb', 'start', 'select', 'dpad_up', etc.",
+        )
+    button_index = _JOY_BUTTONS[lower]
+    return (
+        'Object(InputEventJoypadButton,'
+        '"resource_local_to_scene":false,'
+        '"resource_name":"",'
+        '"device":-1,'
+        f'"button_index":{button_index},'
+        '"pressure":0.0,'
+        '"pressed":false,'
+        '"script":null'
+        ')'
+    )
+
+
+def _build_input_value(
+    events: list[str], deadzone: float
+) -> str:
+    """Build the full multi-line input action value for project.godot."""
+    events_str = ", ".join(events)
+    return (
+        '{\n'
+        f'"deadzone": {deadzone},\n'
+        f'"events": [{events_str}\n'
+        ']}'
+    )
+
+
+@project.command("add-input")
+@click.option(
+    "--action", required=True,
+    help="Input action name (e.g., move_up, jump, attack)",
+)
+@click.option(
+    "--key", "keys", multiple=True,
+    help="Keyboard key(s) to bind (e.g., w, space, escape, up)",
+)
+@click.option(
+    "--mouse", "mouse_buttons", multiple=True,
+    help="Mouse button(s) to bind (e.g., left, right, middle)",
+)
+@click.option(
+    "--joypad", "joypad_buttons", multiple=True,
+    help="Joypad button(s) to bind (e.g., a, b, dpad_up)",
+)
+@click.option(
+    "--deadzone", default=0.2, type=float,
+    help="Deadzone for analog inputs (default: 0.2)",
+)
+@click.argument("project_path", default=".", type=click.Path())
+@click.pass_context
+def add_input(
+    ctx: click.Context,
+    action: str,
+    keys: tuple[str, ...],
+    mouse_buttons: tuple[str, ...],
+    joypad_buttons: tuple[str, ...],
+    deadzone: float,
+    project_path: str,
+) -> None:
+    """Add an input action with key/mouse/joypad bindings to project.godot."""
+    try:
+        if not keys and not mouse_buttons and not joypad_buttons:
+            raise ProjectError(
+                message="No input events specified",
+                code="NO_INPUT_EVENTS",
+                fix="Provide at least one --key, --mouse, or --joypad binding",
+            )
+
+        project_godot = _find_project_godot(project_path)
+        config_text = project_godot.read_text(encoding="utf-8")
+        cfg = parse_project_config(config_text)
+
+        existing = cfg.sections.get("input", [])
+        for key, _val in existing:
+            if key == action:
+                raise ProjectError(
+                    message=f"Input action '{action}' already exists",
+                    code="INPUT_EXISTS",
+                    fix="Remove the existing action or choose a different name",
+                )
+
+        events: list[str] = []
+        for k in keys:
+            events.append(_build_key_event(k))
+        for m in mouse_buttons:
+            events.append(_build_mouse_event(m))
+        for j in joypad_buttons:
+            events.append(_build_joypad_event(j))
+
+        value = _build_input_value(events, deadzone)
+        _add_section_entry(project_godot, "input", action, value)
+
+        data = {
+            "added": True,
+            "action": action,
+            "keys": list(keys),
+            "mouse_buttons": list(mouse_buttons),
+            "joypad_buttons": list(joypad_buttons),
+            "deadzone": deadzone,
+            "event_count": len(events),
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            bindings: list[str] = []
+            if data["keys"]:
+                bindings.append(f"keys={','.join(data['keys'])}")
+            if data["mouse_buttons"]:
+                bindings.append(f"mouse={','.join(data['mouse_buttons'])}")
+            if data["joypad_buttons"]:
+                bindings.append(f"joypad={','.join(data['joypad_buttons'])}")
+            click.echo(
+                f"Added input action '{data['action']}' "
+                f"with {data['event_count']} binding(s): {', '.join(bindings)}"
+            )
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
