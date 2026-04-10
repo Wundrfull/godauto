@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from auto_godot.cli import cli
+
+
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences from text."""
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 FIXTURE_SIMPLE = str(FIXTURES_DIR / "aseprite_simple.json")
@@ -208,7 +214,7 @@ class TestImportAsepriteHelp:
             ["sprite", "import-aseprite", "--help"],
         )
         assert result.exit_code == 0
-        assert "ASEPRITE EXPORT SETTINGS" in result.output
+        assert "ASEPRITE EXPORT SETTINGS" in _strip_ansi(result.output)
 
     def test_help_contains_json_array_recommendation(self) -> None:
         runner = CliRunner()
@@ -217,7 +223,7 @@ class TestImportAsepriteHelp:
             ["sprite", "import-aseprite", "--help"],
         )
         assert result.exit_code == 0
-        assert "--format json-array" in result.output
+        assert "--format json-array" in _strip_ansi(result.output)
 
     def test_help_contains_common_pitfalls(self) -> None:
         runner = CliRunner()
@@ -226,7 +232,7 @@ class TestImportAsepriteHelp:
             ["sprite", "import-aseprite", "--help"],
         )
         assert result.exit_code == 0
-        assert "COMMON PITFALLS" in result.output
+        assert "COMMON PITFALLS" in _strip_ansi(result.output)
 
 
 class TestImportAsepritePartialFailure:
