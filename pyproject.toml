@@ -1,6 +1,6 @@
 [project]
 name = "auto-godot"
-version = "0.1.0"
+version = "1.2.0"
 description = "Agent-native CLI for Godot Engine"
 license = "Apache-2.0"
 requires-python = ">=3.12"
