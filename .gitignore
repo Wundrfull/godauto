@@ -42,5 +42,12 @@ htmlcov/
 tools/bin/
 .tmp/
 
+# Agent state
+auto-godot-state/
+gametestoutput/
+AGENT-SETUP.md
+SKILL.md
+.claude/scheduled_tasks.lock
+
 # Exported builds
 export/
