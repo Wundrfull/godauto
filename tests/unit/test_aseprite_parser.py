@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from gdauto.errors import ValidationError
-from gdauto.formats.aseprite import (
+from auto_godot.errors import ValidationError
+from auto_godot.formats.aseprite import (
     AniDirection,
     AsepriteData,
     AsepriteFrame,

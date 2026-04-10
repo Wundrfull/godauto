@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from gdauto.errors import ValidationError
-from gdauto.formats.tscn import GdScene, SceneNode, serialize_tscn
-from gdauto.formats.values import ExtResourceRef, Vector2
-from gdauto.scene.builder import build_scene
+from auto_godot.errors import ValidationError
+from auto_godot.formats.tscn import GdScene, SceneNode, serialize_tscn
+from auto_godot.formats.values import ExtResourceRef, Vector2
+from auto_godot.scene.builder import build_scene
 
 
 class TestBuildSceneMinimal:

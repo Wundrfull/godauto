@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from gdauto.scene.lister import list_scenes
+from auto_godot.scene.lister import list_scenes
 
 
 SAMPLE_TSCN = """\

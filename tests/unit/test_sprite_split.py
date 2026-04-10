@@ -10,9 +10,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from gdauto.errors import GdautoError, ValidationError
-from gdauto.formats.tres import GdResource
-from gdauto.formats.values import Rect2, StringName, SubResourceRef
+from auto_godot.errors import AutoGodotError, ValidationError
+from auto_godot.formats.tres import GdResource
+from auto_godot.formats.values import Rect2, StringName, SubResourceRef
 
 
 # ---------------------------------------------------------------------------
@@ -31,11 +31,11 @@ class TestSplitSheetGrid:
         mock_img.close = MagicMock()
         return mock_img
 
-    @patch("gdauto.sprite.splitter.Image")
+    @patch("auto_godot.sprite.splitter.Image")
     def test_128x64_with_32x32_frames_produces_8_sub_resources(
         self, mock_image_module: MagicMock
     ) -> None:
-        from gdauto.sprite.splitter import split_sheet_grid
+        from auto_godot.sprite.splitter import split_sheet_grid
 
         mock_image_module.open.return_value = self._make_mock_image(128, 64)
         resource = split_sheet_grid(
@@ -43,11 +43,11 @@ class TestSplitSheetGrid:
         )
         assert len(resource.sub_resources) == 8
 
-    @patch("gdauto.sprite.splitter.Image")
+    @patch("auto_godot.sprite.splitter.Image")
     def test_creates_default_animation_with_all_frames(
         self, mock_image_module: MagicMock
     ) -> None:
-        from gdauto.sprite.splitter import split_sheet_grid
+        from auto_godot.sprite.splitter import split_sheet_grid
 
         mock_image_module.open.return_value = self._make_mock_image(128, 64)
         resource = split_sheet_grid(
@@ -58,11 +58,11 @@ class TestSplitSheetGrid:
         assert anims[0]["name"] == StringName("default")
         assert len(anims[0]["frames"]) == 8
 
-    @patch("gdauto.sprite.splitter.Image")
+    @patch("auto_godot.sprite.splitter.Image")
     def test_region_computation_col1_row0(
         self, mock_image_module: MagicMock
     ) -> None:
-        from gdauto.sprite.splitter import split_sheet_grid
+        from auto_godot.sprite.splitter import split_sheet_grid
 
         mock_image_module.open.return_value = self._make_mock_image(128, 64)
         resource = split_sheet_grid(
@@ -72,22 +72,22 @@ class TestSplitSheetGrid:
         region = resource.sub_resources[1].properties["region"]
         assert region == Rect2(32.0, 0.0, 32.0, 32.0)
 
-    @patch("gdauto.sprite.splitter.Image")
+    @patch("auto_godot.sprite.splitter.Image")
     def test_frame_too_large_raises_validation_error(
         self, mock_image_module: MagicMock
     ) -> None:
-        from gdauto.sprite.splitter import split_sheet_grid
+        from auto_godot.sprite.splitter import split_sheet_grid
 
         mock_image_module.open.return_value = self._make_mock_image(64, 64)
         with pytest.raises(ValidationError, match="exceeds image size") as exc_info:
             split_sheet_grid(Path("sheet.png"), 128, 128, "res://sheet.png")
         assert exc_info.value.code == "SPRITE_FRAME_TOO_LARGE"
 
-    @patch("gdauto.sprite.splitter.Image")
+    @patch("auto_godot.sprite.splitter.Image")
     def test_non_divisible_size_warns(
         self, mock_image_module: MagicMock
     ) -> None:
-        from gdauto.sprite.splitter import split_sheet_grid
+        from auto_godot.sprite.splitter import split_sheet_grid
 
         mock_image_module.open.return_value = self._make_mock_image(100, 64)
         with warnings.catch_warnings(record=True) as w:
@@ -100,11 +100,11 @@ class TestSplitSheetGrid:
         # 100 // 32 = 3 cols, 64 // 32 = 2 rows = 6 frames
         assert len(resource.sub_resources) == 6
 
-    @patch("gdauto.sprite.splitter.Image")
+    @patch("auto_godot.sprite.splitter.Image")
     def test_resource_type_is_spriteframes(
         self, mock_image_module: MagicMock
     ) -> None:
-        from gdauto.sprite.splitter import split_sheet_grid
+        from auto_godot.sprite.splitter import split_sheet_grid
 
         mock_image_module.open.return_value = self._make_mock_image(64, 64)
         resource = split_sheet_grid(
@@ -113,11 +113,11 @@ class TestSplitSheetGrid:
         assert resource.type == "SpriteFrames"
         assert resource.format == 3
 
-    @patch("gdauto.sprite.splitter.Image")
+    @patch("auto_godot.sprite.splitter.Image")
     def test_load_steps_omitted(
         self, mock_image_module: MagicMock
     ) -> None:
-        from gdauto.sprite.splitter import split_sheet_grid
+        from auto_godot.sprite.splitter import split_sheet_grid
 
         mock_image_module.open.return_value = self._make_mock_image(64, 32)
         resource = split_sheet_grid(
@@ -126,11 +126,11 @@ class TestSplitSheetGrid:
         # load_steps omitted per Godot 4.6 compatibility
         assert resource.load_steps is None
 
-    @patch("gdauto.sprite.splitter.Image")
+    @patch("auto_godot.sprite.splitter.Image")
     def test_custom_fps(
         self, mock_image_module: MagicMock
     ) -> None:
-        from gdauto.sprite.splitter import split_sheet_grid
+        from auto_godot.sprite.splitter import split_sheet_grid
 
         mock_image_module.open.return_value = self._make_mock_image(64, 32)
         resource = split_sheet_grid(
@@ -156,11 +156,11 @@ class TestSplitSheetJson:
         mock_img.close = MagicMock()
         return mock_img
 
-    @patch("gdauto.sprite.splitter.Image")
+    @patch("auto_godot.sprite.splitter.Image")
     def test_json_regions_create_sub_resources(
         self, mock_image_module: MagicMock, tmp_path: Path
     ) -> None:
-        from gdauto.sprite.splitter import split_sheet_json
+        from auto_godot.sprite.splitter import split_sheet_json
 
         mock_image_module.open.return_value = self._make_mock_image(128, 64)
         json_data = {
@@ -191,13 +191,13 @@ class TestPillowNotInstalled:
     """Tests for graceful handling when Pillow is missing."""
 
     def test_require_pillow_raises_when_none(self) -> None:
-        from gdauto.sprite.splitter import _require_pillow
+        from auto_godot.sprite.splitter import _require_pillow
 
-        with patch("gdauto.sprite.splitter.Image", None):
-            with pytest.raises(GdautoError) as exc_info:
+        with patch("auto_godot.sprite.splitter.Image", None):
+            with pytest.raises(AutoGodotError) as exc_info:
                 _require_pillow()
             assert exc_info.value.code == "PILLOW_NOT_INSTALLED"
-            assert "pip install gdauto[image]" in (exc_info.value.fix or "")
+            assert "pip install auto-godot[image]" in (exc_info.value.fix or "")
 
 
 # ---------------------------------------------------------------------------
@@ -211,14 +211,14 @@ class TestSplitCLI:
     def test_no_frame_size_or_json_meta_exits_nonzero(self) -> None:
         from click.testing import CliRunner
 
-        from gdauto.cli import cli
+        from auto_godot.cli import cli
 
         runner = CliRunner()
         result = runner.invoke(cli, ["sprite", "split", "sheet.png"])
         assert result.exit_code != 0
 
-    @patch("gdauto.sprite.splitter.Image")
-    @patch("gdauto.formats.tres.serialize_tres_file")
+    @patch("auto_godot.sprite.splitter.Image")
+    @patch("auto_godot.formats.tres.serialize_tres_file")
     def test_frame_size_exits_zero(
         self,
         mock_serialize: MagicMock,
@@ -227,7 +227,7 @@ class TestSplitCLI:
     ) -> None:
         from click.testing import CliRunner
 
-        from gdauto.cli import cli
+        from auto_godot.cli import cli
 
         mock_img = MagicMock()
         mock_img.width = 128
@@ -248,7 +248,7 @@ class TestSplitCLI:
     def test_nonexistent_image_exits_nonzero(self) -> None:
         from click.testing import CliRunner
 
-        from gdauto.cli import cli
+        from auto_godot.cli import cli
 
         runner = CliRunner()
         result = runner.invoke(

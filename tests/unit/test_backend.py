@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from gdauto.backend import GodotBackend
-from gdauto.errors import GdautoError, GodotBinaryError
+from auto_godot.backend import GodotBackend
+from auto_godot.errors import AutoGodotError, GodotBinaryError
 
 
 class TestBinaryDiscovery:
@@ -143,14 +143,14 @@ class TestRunCommand:
             assert cmd == ["/usr/bin/godot", "--headless", "--version"]
 
     def test_run_nonzero_raises_error(self) -> None:
-        """run() with non-zero return code raises GdautoError."""
+        """run() with non-zero return code raises AutoGodotError."""
         backend = self._make_backend()
         mock_result = MagicMock()
         mock_result.returncode = 1
         mock_result.stdout = ""
         mock_result.stderr = "Something went wrong"
         with patch("subprocess.run", return_value=mock_result):
-            with pytest.raises(GdautoError) as exc_info:
+            with pytest.raises(AutoGodotError) as exc_info:
                 backend.run(["--check-only"])
             assert exc_info.value.code == "GODOT_RUN_FAILED"
 

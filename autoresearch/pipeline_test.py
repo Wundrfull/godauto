@@ -1,4 +1,4 @@
-"""Pipeline test: attempt to build an idle clicker game with gdauto.
+"""Pipeline test: attempt to build an idle clicker game with auto-godot.
 
 Runs each step of the game creation pipeline in an isolated temp directory.
 Outputs a single integer: number of steps that succeeded.
@@ -22,7 +22,7 @@ from tempfile import TemporaryDirectory
 
 from click.testing import CliRunner
 
-from gdauto.cli import cli
+from auto_godot.cli import cli
 
 BLOCKERS_LOG = Path(__file__).parent / "pipeline_blockers.log"
 
@@ -44,7 +44,7 @@ class PipelineRunner:
     results: list[StepResult] = field(default_factory=list)
 
     def run(self, name: str, category: str, args: list[str]) -> StepResult:
-        """Run a gdauto command and record the result."""
+        """Run a auto-godot command and record the result."""
         try:
             result = self.runner.invoke(cli, args, catch_exceptions=False)
             step = StepResult(
@@ -84,7 +84,7 @@ class PipelineRunner:
 
 
 def run_pipeline(base_dir: Path) -> PipelineRunner:
-    """Attempt to build a full idle clicker game with gdauto commands."""
+    """Attempt to build a full idle clicker game with auto-godot commands."""
     # project create puts files in base_dir/IdleClicker/
     p = PipelineRunner(project_dir=base_dir)
 
@@ -349,7 +349,7 @@ def run_pipeline(base_dir: Path) -> PipelineRunner:
            str(project_dir / "resources" / "bg_gradient.tres")])
 
     # ── Phase 14: Advanced Game Features ───────────────────────────
-    # These test capabilities needed for a real game but not yet in gdauto
+    # These test capabilities needed for a real game but not yet in auto-godot
 
     # 14a: Set anchor presets on UI nodes (full rect, center, etc.)
     p.run("Set button anchor preset", "scene",
@@ -972,7 +972,7 @@ def write_blockers_log(runner: PipelineRunner) -> None:
         lines.append("")
         for r in failed:
             lines.append(f"### BLOCKER: {r.name} [{r.category}]")
-            lines.append(f"  Command: gdauto {' '.join(r.command)}")
+            lines.append(f"  Command: auto-godot {' '.join(r.command)}")
             lines.append(f"  Exit code: {r.exit_code}")
             if r.output.strip():
                 lines.append(f"  Output: {r.output.strip()[:300]}")
@@ -990,7 +990,7 @@ def write_blockers_log(runner: PipelineRunner) -> None:
 
 
 def main() -> None:
-    with TemporaryDirectory(prefix="gdauto_pipeline_") as tmpdir:
+    with TemporaryDirectory(prefix="auto-godot_pipeline_") as tmpdir:
         project_dir = Path(tmpdir) / "idle_clicker"
         project_dir.mkdir()
         runner = run_pipeline(project_dir)

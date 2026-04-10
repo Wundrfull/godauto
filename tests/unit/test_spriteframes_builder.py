@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from gdauto.formats.aseprite import (
+from auto_godot.formats.aseprite import (
     AniDirection,
     AsepriteData,
     AsepriteFrame,
@@ -15,9 +15,9 @@ from gdauto.formats.aseprite import (
     FrameRect,
     parse_aseprite_json,
 )
-from gdauto.formats.tres import GdResource, parse_tres, serialize_tres
-from gdauto.formats.values import Rect2, StringName, SubResourceRef
-from gdauto.sprite.spriteframes import (
+from auto_godot.formats.tres import GdResource, parse_tres, serialize_tres
+from auto_godot.formats.values import Rect2, StringName, SubResourceRef
+from auto_godot.sprite.spriteframes import (
     build_animation_for_tag,
     build_spriteframes,
     compute_animation_timing,
@@ -180,8 +180,8 @@ class TestBuildAnimationForTag:
 
     def test_returns_tuple(self) -> None:
         data = _make_simple_data()
-        from gdauto.formats.tres import ExtResource
-        from gdauto.formats.uid import generate_resource_id, generate_uid, uid_to_text
+        from auto_godot.formats.tres import ExtResource
+        from auto_godot.formats.uid import generate_resource_id, generate_uid, uid_to_text
 
         ext = ExtResource(
             type="Texture2D",
@@ -199,8 +199,8 @@ class TestBuildAnimationForTag:
 
     def test_animation_dict_keys(self) -> None:
         data = _make_simple_data()
-        from gdauto.formats.tres import ExtResource
-        from gdauto.formats.uid import generate_resource_id, generate_uid, uid_to_text
+        from auto_godot.formats.tres import ExtResource
+        from auto_godot.formats.uid import generate_resource_id, generate_uid, uid_to_text
 
         ext = ExtResource(
             type="Texture2D",
@@ -215,8 +215,8 @@ class TestBuildAnimationForTag:
 
     def test_animation_name_is_stringname(self) -> None:
         data = _make_simple_data()
-        from gdauto.formats.tres import ExtResource
-        from gdauto.formats.uid import generate_resource_id, generate_uid, uid_to_text
+        from auto_godot.formats.tres import ExtResource
+        from auto_godot.formats.uid import generate_resource_id, generate_uid, uid_to_text
 
         ext = ExtResource(
             type="Texture2D",

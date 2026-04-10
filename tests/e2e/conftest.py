@@ -10,7 +10,7 @@ import shutil
 
 import pytest
 
-from gdauto.backend import GodotBackend
+from auto_godot.backend import GodotBackend
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:

@@ -11,9 +11,9 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from gdauto.cli import cli
-from gdauto.formats.values import ExtResourceRef
-from gdauto.scene.builder import build_scene
+from auto_godot.cli import cli
+from auto_godot.formats.values import ExtResourceRef
+from auto_godot.scene.builder import build_scene
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 FIXTURE_PROJECT = str(FIXTURES_DIR / "sample_project")
@@ -287,7 +287,7 @@ class TestSpeedRounding:
     """Verify speed values are rounded to 2 decimal places."""
 
     def test_speed_rounded(self) -> None:
-        from gdauto.sprite.validator import validate_spriteframes
+        from auto_godot.sprite.validator import validate_spriteframes
 
         result = validate_spriteframes(FIXTURES_DIR / "sample.tres")
         for anim in result["animations"]:
@@ -502,7 +502,7 @@ class TestSceneCreateHelp:
     def test_help_no_circular_reference(self) -> None:
         runner = CliRunner()
         result = runner.invoke(cli, ["scene", "create", "--help"])
-        assert "See 'gdauto scene create --help'" not in result.output
+        assert "See 'auto-godot scene create --help'" not in result.output
 
 
 # ---------------------------------------------------------------------------

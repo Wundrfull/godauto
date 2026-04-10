@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from gdauto.errors import GdautoError, ValidationError
-from gdauto.formats.tres import GdResource
-from gdauto.formats.values import Rect2, StringName
+from auto_godot.errors import AutoGodotError, ValidationError
+from auto_godot.formats.tres import GdResource
+from auto_godot.formats.values import Rect2, StringName
 
 
 # ---------------------------------------------------------------------------
@@ -22,47 +22,47 @@ class TestNextPowerOfTwo:
     """Tests for power-of-two rounding utility."""
 
     def test_1_returns_1(self) -> None:
-        from gdauto.sprite.atlas import next_power_of_two
+        from auto_godot.sprite.atlas import next_power_of_two
 
         assert next_power_of_two(1) == 1
 
     def test_2_returns_2(self) -> None:
-        from gdauto.sprite.atlas import next_power_of_two
+        from auto_godot.sprite.atlas import next_power_of_two
 
         assert next_power_of_two(2) == 2
 
     def test_3_returns_4(self) -> None:
-        from gdauto.sprite.atlas import next_power_of_two
+        from auto_godot.sprite.atlas import next_power_of_two
 
         assert next_power_of_two(3) == 4
 
     def test_33_returns_64(self) -> None:
-        from gdauto.sprite.atlas import next_power_of_two
+        from auto_godot.sprite.atlas import next_power_of_two
 
         assert next_power_of_two(33) == 64
 
     def test_64_returns_64(self) -> None:
-        from gdauto.sprite.atlas import next_power_of_two
+        from auto_godot.sprite.atlas import next_power_of_two
 
         assert next_power_of_two(64) == 64
 
     def test_100_returns_128(self) -> None:
-        from gdauto.sprite.atlas import next_power_of_two
+        from auto_godot.sprite.atlas import next_power_of_two
 
         assert next_power_of_two(100) == 128
 
     def test_1024_returns_1024(self) -> None:
-        from gdauto.sprite.atlas import next_power_of_two
+        from auto_godot.sprite.atlas import next_power_of_two
 
         assert next_power_of_two(1024) == 1024
 
     def test_0_returns_1(self) -> None:
-        from gdauto.sprite.atlas import next_power_of_two
+        from auto_godot.sprite.atlas import next_power_of_two
 
         assert next_power_of_two(0) == 1
 
     def test_negative_returns_1(self) -> None:
-        from gdauto.sprite.atlas import next_power_of_two
+        from auto_godot.sprite.atlas import next_power_of_two
 
         assert next_power_of_two(-5) == 1
 
@@ -84,11 +84,11 @@ class TestCreateAtlas:
         mock_img.close = MagicMock()
         return mock_img
 
-    @patch("gdauto.sprite.atlas.Image")
+    @patch("auto_godot.sprite.atlas.Image")
     def test_four_32x32_images_produces_4_sub_resources(
         self, mock_image_module: MagicMock
     ) -> None:
-        from gdauto.sprite.atlas import create_atlas
+        from auto_godot.sprite.atlas import create_atlas
 
         images = [self._make_mock_image(32, 32) for _ in range(4)]
         mock_image_module.open.side_effect = images
@@ -100,11 +100,11 @@ class TestCreateAtlas:
         assert len(resource.sub_resources) == 4
         assert resource.type == "SpriteFrames"
 
-    @patch("gdauto.sprite.atlas.Image")
+    @patch("auto_godot.sprite.atlas.Image")
     def test_power_of_two_dimensions(
         self, mock_image_module: MagicMock
     ) -> None:
-        from gdauto.sprite.atlas import create_atlas
+        from auto_godot.sprite.atlas import create_atlas
 
         # 3 images of 30x30 require 90 total area; shelf packing with POT
         images = [self._make_mock_image(30, 30) for _ in range(3)]
@@ -123,11 +123,11 @@ class TestCreateAtlas:
         assert dims[0] & (dims[0] - 1) == 0  # power of two check
         assert dims[1] & (dims[1] - 1) == 0
 
-    @patch("gdauto.sprite.atlas.Image")
+    @patch("auto_godot.sprite.atlas.Image")
     def test_no_pot_uses_exact_dimensions(
         self, mock_image_module: MagicMock
     ) -> None:
-        from gdauto.sprite.atlas import create_atlas
+        from auto_godot.sprite.atlas import create_atlas
 
         # Use 2 images of 30x30; total area sqrt = ~42, *1.5 = ~63
         # Both fit on one shelf (30+30=60 <= 63), so exact dims = 60x30
@@ -145,11 +145,11 @@ class TestCreateAtlas:
         # With 2 images of 30x30 on one shelf, exact dimensions = 60x30
         assert dims == (60, 30)
 
-    @patch("gdauto.sprite.atlas.Image")
+    @patch("auto_godot.sprite.atlas.Image")
     def test_regions_are_non_overlapping(
         self, mock_image_module: MagicMock
     ) -> None:
-        from gdauto.sprite.atlas import create_atlas
+        from auto_godot.sprite.atlas import create_atlas
 
         images = [self._make_mock_image(32, 32) for _ in range(4)]
         mock_image_module.open.side_effect = images
@@ -173,11 +173,11 @@ class TestCreateAtlas:
                     f"Region {i} ({r1}) overlaps with region {j} ({r2})"
                 )
 
-    @patch("gdauto.sprite.atlas.Image")
+    @patch("auto_godot.sprite.atlas.Image")
     def test_default_animation_created(
         self, mock_image_module: MagicMock
     ) -> None:
-        from gdauto.sprite.atlas import create_atlas
+        from auto_godot.sprite.atlas import create_atlas
 
         images = [self._make_mock_image(32, 32) for _ in range(2)]
         mock_image_module.open.side_effect = images
@@ -191,28 +191,28 @@ class TestCreateAtlas:
         assert anims[0]["name"] == StringName("default")
         assert anims[0]["loop"] is True
 
-    @patch("gdauto.sprite.atlas.Image")
+    @patch("auto_godot.sprite.atlas.Image")
     def test_empty_image_list_raises_validation_error(
         self, mock_image_module: MagicMock
     ) -> None:
-        from gdauto.sprite.atlas import create_atlas
+        from auto_godot.sprite.atlas import create_atlas
 
         with pytest.raises(ValidationError, match="at least one image"):
             create_atlas([], "res://atlas.png")
 
     def test_pillow_not_installed_raises_error(self) -> None:
-        from gdauto.sprite.atlas import _require_pillow
+        from auto_godot.sprite.atlas import _require_pillow
 
-        with patch("gdauto.sprite.atlas.Image", None):
-            with pytest.raises(GdautoError) as exc_info:
+        with patch("auto_godot.sprite.atlas.Image", None):
+            with pytest.raises(AutoGodotError) as exc_info:
                 _require_pillow()
             assert exc_info.value.code == "PILLOW_NOT_INSTALLED"
 
-    @patch("gdauto.sprite.atlas.Image")
+    @patch("auto_godot.sprite.atlas.Image")
     def test_paste_called_for_each_image(
         self, mock_image_module: MagicMock
     ) -> None:
-        from gdauto.sprite.atlas import create_atlas
+        from auto_godot.sprite.atlas import create_atlas
 
         images = [self._make_mock_image(32, 32) for _ in range(3)]
         mock_image_module.open.side_effect = images
@@ -234,13 +234,13 @@ class TestCreateAtlas:
 class TestCreateAtlasCLI:
     """Tests for the sprite create-atlas CLI command."""
 
-    @patch("gdauto.sprite.atlas.Image")
+    @patch("auto_godot.sprite.atlas.Image")
     def test_create_atlas_command_exits_zero(
         self, mock_image_module: MagicMock, tmp_path: Path
     ) -> None:
         from click.testing import CliRunner
 
-        from gdauto.cli import cli
+        from auto_godot.cli import cli
 
         # Create fake input images
         img1 = tmp_path / "img1.png"

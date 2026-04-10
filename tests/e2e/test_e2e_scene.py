@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from gdauto.backend import GodotBackend
-from gdauto.formats.tscn import parse_tscn, serialize_tscn, serialize_tscn_file
-from gdauto.scene.builder import build_scene
+from auto_godot.backend import GodotBackend
+from auto_godot.formats.tscn import parse_tscn, serialize_tscn, serialize_tscn_file
+from auto_godot.scene.builder import build_scene
 
 
 _PROJECT_GODOT = (

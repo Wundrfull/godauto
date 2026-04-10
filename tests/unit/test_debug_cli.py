@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from click.testing import CliRunner
 
-from gdauto.cli import cli
-from gdauto.debugger.connect import ConnectResult
-from gdauto.debugger.errors import DebuggerConnectionError, DebuggerError
+from auto_godot.cli import cli
+from auto_godot.debugger.connect import ConnectResult
+from auto_godot.debugger.errors import DebuggerConnectionError, DebuggerError
 
 
 @pytest.fixture()
@@ -37,7 +37,7 @@ def test_debug_connect_help(runner: CliRunner) -> None:
     assert "--timeout" in result.output
 
 
-@patch("gdauto.commands.debug.async_connect", new_callable=AsyncMock)
+@patch("auto_godot.commands.debug.async_connect", new_callable=AsyncMock)
 def test_debug_connect_default_port(
     mock_connect: AsyncMock,
     runner: CliRunner,
@@ -53,7 +53,7 @@ def test_debug_connect_default_port(
     assert call_kwargs[1]["port"] == 6007 or call_kwargs.kwargs.get("port") == 6007
 
 
-@patch("gdauto.commands.debug.async_connect", new_callable=AsyncMock)
+@patch("auto_godot.commands.debug.async_connect", new_callable=AsyncMock)
 def test_debug_connect_custom_port(
     mock_connect: AsyncMock,
     runner: CliRunner,
@@ -72,7 +72,7 @@ def test_debug_connect_custom_port(
     assert call_kwargs[1].get("port") == 9999 or call_kwargs.kwargs.get("port") == 9999
 
 
-@patch("gdauto.commands.debug.async_connect", new_callable=AsyncMock)
+@patch("auto_godot.commands.debug.async_connect", new_callable=AsyncMock)
 def test_debug_connect_with_scene(
     mock_connect: AsyncMock,
     runner: CliRunner,
@@ -91,7 +91,7 @@ def test_debug_connect_with_scene(
     assert call_kwargs[1].get("scene") == "res://main.tscn" or call_kwargs.kwargs.get("scene") == "res://main.tscn"
 
 
-@patch("gdauto.commands.debug.async_connect", new_callable=AsyncMock)
+@patch("auto_godot.commands.debug.async_connect", new_callable=AsyncMock)
 def test_debug_connect_json_output(
     mock_connect: AsyncMock,
     runner: CliRunner,
@@ -110,7 +110,7 @@ def test_debug_connect_json_output(
     assert data["game_pid"] == 5678
 
 
-@patch("gdauto.commands.debug.async_connect", new_callable=AsyncMock)
+@patch("auto_godot.commands.debug.async_connect", new_callable=AsyncMock)
 def test_debug_connect_error_json_output(
     mock_connect: AsyncMock,
     runner: CliRunner,
@@ -136,7 +136,7 @@ def test_debug_connect_error_json_output(
     assert "DEBUG_PORT_IN_USE" in error_text or "Port in use" in error_text
 
 
-@patch("gdauto.commands.debug.async_connect", new_callable=AsyncMock)
+@patch("auto_godot.commands.debug.async_connect", new_callable=AsyncMock)
 def test_debug_connect_error_exit_code(
     mock_connect: AsyncMock,
     runner: CliRunner,

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from gdauto.cli import cli
+from auto_godot.cli import cli
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 
@@ -220,9 +220,9 @@ class TestTilesetInspect:
         fixture = FIXTURES_DIR / "aseprite_simple.json"
         if not fixture.exists():
             return  # skip if fixture missing
-        from gdauto.formats.aseprite import parse_aseprite_json
-        from gdauto.formats.tres import serialize_tres_file
-        from gdauto.sprite.spriteframes import build_spriteframes
+        from auto_godot.formats.aseprite import parse_aseprite_json
+        from auto_godot.formats.tres import serialize_tres_file
+        from auto_godot.sprite.spriteframes import build_spriteframes
 
         data = parse_aseprite_json(fixture)
         resource = build_spriteframes(data, "res://test.png")

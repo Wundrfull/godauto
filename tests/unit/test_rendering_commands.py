@@ -7,7 +7,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from gdauto.cli import cli
+from auto_godot.cli import cli
 
 
 def _make_project(tmp_path: Path) -> Path:

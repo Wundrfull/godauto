@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
-from gdauto.cli import cli
+from auto_godot.cli import cli
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 SAMPLE_TRES = FIXTURES_DIR / "sample.tres"
@@ -18,14 +18,14 @@ class TestValidateSpriteframesStructural:
     """Structural validation without Godot binary."""
 
     def test_valid_spriteframes_returns_valid(self) -> None:
-        from gdauto.sprite.validator import validate_spriteframes
+        from auto_godot.sprite.validator import validate_spriteframes
 
         result = validate_spriteframes(SAMPLE_TRES)
         assert result["valid"] is True
         assert len(result["issues"]) == 0
 
     def test_valid_spriteframes_has_animation_info(self) -> None:
-        from gdauto.sprite.validator import validate_spriteframes
+        from auto_godot.sprite.validator import validate_spriteframes
 
         result = validate_spriteframes(SAMPLE_TRES)
         anims = result["animations"]
@@ -34,7 +34,7 @@ class TestValidateSpriteframesStructural:
         assert anims[0]["frames"] == 2
 
     def test_wrong_resource_type_returns_invalid(self, tmp_path: Path) -> None:
-        from gdauto.sprite.validator import validate_spriteframes
+        from auto_godot.sprite.validator import validate_spriteframes
 
         tres = tmp_path / "theme.tres"
         tres.write_text(
@@ -45,7 +45,7 @@ class TestValidateSpriteframesStructural:
         assert any("Theme" in issue and "SpriteFrames" in issue for issue in result["issues"])
 
     def test_missing_animations_property(self, tmp_path: Path) -> None:
-        from gdauto.sprite.validator import validate_spriteframes
+        from auto_godot.sprite.validator import validate_spriteframes
 
         tres = tmp_path / "empty_sf.tres"
         tres.write_text(
@@ -56,7 +56,7 @@ class TestValidateSpriteframesStructural:
         assert any("animations" in issue for issue in result["issues"])
 
     def test_broken_subresource_reference(self, tmp_path: Path) -> None:
-        from gdauto.sprite.validator import validate_spriteframes
+        from auto_godot.sprite.validator import validate_spriteframes
 
         # Animation references SubResource("nonexistent") which does not exist
         tres = tmp_path / "broken_ref.tres"
@@ -81,14 +81,14 @@ class TestValidateSpriteframesStructural:
         assert any("nonexistent" in issue for issue in result["issues"])
 
     def test_nonexistent_file_returns_invalid(self) -> None:
-        from gdauto.sprite.validator import validate_spriteframes
+        from auto_godot.sprite.validator import validate_spriteframes
 
         result = validate_spriteframes(Path("/does/not/exist.tres"))
         assert result["valid"] is False
         assert len(result["issues"]) > 0
 
     def test_result_has_resource_counts(self) -> None:
-        from gdauto.sprite.validator import validate_spriteframes
+        from auto_godot.sprite.validator import validate_spriteframes
 
         result = validate_spriteframes(SAMPLE_TRES)
         assert "ext_resource_count" in result
@@ -101,7 +101,7 @@ class TestValidateSpriteframesHeadless:
     """Headless Godot validation with mocked backend."""
 
     def test_headless_calls_backend_run(self) -> None:
-        from gdauto.sprite.validator import validate_spriteframes_headless
+        from auto_godot.sprite.validator import validate_spriteframes_headless
 
         mock_backend = MagicMock()
         mock_backend.run.return_value = MagicMock(
@@ -116,8 +116,8 @@ class TestValidateSpriteframesHeadless:
         assert any("--script" in str(a) for a in call_args[0][0])
 
     def test_headless_fallback_on_godot_binary_error(self) -> None:
-        from gdauto.errors import GodotBinaryError
-        from gdauto.sprite.validator import validate_spriteframes_headless
+        from auto_godot.errors import GodotBinaryError
+        from auto_godot.sprite.validator import validate_spriteframes_headless
 
         mock_backend = MagicMock()
         mock_backend.run.side_effect = GodotBinaryError(
@@ -133,7 +133,7 @@ class TestValidateSpriteframesHeadless:
 
 
 class TestValidateCli:
-    """CLI command tests for `gdauto sprite validate`."""
+    """CLI command tests for `auto-godot sprite validate`."""
 
     def test_validate_valid_file_exits_zero(self) -> None:
         runner = CliRunner()

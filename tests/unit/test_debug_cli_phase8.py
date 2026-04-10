@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from gdauto.cli import cli
-from gdauto.debugger.errors import DebuggerError
-from gdauto.debugger.models import SceneNode
+from auto_godot.cli import cli
+from auto_godot.debugger.errors import DebuggerError
+from auto_godot.debugger.models import SceneNode
 
 
 @pytest.fixture()
@@ -37,7 +37,7 @@ class TestDebugTree:
         assert "--port" in result.output
         assert "--timeout" in result.output
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_json_output(
         self,
         mock_run: AsyncMock,
@@ -65,7 +65,7 @@ class TestDebugTree:
         assert data["name"] == "root"
         assert data["children"][0]["name"] == "Main"
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_passes_depth_and_full(
         self,
         mock_run: AsyncMock,
@@ -87,7 +87,7 @@ class TestDebugTree:
         # The callback is passed as the fn argument; we just verify it was called
         mock_run.assert_called_once()
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_human_output(
         self,
         mock_run: AsyncMock,
@@ -114,7 +114,7 @@ class TestDebugTree:
         assert "/root (Node)" in result.output
         assert "/root/Main (Node2D)" in result.output
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_human_output_full_mode(
         self,
         mock_run: AsyncMock,
@@ -142,7 +142,7 @@ class TestDebugTree:
         assert "PlayerScript" in result.output
         assert "res://player.gd" in result.output
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_error_produces_nonzero_exit(
         self,
         mock_run: AsyncMock,
@@ -176,7 +176,7 @@ class TestDebugGet:
         assert "--port" in result.output
         assert "--timeout" in result.output
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_json_output(
         self,
         mock_run: AsyncMock,
@@ -211,7 +211,7 @@ class TestDebugGet:
         )
         assert result.exit_code != 0
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_node_not_found_error(
         self,
         mock_run: AsyncMock,
@@ -231,7 +231,7 @@ class TestDebugGet:
         )
         assert result.exit_code != 0
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_human_output(
         self,
         mock_run: AsyncMock,
@@ -275,7 +275,7 @@ class TestDebugOutput:
         )
         assert result.exit_code != 0
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_snapshot_json_output(
         self,
         mock_run: AsyncMock,
@@ -297,7 +297,7 @@ class TestDebugOutput:
         assert "messages" in data
         assert len(data["messages"]) == 2
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_errors_only_filter(
         self,
         mock_run: AsyncMock,
@@ -330,15 +330,15 @@ class TestCommandRegistration:
 
     def test_tree_registered(self) -> None:
         """tree command is registered in the debug group."""
-        from gdauto.commands.debug import debug
+        from auto_godot.commands.debug import debug
         assert "tree" in debug.commands
 
     def test_get_registered(self) -> None:
         """get command is registered in the debug group."""
-        from gdauto.commands.debug import debug
+        from auto_godot.commands.debug import debug
         assert "get" in debug.commands
 
     def test_output_registered(self) -> None:
         """output command is registered in the debug group."""
-        from gdauto.commands.debug import debug
+        from auto_godot.commands.debug import debug
         assert "output" in debug.commands

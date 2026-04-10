@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from gdauto.formats.tres import SubResource
-from gdauto.formats.values import Color
-from gdauto.tileset.terrain import (
+from auto_godot.formats.tres import SubResource
+from auto_godot.formats.values import Color
+from auto_godot.tileset.terrain import (
     BLOB_47_LAYOUT,
     LAYOUT_MAP,
     MINIMAL_16_LAYOUT,

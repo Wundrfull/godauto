@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from gdauto.formats.project_cfg import (
+from auto_godot.formats.project_cfg import (
     ProjectConfig,
     parse_project_config,
     serialize_project_config,

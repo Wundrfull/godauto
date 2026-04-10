@@ -14,21 +14,21 @@ import math
 
 import pytest
 
-from gdauto.debugger.variant import (
+from auto_godot.debugger.variant import (
     VariantType,
     ENCODE_FLAG_64,
     ENCODE_FLAG_OBJECT_AS_ID,
     encode,
     decode,
 )
-from gdauto.debugger.errors import (
+from auto_godot.debugger.errors import (
     DebuggerError,
     DebuggerConnectionError,
     DebuggerTimeoutError,
     ProtocolError,
 )
-from gdauto.debugger.models import GodotStringName, GodotNodePath
-from gdauto.errors import GdautoError
+from auto_godot.debugger.models import GodotStringName, GodotNodePath
+from auto_godot.errors import AutoGodotError
 
 
 # =========================================================================
@@ -39,14 +39,14 @@ from gdauto.errors import GdautoError
 class TestDebuggerErrors:
     """Verify debugger error hierarchy and serialization."""
 
-    def test_debugger_error_inherits_from_gdauto_error(self) -> None:
+    def test_debugger_error_inherits_from_auto_godot_error(self) -> None:
         err = DebuggerError(message="fail", code="DBG_ERR")
-        assert isinstance(err, GdautoError)
+        assert isinstance(err, AutoGodotError)
 
     def test_debugger_connection_error_inherits_from_debugger_error(self) -> None:
         err = DebuggerConnectionError(message="no conn", code="CONN_ERR")
         assert isinstance(err, DebuggerError)
-        assert isinstance(err, GdautoError)
+        assert isinstance(err, AutoGodotError)
 
     def test_debugger_timeout_error_inherits_from_debugger_error(self) -> None:
         err = DebuggerTimeoutError(message="timeout", code="TIMEOUT")

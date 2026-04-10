@@ -1,4 +1,4 @@
-# gdauto Game Development Toolkit - Setup Script
+# auto-godot Game Development Toolkit - Setup Script
 # Run once to configure pixel-mcp and verify dependencies.
 
 param(
@@ -18,7 +18,7 @@ $ConfigDir = Join-Path $env:USERPROFILE ".config" "pixel-mcp"
 $ConfigFile = Join-Path $ConfigDir "config.json"
 $TempDir = Join-Path $ProjectRoot ".tmp" "pixel-mcp"
 
-Write-Host "=== gdauto Setup ===" -ForegroundColor Cyan
+Write-Host "=== auto-godot Setup ===" -ForegroundColor Cyan
 
 # --- Step 1: Verify Aseprite ---
 Write-Host "`n[1/4] Checking Aseprite..." -ForegroundColor Yellow

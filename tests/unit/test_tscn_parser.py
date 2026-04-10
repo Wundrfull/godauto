@@ -5,15 +5,15 @@ from pathlib import Path
 
 import pytest
 
-from gdauto.formats.tscn import (
+from auto_godot.formats.tscn import (
     Connection,
     GdScene,
     SceneNode,
     parse_tscn,
     serialize_tscn,
 )
-from gdauto.formats.tres import ExtResource
-from gdauto.formats.values import ExtResourceRef, Vector2
+from auto_godot.formats.tres import ExtResource
+from auto_godot.formats.values import ExtResourceRef, Vector2
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 SAMPLE_TSCN = (FIXTURES / "sample.tscn").read_text()

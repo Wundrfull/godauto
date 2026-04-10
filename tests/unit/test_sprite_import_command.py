@@ -7,7 +7,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from gdauto.cli import cli
+from auto_godot.cli import cli
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 FIXTURE_SIMPLE = str(FIXTURES_DIR / "aseprite_simple.json")

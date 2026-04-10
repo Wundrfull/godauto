@@ -6,15 +6,15 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from gdauto.debugger.errors import DebuggerError
-from gdauto.debugger.execution import (
+from auto_godot.debugger.errors import DebuggerError
+from auto_godot.debugger.execution import (
     get_speed,
     pause_game,
     resume_game,
     set_speed,
     step_frame,
 )
-from gdauto.debugger.models import GameState
+from auto_godot.debugger.models import GameState
 
 
 def _make_session(

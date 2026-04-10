@@ -6,16 +6,16 @@ import pytest
 
 
 def test_generate_skill_md_starts_with_title() -> None:
-    """Output should start with '# gdauto' as the document title."""
-    from gdauto.skill.generator import generate_skill_md
+    """Output should start with '# auto-godot' as the document title."""
+    from auto_godot.skill.generator import generate_skill_md
 
     result = generate_skill_md()
-    assert result.startswith("# gdauto")
+    assert result.startswith("# auto-godot")
 
 
 def test_generate_skill_md_has_commands_section() -> None:
     """Output should contain a '## Commands' section header."""
-    from gdauto.skill.generator import generate_skill_md
+    from auto_godot.skill.generator import generate_skill_md
 
     result = generate_skill_md()
     assert "## Commands" in result
@@ -23,7 +23,7 @@ def test_generate_skill_md_has_commands_section() -> None:
 
 def test_generate_skill_md_contains_all_command_groups() -> None:
     """Output should contain all registered command group names."""
-    from gdauto.skill.generator import generate_skill_md
+    from auto_godot.skill.generator import generate_skill_md
 
     result = generate_skill_md()
     for group in ("project", "resource", "export", "sprite", "tileset", "scene", "skill"):
@@ -32,7 +32,7 @@ def test_generate_skill_md_contains_all_command_groups() -> None:
 
 def test_generate_skill_md_contains_subcommands() -> None:
     """Output should contain known subcommand names."""
-    from gdauto.skill.generator import generate_skill_md
+    from auto_godot.skill.generator import generate_skill_md
 
     result = generate_skill_md()
     for subcommand in ("import-aseprite", "create-atlas", "split", "validate"):
@@ -41,7 +41,7 @@ def test_generate_skill_md_contains_subcommands() -> None:
 
 def test_generate_skill_md_has_global_options() -> None:
     """Output should contain '## Global Options' with known global flags."""
-    from gdauto.skill.generator import generate_skill_md
+    from auto_godot.skill.generator import generate_skill_md
 
     result = generate_skill_md()
     assert "## Global Options" in result
@@ -51,7 +51,7 @@ def test_generate_skill_md_has_global_options() -> None:
 
 def test_generate_skill_md_has_examples() -> None:
     """Output should contain at least one '**Example:**' block per D-11."""
-    from gdauto.skill.generator import generate_skill_md
+    from auto_godot.skill.generator import generate_skill_md
 
     result = generate_skill_md()
     assert "**Example:**" in result
@@ -59,7 +59,7 @@ def test_generate_skill_md_has_examples() -> None:
 
 def test_generate_skill_md_contains_param_descriptions() -> None:
     """Output should contain argument and option names from actual commands."""
-    from gdauto.skill.generator import generate_skill_md
+    from auto_godot.skill.generator import generate_skill_md
 
     result = generate_skill_md()
     # import-aseprite has a JSON_FILE argument
@@ -70,7 +70,7 @@ def test_generate_skill_md_contains_param_descriptions() -> None:
 
 def test_generate_skill_md_contains_help_text() -> None:
     """Output should include actual help text strings from commands."""
-    from gdauto.skill.generator import generate_skill_md
+    from auto_godot.skill.generator import generate_skill_md
 
     result = generate_skill_md()
     # Root group help
@@ -81,7 +81,7 @@ def test_generate_skill_md_contains_help_text() -> None:
 
 def test_render_command_mock() -> None:
     """_render_command on a simple mock info dict produces expected markdown."""
-    from gdauto.skill.generator import _render_command
+    from auto_godot.skill.generator import _render_command
 
     lines: list[str] = []
     mock_info = {
@@ -113,7 +113,7 @@ def test_render_command_mock() -> None:
         ],
         "commands": {},
     }
-    _render_command("mock-cmd", mock_info, "gdauto", lines)
+    _render_command("mock-cmd", mock_info, "auto-godot", lines)
     rendered = "\n".join(lines)
     assert "mock-cmd" in rendered
     assert "A mock command" in rendered
@@ -122,7 +122,7 @@ def test_render_command_mock() -> None:
 
 def test_hidden_commands_excluded() -> None:
     """Hidden commands should be excluded from the generated output."""
-    from gdauto.skill.generator import _should_skip
+    from auto_godot.skill.generator import _should_skip
 
     assert _should_skip({"hidden": True, "deprecated": False}) is True
     assert _should_skip({"hidden": False, "deprecated": True}) is True

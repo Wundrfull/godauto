@@ -5,14 +5,14 @@ from pathlib import Path
 
 import pytest
 
-from gdauto.formats.tres import (
+from auto_godot.formats.tres import (
     ExtResource,
     GdResource,
     SubResource,
     parse_tres,
     serialize_tres,
 )
-from gdauto.formats.values import ExtResourceRef, Rect2, SubResourceRef
+from auto_godot.formats.values import ExtResourceRef, Rect2, SubResourceRef
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 SAMPLE_TRES = (FIXTURES / "sample.tres").read_text()

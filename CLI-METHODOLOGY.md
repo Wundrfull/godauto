@@ -1,17 +1,17 @@
-# CLI Generation Methodology for gdauto
+# CLI Generation Methodology for auto-godot
 
-This document captures the best architectural patterns and engineering standards from CLI-Anything's HARNESS.md methodology. It serves as a reference skill for GSD subagents building gdauto. Every CLI command, module, and test should follow these patterns.
+This document captures the best architectural patterns and engineering standards from CLI-Anything's HARNESS.md methodology. It serves as a reference skill for GSD subagents building auto-godot. Every CLI command, module, and test should follow these patterns.
 
 ## Core Architecture
 
 ### Namespace Package Structure
 
-gdauto is a PEP 420 namespace package. This means it can coexist with other CLI tools in the same namespace without conflicts.
+auto-godot is a PEP 420 namespace package. This means it can coexist with other CLI tools in the same namespace without conflicts.
 
 ```
-gdauto/
+auto_godot/
   setup.py
-  gdauto/
+  auto_godot/
     __init__.py          # Package version, metadata
     cli.py               # Click entry point, command group registration
     godot_backend.py     # Subprocess wrapper for the Godot binary
@@ -44,7 +44,7 @@ import click
 @click.version_option()
 @click.pass_context
 def cli(ctx):
-    """gdauto: Agent-native CLI for Godot Engine."""
+    """auto-godot: Agent-native CLI for Godot Engine."""
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
 
@@ -193,20 +193,20 @@ Every command must have at least one unit test and one E2E test. Test output val
 
 ### SKILL.md for AI Discoverability
 
-After building the CLI, generate a SKILL.md file that describes every command, its flags, expected inputs, and example usage. This file is what AI agents read to learn how to use gdauto. Format:
+After building the CLI, generate a SKILL.md file that describes every command, its flags, expected inputs, and example usage. This file is what AI agents read to learn how to use auto-godot. Format:
 
 ```markdown
-# gdauto
+# auto-godot
 
 Agent-native CLI for Godot Engine.
 
 ## Commands
 
-### gdauto project info [PATH]
+### auto-godot project info [PATH]
 Show project metadata.
 - `--json`: Output as JSON
 
-### gdauto sprite import-aseprite --input FILE --sheet IMAGE
+### auto-godot sprite import-aseprite --input FILE --sheet IMAGE
 Convert Aseprite export to Godot SpriteFrames.
 - `--input`: Path to Aseprite JSON metadata file
 - `--sheet`: Path to sprite sheet image

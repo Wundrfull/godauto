@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from gdauto.backend import GodotBackend
-from gdauto.formats.aseprite import parse_aseprite_json
-from gdauto.formats.tres import serialize_tres_file
-from gdauto.sprite.spriteframes import build_spriteframes
+from auto_godot.backend import GodotBackend
+from auto_godot.formats.aseprite import parse_aseprite_json
+from auto_godot.formats.tres import serialize_tres_file
+from auto_godot.sprite.spriteframes import build_spriteframes
 
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"

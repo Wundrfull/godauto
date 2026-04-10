@@ -8,11 +8,11 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from gdauto.cli import cli
-from gdauto.errors import ValidationError
-from gdauto.formats.tres import SubResource
-from gdauto.formats.values import PackedVector2Array
-from gdauto.tileset.physics import apply_physics_to_atlas, parse_physics_rule
+from auto_godot.cli import cli
+from auto_godot.errors import ValidationError
+from auto_godot.formats.tres import SubResource
+from auto_godot.formats.values import PackedVector2Array
+from auto_godot.tileset.physics import apply_physics_to_atlas, parse_physics_rule
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 # Game Build Loop: Iterative Game Creation with Gap Discovery
 
-A self-contained guide for building a game using gdauto + pixel-mcp + Aseprite on a fresh machine. Claude attempts to build the entire game without the Godot editor, logging every blocker for later tool development.
+A self-contained guide for building a game using auto-godot + pixel-mcp + Aseprite on a fresh machine. Claude attempts to build the entire game without the Godot editor, logging every blocker for later tool development.
 
 ## Prerequisites
 
@@ -15,18 +15,18 @@ You need these installed before starting:
 | **Claude Code** | Yes | `npm install -g @anthropic-ai/claude-code` |
 | **Git** | Yes | https://git-scm.com/ |
 
-## Step 1: Clone and install gdauto
+## Step 1: Clone and install auto-godot
 
 ```bash
-git clone https://github.com/wundrfull/gdauto.git
-cd gdauto
+git clone https://github.com/wundrfull/auto-godot.git
+cd auto-godot
 uv sync --dev
 ```
 
 Verify it works:
 ```bash
-uv run gdauto --version
-uv run gdauto --help
+uv run auto-godot --version
+uv run auto-godot --help
 ```
 
 You should see all command groups: project, scene, script, sprite, tileset, animation, audio, etc.
@@ -119,9 +119,9 @@ Cookie Cosmos -- an idle clicker game built entirely via CLI tools (no Godot edi
 
 ## Toolchain
 
-- **gdauto** -- CLI for Godot file manipulation. Installed at: [your gdauto path]
-  Run with: `uv run --project /path/to/gdauto gdauto <command>`
-  Or if installed globally: `gdauto <command>`
+- **auto-godot** -- CLI for Godot file manipulation. Installed at: [your auto-godot path]
+  Run with: `uv run --project /path/to/auto-godot auto-godot <command>`
+  Or if installed globally: `auto-godot <command>`
 - **pixel-mcp** -- MCP server for Aseprite pixel art creation (available as MCP tools)
 - **Aseprite CLI** -- Headless sprite export via `aseprite -b` (no GUI window opens)
 - **Godot 4.6** -- Game engine. Console binary at GODOT_PATH env var.
@@ -129,9 +129,9 @@ Cookie Cosmos -- an idle clicker game built entirely via CLI tools (no Godot edi
 ## Asset Pipeline
 
 1. Create pixel art with pixel-mcp MCP tools (create_canvas, draw_pixels, etc.)
-2. Export from Aseprite: `gdauto sprite export art/<name>.aseprite -o assets/sprites/<name>`
-3. Import to Godot: `gdauto sprite import-aseprite assets/sprites/<name>/<name>.json`
-4. Assign to scene: `gdauto scene set-resource --scene <scene> --node <node> --property sprite_frames --resource res://assets/sprites/<name>/<name>.tres --type SpriteFrames`
+2. Export from Aseprite: `auto-godot sprite export art/<name>.aseprite -o assets/sprites/<name>`
+3. Import to Godot: `auto-godot sprite import-aseprite assets/sprites/<name>/<name>.json`
+4. Assign to scene: `auto-godot scene set-resource --scene <scene> --node <node> --property sprite_frames --resource res://assets/sprites/<name>/<name>.tres --type SpriteFrames`
 
 ## Directory Layout
 
@@ -147,7 +147,7 @@ Cookie Cosmos -- an idle clicker game built entirely via CLI tools (no Godot edi
 ## Constraints
 
 - NEVER open the Godot editor GUI. Everything is CLI only.
-- NEVER write .tscn, .tres, or project.godot files by hand. Use gdauto commands.
+- NEVER write .tscn, .tres, or project.godot files by hand. Use auto-godot commands.
 - ALL pixel art is created through pixel-mcp MCP tools.
 - Log every blocker to blockers.md with the format described in the build prompt.
 ```
@@ -156,10 +156,10 @@ Cookie Cosmos -- an idle clicker game built entirely via CLI tools (no Godot edi
 
 ```bash
 # In the cookie-cosmos directory:
-uv run --project /path/to/gdauto gdauto --version
+uv run --project /path/to/auto-godot auto-godot --version
 # Should print version
 
-uv run --project /path/to/gdauto gdauto project create TestProject --output .
+uv run --project /path/to/auto-godot auto-godot project create TestProject --output .
 # Should create TestProject/ with project.godot
 
 # Clean up test
@@ -187,7 +187,7 @@ Paste everything below the `---` line as your first message to Claude Code.
 
 You are building a complete idle clicker game in Godot 4.6 using ONLY command-line tools. You must never open the Godot editor GUI. Your entire workflow uses three tools:
 
-1. **gdauto** -- CLI for Godot file manipulation (scenes, scripts, project config, resources)
+1. **auto-godot** -- CLI for Godot file manipulation (scenes, scripts, project config, resources)
 2. **pixel-mcp** -- MCP server for creating pixel art in Aseprite (create_canvas, draw_pixels, draw_rectangle, draw_circle, set_palette, add_layer, export_spritesheet, etc.)
 3. **Aseprite CLI** -- Headless sprite export (`aseprite -b` for batch mode, no GUI needed)
 
@@ -224,19 +224,19 @@ Build a playable idle clicker game called "Cookie Cosmos" with these features:
 
 ### Rules
 
-1. **Use gdauto for ALL Godot file operations.** Never write .tscn, .tres, or project.godot files by hand. Use `gdauto scene create-simple`, `gdauto scene add-node`, `gdauto script create`, etc.
+1. **Use auto-godot for ALL Godot file operations.** Never write .tscn, .tres, or project.godot files by hand. Use `auto-godot scene create-simple`, `auto-godot scene add-node`, `auto-godot script create`, etc.
 
 2. **Use pixel-mcp MCP tools for ALL art creation.** Create sprites, animations, and UI art through the MCP server tools (create_canvas, draw_pixels, set_palette, add_layer, export_spritesheet, etc.).
 
 3. **Use Aseprite CLI for sprite export.** After pixel-mcp creates .aseprite files, export with:
    ```
-   gdauto sprite export art/cookie.aseprite -o assets/sprites/cookie
+   auto-godot sprite export art/cookie.aseprite -o assets/sprites/cookie
    ```
    Or directly: `$ASEPRITE_PATH -b art/cookie.aseprite --sheet assets/sprites/cookie/cookie_sheet.png --data assets/sprites/cookie/cookie.json --format json-array --sheet-type packed --trim --list-tags`
 
-4. **Use gdauto sprite import-aseprite for Godot integration:**
+4. **Use auto-godot sprite import-aseprite for Godot integration:**
    ```
-   gdauto sprite import-aseprite assets/sprites/cookie/cookie.json -o assets/sprites/cookie/cookie.tres
+   auto-godot sprite import-aseprite assets/sprites/cookie/cookie.json -o assets/sprites/cookie/cookie.tres
    ```
 
 5. **Log EVERY blocker.** When you cannot do something with the available tools, write it to `blockers.md` with this exact format:
@@ -246,7 +246,7 @@ Build a playable idle clicker game called "Cookie Cosmos" with these features:
    - **What happened:** [error message or limitation encountered]
    - **What I needed:** [the ideal command/tool that would unblock this]
    - **Workaround:** [what I did instead, or "none -- fully blocked"]
-   - **Category:** [gdauto | pixel-mcp | aseprite | godot | workflow]
+   - **Category:** [auto-godot | pixel-mcp | aseprite | godot | workflow]
    - **Impact:** [critical | high | medium | low]
    ```
 
@@ -264,7 +264,7 @@ Build a playable idle clicker game called "Cookie Cosmos" with these features:
 Execute these phases in order. Push as far as you can in each phase before moving to the next. Do NOT skip phases even if earlier ones have blockers.
 
 **Phase 1: Project Scaffold**
-- `gdauto project create CookieCosmos --output .`
+- `auto-godot project create CookieCosmos --output .`
 - Configure display (720x1280 portrait, canvas_items stretch, nearest filter)
 - Configure rendering (mobile)
 - Set up input actions (click, ui_upgrade)
@@ -279,63 +279,63 @@ Using pixel-mcp MCP tools:
 - Create a 32x32 upgrade icon set (3 icons for the 3 upgrades)
 - Create UI panel background art (9-patch or simple panel)
 - Use a warm palette: browns for cookie, gold for accents, deep blue for background
-- Export all from Aseprite using `gdauto sprite export` or Aseprite CLI batch mode
+- Export all from Aseprite using `auto-godot sprite export` or Aseprite CLI batch mode
 
 **Phase 3: Import Assets into Godot**
-- `gdauto sprite import-aseprite` for each sprite JSON
-- `gdauto sprite validate` each generated .tres
-- `gdauto sprite list-animations` to verify animation names, frame counts, FPS
+- `auto-godot sprite import-aseprite` for each sprite JSON
+- `auto-godot sprite validate` each generated .tres
+- `auto-godot sprite list-animations` to verify animation names, frame counts, FPS
 
 **Phase 4: Build Main Scene**
-- Create main scene with Control root using `gdauto scene create-simple`
+- Create main scene with Control root using `auto-godot scene create-simple`
 - Add VBoxContainer layout for score/buttons
 - Add score Label, cookies/sec Label
-- Add AnimatedSprite2D for cookie (assign SpriteFrames via `gdauto scene set-resource`)
+- Add AnimatedSprite2D for cookie (assign SpriteFrames via `auto-godot scene set-resource`)
 - Add a TextureButton or Button overlaying the cookie for click detection
-- Add CPUParticles2D for click burst via `gdauto particle add`
-- Set anchor presets via `gdauto scene set-anchor --preset full_rect`
-- Create and assign UI theme via `gdauto theme create` + `gdauto scene set-resource`
+- Add CPUParticles2D for click burst via `auto-godot particle add`
+- Set anchor presets via `auto-godot scene set-anchor --preset full_rect`
+- Create and assign UI theme via `auto-godot theme create` + `auto-godot scene set-resource`
 
 **Phase 5: Build Shop Scene**
-- Create shop scene using `gdauto scene from-template --template ui-panel`
+- Create shop scene using `auto-godot scene from-template --template ui-panel`
 - Add 3 upgrade buttons with labels showing name and cost
 - Add labels for upgrade descriptions and current level
 - Create shop script with signal for purchases
 
 **Phase 6: Write Game Scripts**
-Using `gdauto script create`, `gdauto script add-method`, `gdauto script add-var`, `gdauto script add-export`, `gdauto script add-signal`:
+Using `auto-godot script create`, `auto-godot script add-method`, `auto-godot script add-var`, `auto-godot script add-export`, `auto-godot script add-signal`:
 - Main scene script: click handling, score display update, passive income tick
 - GameManager autoload: score state, upgrade tracking, click value calculation
 - SaveManager autoload: save_game(data) and load_game() via JSON to user://save.json
 - Shop script: upgrade purchase logic, cost display, afford/disable checking
 
 **Phase 7: Wire Everything Together**
-- Connect button pressed signals via `gdauto signal connect`
-- Instance shop into main scene via `gdauto scene add-instance`
-- Attach scripts to nodes via `gdauto script attach`
-- Register autoloads via `gdauto project add-autoload`
-- Set main scene via `gdauto project set-main-scene`
-- Add Timer nodes via `gdauto scene add-timer` for passive income and auto-save
+- Connect button pressed signals via `auto-godot signal connect`
+- Instance shop into main scene via `auto-godot scene add-instance`
+- Attach scripts to nodes via `auto-godot script attach`
+- Register autoloads via `auto-godot project add-autoload`
+- Set main scene via `auto-godot project set-main-scene`
+- Add Timer nodes via `auto-godot scene add-timer` for passive income and auto-save
 
 **Phase 8: Audio Setup**
-- Create audio bus layout via `gdauto audio create-bus-layout` (Master, SFX, Music)
-- Add AudioStreamPlayer nodes via `gdauto audio add-player` (click sound, bg music, upgrade sound)
+- Create audio bus layout via `auto-godot audio create-bus-layout` (Master, SFX, Music)
+- Add AudioStreamPlayer nodes via `auto-godot audio add-player` (click sound, bg music, upgrade sound)
 - Wire audio playback into game scripts
 
 **Phase 9: Visual Polish**
-- Create score popup animation via `gdauto animation create-library` + `gdauto animation add-track`
+- Create score popup animation via `auto-godot animation create-library` + `auto-godot animation add-track`
 - Add cookie scale animation on click
-- Add background ColorRect via `gdauto scene add-node`
-- Set anchor presets on all UI elements via `gdauto scene set-anchor`
-- Create and assign shader effects if desired via `gdauto shader create`
+- Add background ColorRect via `auto-godot scene add-node`
+- Set anchor presets on all UI elements via `auto-godot scene set-anchor`
+- Create and assign shader effects if desired via `auto-godot shader create`
 
 **Phase 10: Validation and Testing**
-- `gdauto scene validate` every .tscn file
-- `gdauto project validate` the entire project
-- `gdauto project stats` for a project overview
-- `gdauto scene list-nodes` on every scene
-- `gdauto resource list --scene` on main scene to verify all resources resolve
-- `gdauto scene count-nodes` for total node count
+- `auto-godot scene validate` every .tscn file
+- `auto-godot project validate` the entire project
+- `auto-godot project stats` for a project overview
+- `auto-godot scene list-nodes` on every scene
+- `auto-godot resource list --scene` on main scene to verify all resources resolve
+- `auto-godot scene count-nodes` for total node count
 - Attempt to run the game headlessly: `$GODOT_PATH --headless --path . --quit-after 5` (just checks it loads without crash)
 
 ### After All Phases
@@ -352,8 +352,8 @@ Write a final summary to `summary.md`:
 - Critical blockers (no workaround): N
 
 ## Tool Usage Stats
-- gdauto commands used successfully: [list]
-- gdauto commands that failed: [list]
+- auto-godot commands used successfully: [list]
+- auto-godot commands that failed: [list]
 - pixel-mcp tools used: [list]
 - Aseprite CLI invocations: N
 - Files written by hand (workarounds): N
@@ -372,7 +372,7 @@ Write a final summary to `summary.md`:
 [list the most painful parts, even if eventually worked around]
 
 ## Recommended New Tools/Commands
-[list specific commands that should be added to gdauto or pixel-mcp]
+[list specific commands that should be added to auto-godot or pixel-mcp]
 
 ## Generated File Inventory
 - Scenes (.tscn): [count and list]
@@ -388,9 +388,9 @@ Write a final summary to `summary.md`:
 - **Do NOT write Godot files by hand** unless completely blocked with no alternative. If you must, log it as a critical blocker with "workaround: wrote file by hand".
 - **Do NOT ask the user questions.** Make your best judgment and keep going. Log uncertainty as blockers.
 - **Push through ALL 10 phases** even if earlier phases had blockers. Partial progress in every phase is more valuable than perfect completion of phase 1.
-- **Be maximally specific in blocker logs.** Bad: "couldn't add texture". Good: "Ran `gdauto scene set-resource --scene scenes/main.tscn --node CookieSprite --property texture --resource res://assets/sprites/cookie.png --type Texture2D` and got exit code 1: 'Node CookieSprite not found in scene'. The node was added in a previous step but may have a different parent path."
-- **Use `--json` flag** on gdauto commands when you need to parse output for the next step.
-- **Verify after every major operation** using `gdauto scene list-nodes`, `gdauto scene validate`, `gdauto resource inspect`.
+- **Be maximally specific in blocker logs.** Bad: "couldn't add texture". Good: "Ran `auto-godot scene set-resource --scene scenes/main.tscn --node CookieSprite --property texture --resource res://assets/sprites/cookie.png --type Texture2D` and got exit code 1: 'Node CookieSprite not found in scene'. The node was added in a previous step but may have a different parent path."
+- **Use `--json` flag** on auto-godot commands when you need to parse output for the next step.
+- **Verify after every major operation** using `auto-godot scene list-nodes`, `auto-godot scene validate`, `auto-godot resource inspect`.
 - **Commit after each phase** with a descriptive message. This creates a history of what was built and when.
 
 ### Environment Check
@@ -398,9 +398,9 @@ Write a final summary to `summary.md`:
 Before starting Phase 1, run these checks and log any failures:
 
 ```bash
-# gdauto
-gdauto --version
-gdauto --help
+# auto-godot
+auto-godot --version
+auto-godot --help
 
 # Aseprite (should print version, no GUI opens)
 $ASEPRITE_PATH --version 2>/dev/null || echo "BLOCKER: Aseprite not found at ASEPRITE_PATH"

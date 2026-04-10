@@ -7,7 +7,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from gdauto.cli import cli
+from auto_godot.cli import cli
 
 FIXTURE_PROJECT = str(
     Path(__file__).resolve().parent.parent / "fixtures" / "sample_project"
