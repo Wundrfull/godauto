@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from click.testing import CliRunner
 
-from gdauto.cli import cli
-from gdauto.debugger.errors import DebuggerError
-from gdauto.debugger.models import GameState
+from auto_godot.cli import cli
+from auto_godot.debugger.errors import DebuggerError
+from auto_godot.debugger.models import GameState
 
 
 @pytest.fixture()
@@ -36,7 +36,7 @@ class TestDebugPause:
         assert "--port" in result.output
         assert "--timeout" in result.output
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_json_output(
         self,
         mock_run: AsyncMock,
@@ -54,7 +54,7 @@ class TestDebugPause:
         assert data["speed"] == 1.0
         assert data["frame"] == 0
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_human_output(
         self,
         mock_run: AsyncMock,
@@ -70,7 +70,7 @@ class TestDebugPause:
         assert "Game paused" in result.output
         assert "1.0x" in result.output
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_error_exit_code(
         self,
         mock_run: AsyncMock,
@@ -103,7 +103,7 @@ class TestDebugResume:
         assert "--port" in result.output
         assert "--timeout" in result.output
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_json_output(
         self,
         mock_run: AsyncMock,
@@ -119,7 +119,7 @@ class TestDebugResume:
         data = json.loads(result.output)
         assert data["paused"] is False
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_human_output(
         self,
         mock_run: AsyncMock,
@@ -152,7 +152,7 @@ class TestDebugStep:
         assert "--port" in result.output
         assert "--timeout" in result.output
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_json_output(
         self,
         mock_run: AsyncMock,
@@ -168,7 +168,7 @@ class TestDebugStep:
         data = json.loads(result.output)
         assert data["paused"] is True
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_human_output(
         self,
         mock_run: AsyncMock,
@@ -202,7 +202,7 @@ class TestDebugSpeed:
         assert "--port" in result.output
         assert "--timeout" in result.output
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_set_speed_json(
         self,
         mock_run: AsyncMock,
@@ -220,7 +220,7 @@ class TestDebugSpeed:
         assert data["speed"] == 10.0
         assert data["paused"] is False
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_set_speed_human(
         self,
         mock_run: AsyncMock,
@@ -236,7 +236,7 @@ class TestDebugSpeed:
         assert result.exit_code == 0
         assert "Speed set to 10.0x" in result.output
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_query_speed_json(
         self,
         mock_run: AsyncMock,
@@ -253,7 +253,7 @@ class TestDebugSpeed:
         data = json.loads(result.output)
         assert data["speed"] == 1.0
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_query_speed_human(
         self,
         mock_run: AsyncMock,
@@ -269,7 +269,7 @@ class TestDebugSpeed:
         assert result.exit_code == 0
         assert "Current speed: 1.0x" in result.output
 
-    @patch("gdauto.commands.debug._run_with_session", new_callable=AsyncMock)
+    @patch("auto_godot.commands.debug._run_with_session", new_callable=AsyncMock)
     def test_invalid_speed_error(
         self,
         mock_run: AsyncMock,
@@ -299,20 +299,20 @@ class TestExecCommandRegistration:
 
     def test_pause_registered(self) -> None:
         """pause command is registered in the debug group."""
-        from gdauto.commands.debug import debug
+        from auto_godot.commands.debug import debug
         assert "pause" in debug.commands
 
     def test_resume_registered(self) -> None:
         """resume command is registered in the debug group."""
-        from gdauto.commands.debug import debug
+        from auto_godot.commands.debug import debug
         assert "resume" in debug.commands
 
     def test_step_registered(self) -> None:
         """step command is registered in the debug group."""
-        from gdauto.commands.debug import debug
+        from auto_godot.commands.debug import debug
         assert "step" in debug.commands
 
     def test_speed_registered(self) -> None:
         """speed command is registered in the debug group."""
-        from gdauto.commands.debug import debug
+        from auto_godot.commands.debug import debug
         assert "speed" in debug.commands

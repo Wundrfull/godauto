@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from gdauto.errors import GdautoError
+from auto_godot.errors import AutoGodotError
 
 
 # ---------------------------------------------------------------------------
@@ -22,7 +22,7 @@ class TestImportWithRetry:
 
     def test_success_on_first_attempt(self) -> None:
         """import_with_retry calls backend.import_resources once on success."""
-        from gdauto.export.pipeline import import_with_retry
+        from auto_godot.export.pipeline import import_with_retry
 
         backend = MagicMock()
         backend.import_resources.return_value = MagicMock()
@@ -33,17 +33,17 @@ class TestImportWithRetry:
         backend.import_resources.assert_called_once_with(Path("/project"))
 
     def test_retries_up_to_three_times(self) -> None:
-        """import_with_retry retries 3 times on GdautoError with 1s, 2s, 4s delays."""
-        from gdauto.export.pipeline import import_with_retry
+        """import_with_retry retries 3 times on AutoGodotError with 1s, 2s, 4s delays."""
+        from auto_godot.export.pipeline import import_with_retry
 
         backend = MagicMock()
-        backend.import_resources.side_effect = GdautoError(
+        backend.import_resources.side_effect = AutoGodotError(
             message="Import failed", code="GODOT_RUN_FAILED"
         )
         stream = io.StringIO()
 
-        with patch("gdauto.export.pipeline.time.sleep") as mock_sleep:
-            with pytest.raises(GdautoError, match="Import failed"):
+        with patch("auto_godot.export.pipeline.time.sleep") as mock_sleep:
+            with pytest.raises(AutoGodotError, match="Import failed"):
                 import_with_retry(
                     backend, Path("/project"), max_retries=3, status_stream=stream
                 )
@@ -54,27 +54,27 @@ class TestImportWithRetry:
         assert mock_sleep.call_count == 2
 
     def test_raises_last_error_after_exhaustion(self) -> None:
-        """import_with_retry raises the last GdautoError after max_retries exhausted."""
-        from gdauto.export.pipeline import import_with_retry
+        """import_with_retry raises the last AutoGodotError after max_retries exhausted."""
+        from auto_godot.export.pipeline import import_with_retry
 
         backend = MagicMock()
         errors = [
-            GdautoError(message="Fail 1", code="E1"),
-            GdautoError(message="Fail 2", code="E2"),
-            GdautoError(message="Fail 3", code="E3"),
+            AutoGodotError(message="Fail 1", code="E1"),
+            AutoGodotError(message="Fail 2", code="E2"),
+            AutoGodotError(message="Fail 3", code="E3"),
         ]
         backend.import_resources.side_effect = errors
         stream = io.StringIO()
 
-        with patch("gdauto.export.pipeline.time.sleep"):
-            with pytest.raises(GdautoError, match="Fail 3"):
+        with patch("auto_godot.export.pipeline.time.sleep"):
+            with pytest.raises(AutoGodotError, match="Fail 3"):
                 import_with_retry(
                     backend, Path("/project"), max_retries=3, status_stream=stream
                 )
 
     def test_writes_status_to_stream(self) -> None:
         """import_with_retry writes status messages to the provided stream."""
-        from gdauto.export.pipeline import import_with_retry
+        from auto_godot.export.pipeline import import_with_retry
 
         backend = MagicMock()
         backend.import_resources.return_value = MagicMock()
@@ -88,16 +88,16 @@ class TestImportWithRetry:
 
     def test_retry_status_messages(self) -> None:
         """import_with_retry writes retry messages on failure."""
-        from gdauto.export.pipeline import import_with_retry
+        from auto_godot.export.pipeline import import_with_retry
 
         backend = MagicMock()
         backend.import_resources.side_effect = [
-            GdautoError(message="Fail", code="E"),
+            AutoGodotError(message="Fail", code="E"),
             MagicMock(),
         ]
         stream = io.StringIO()
 
-        with patch("gdauto.export.pipeline.time.sleep"):
+        with patch("auto_godot.export.pipeline.time.sleep"):
             import_with_retry(
                 backend, Path("/project"), max_retries=3, status_stream=stream
             )
@@ -108,16 +108,16 @@ class TestImportWithRetry:
 
     def test_exponential_backoff_delays(self) -> None:
         """import_with_retry uses exponential backoff: 1s, 2s, 4s."""
-        from gdauto.export.pipeline import import_with_retry
+        from auto_godot.export.pipeline import import_with_retry
 
         backend = MagicMock()
-        backend.import_resources.side_effect = GdautoError(
+        backend.import_resources.side_effect = AutoGodotError(
             message="Fail", code="E"
         )
         stream = io.StringIO()
 
-        with patch("gdauto.export.pipeline.time.sleep") as mock_sleep:
-            with pytest.raises(GdautoError):
+        with patch("auto_godot.export.pipeline.time.sleep") as mock_sleep:
+            with pytest.raises(AutoGodotError):
                 import_with_retry(
                     backend,
                     Path("/project"),
@@ -141,13 +141,13 @@ class TestCheckImportCache:
 
     def test_returns_false_when_missing(self, tmp_path: Path) -> None:
         """check_import_cache returns False when .godot/imported/ does not exist."""
-        from gdauto.export.pipeline import check_import_cache
+        from auto_godot.export.pipeline import check_import_cache
 
         assert check_import_cache(tmp_path) is False
 
     def test_returns_true_when_exists(self, tmp_path: Path) -> None:
         """check_import_cache returns True when .godot/imported/ directory exists."""
-        from gdauto.export.pipeline import check_import_cache
+        from auto_godot.export.pipeline import check_import_cache
 
         (tmp_path / ".godot" / "imported").mkdir(parents=True)
         assert check_import_cache(tmp_path) is True
@@ -163,7 +163,7 @@ class TestExportProject:
 
     def test_release_mode_flag(self, tmp_path: Path) -> None:
         """export_project with mode='release' calls backend.run with --export-release."""
-        from gdauto.export.pipeline import export_project
+        from auto_godot.export.pipeline import export_project
 
         backend = MagicMock()
         # Pre-create import cache to skip auto-import
@@ -182,7 +182,7 @@ class TestExportProject:
 
     def test_debug_mode_flag(self, tmp_path: Path) -> None:
         """export_project with mode='debug' calls backend.run with --export-debug."""
-        from gdauto.export.pipeline import export_project
+        from auto_godot.export.pipeline import export_project
 
         backend = MagicMock()
         (tmp_path / ".godot" / "imported").mkdir(parents=True)
@@ -200,7 +200,7 @@ class TestExportProject:
 
     def test_pack_mode_flag(self, tmp_path: Path) -> None:
         """export_project with mode='pack' calls backend.run with --export-pack."""
-        from gdauto.export.pipeline import export_project
+        from auto_godot.export.pipeline import export_project
 
         backend = MagicMock()
         (tmp_path / ".godot" / "imported").mkdir(parents=True)
@@ -218,12 +218,12 @@ class TestExportProject:
 
     def test_auto_imports_when_cache_missing(self, tmp_path: Path) -> None:
         """export_project auto-imports when check_import_cache returns False (D-05)."""
-        from gdauto.export.pipeline import export_project
+        from auto_godot.export.pipeline import export_project
 
         backend = MagicMock()
         stream = io.StringIO()
 
-        with patch("gdauto.export.pipeline.time.sleep"):
+        with patch("auto_godot.export.pipeline.time.sleep"):
             export_project(
                 backend, tmp_path, "MyPreset", "/output/game.exe",
                 mode="release", status_stream=stream,
@@ -236,7 +236,7 @@ class TestExportProject:
 
     def test_no_auto_import_when_cache_exists(self, tmp_path: Path) -> None:
         """export_project does NOT auto-import when cache exists."""
-        from gdauto.export.pipeline import export_project
+        from auto_godot.export.pipeline import export_project
 
         backend = MagicMock()
         (tmp_path / ".godot" / "imported").mkdir(parents=True)
@@ -251,7 +251,7 @@ class TestExportProject:
 
     def test_writes_status_to_stderr(self, tmp_path: Path) -> None:
         """export_project writes stderr status lines (D-07)."""
-        from gdauto.export.pipeline import export_project
+        from auto_godot.export.pipeline import export_project
 
         backend = MagicMock()
         (tmp_path / ".godot" / "imported").mkdir(parents=True)

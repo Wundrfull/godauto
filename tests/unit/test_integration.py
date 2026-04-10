@@ -1,4 +1,4 @@
-"""End-to-end integration tests for the gdauto CLI.
+"""End-to-end integration tests for the auto-godot CLI.
 
 Tests the full pipeline: create a project, inspect it, validate it,
 and verify all command groups are accessible.
@@ -11,7 +11,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from gdauto.cli import cli
+from auto_godot.cli import cli
 
 FIXTURE_PROJECT = str(
     Path(__file__).resolve().parent.parent / "fixtures" / "sample_project"

@@ -1,4 +1,4 @@
-"""Tests for gdauto CLI entry point, error infrastructure, and output module."""
+"""Tests for auto-godot CLI entry point, error infrastructure, and output module."""
 
 from __future__ import annotations
 
@@ -8,16 +8,16 @@ from unittest.mock import patch
 
 from click.testing import CliRunner
 
-from gdauto.cli import cli
-from gdauto.errors import (
-    GdautoError,
+from auto_godot.cli import cli
+from auto_godot.errors import (
+    AutoGodotError,
     GodotBinaryError,
     ParseError,
     ProjectError,
     ResourceNotFoundError,
     ValidationError,
 )
-from gdauto.output import GlobalConfig, emit, emit_error
+from auto_godot.output import GlobalConfig, emit, emit_error
 
 
 # ---------------------------------------------------------------------------
@@ -39,7 +39,7 @@ class TestCLIHelp:
         runner = CliRunner()
         result = runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
-        assert "gdauto" in result.output.lower()
+        assert "auto-godot" in result.output.lower()
 
     def test_json_flag_accepted(self) -> None:
         runner = CliRunner()
@@ -79,15 +79,15 @@ class TestCLIHelp:
 
 
 class TestErrorHierarchy:
-    """Verify GdautoError and subclasses produce correct dict output."""
+    """Verify AutoGodotError and subclasses produce correct dict output."""
 
     def test_error_to_dict(self) -> None:
-        err = GdautoError(message="test error", code="TEST_ERROR")
+        err = AutoGodotError(message="test error", code="TEST_ERROR")
         d = err.to_dict()
         assert d == {"error": "test error", "code": "TEST_ERROR"}
 
     def test_error_to_dict_with_fix(self) -> None:
-        err = GdautoError(message="missing file", code="FILE_NOT_FOUND", fix="check the path")
+        err = AutoGodotError(message="missing file", code="FILE_NOT_FOUND", fix="check the path")
         d = err.to_dict()
         assert d["error"] == "missing file"
         assert d["code"] == "FILE_NOT_FOUND"
@@ -95,7 +95,7 @@ class TestErrorHierarchy:
 
     def test_subclasses_inherit_to_dict(self) -> None:
         err = ParseError(message="bad format", code="PARSE_ERROR")
-        assert isinstance(err, GdautoError)
+        assert isinstance(err, AutoGodotError)
         assert err.to_dict()["code"] == "PARSE_ERROR"
 
     def test_resource_not_found_error(self) -> None:
@@ -104,20 +104,20 @@ class TestErrorHierarchy:
             code="RESOURCE_NOT_FOUND",
             fix="Verify the file path exists",
         )
-        assert isinstance(err, GdautoError)
+        assert isinstance(err, AutoGodotError)
         assert err.to_dict()["fix"] == "Verify the file path exists"
 
     def test_godot_binary_error(self) -> None:
         err = GodotBinaryError(message="Godot not found", code="GODOT_NOT_FOUND")
-        assert isinstance(err, GdautoError)
+        assert isinstance(err, AutoGodotError)
 
     def test_validation_error(self) -> None:
         err = ValidationError(message="invalid value", code="VALIDATION_ERROR")
-        assert isinstance(err, GdautoError)
+        assert isinstance(err, AutoGodotError)
 
     def test_project_error(self) -> None:
         err = ProjectError(message="not a project", code="PROJECT_ERROR")
-        assert isinstance(err, GdautoError)
+        assert isinstance(err, AutoGodotError)
 
 
 # ---------------------------------------------------------------------------
@@ -204,7 +204,7 @@ class TestEmitError:
         exit_called_with: list[int] = []
         ctx.exit = lambda code: exit_called_with.append(code)
 
-        err = GdautoError(message="something broke", code="BROKE")
+        err = AutoGodotError(message="something broke", code="BROKE")
 
         with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
             emit_error(err, ctx)  # type: ignore[arg-type]
@@ -223,7 +223,7 @@ class TestEmitError:
         exit_called_with: list[int] = []
         ctx.exit = lambda code: exit_called_with.append(code)
 
-        err = GdautoError(message="file missing", code="NOT_FOUND", fix="check the path")
+        err = AutoGodotError(message="file missing", code="NOT_FOUND", fix="check the path")
 
         with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
             emit_error(err, ctx)  # type: ignore[arg-type]

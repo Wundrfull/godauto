@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from gdauto.formats.common import (
+from auto_godot.formats.common import (
     HeaderAttributes,
     Section,
     _count_bracket_depth,
@@ -12,7 +12,7 @@ from gdauto.formats.common import (
     parse_sections,
     serialize_sections,
 )
-from gdauto.formats.uid import (
+from auto_godot.formats.uid import (
     CHARS,
     generate_resource_id,
     generate_uid,

@@ -10,9 +10,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from gdauto.cli import cli
-from gdauto.formats.tres import serialize_tres_file
-from gdauto.tileset.builder import build_tileset
+from auto_godot.cli import cli
+from auto_godot.formats.tres import serialize_tres_file
+from auto_godot.tileset.builder import build_tileset
 
 
 def _build_valid_tres(path: Path) -> Path:
@@ -81,7 +81,7 @@ class TestValidateTileset:
     """Tests for validate_tileset structural checks."""
 
     def test_valid_tileset_returns_valid(self, tmp_path: Path) -> None:
-        from gdauto.tileset.validator import validate_tileset
+        from auto_godot.tileset.validator import validate_tileset
 
         tres = _build_valid_tres(tmp_path / "valid.tres")
         result = validate_tileset(tres)
@@ -89,7 +89,7 @@ class TestValidateTileset:
         assert result["issues"] == []
 
     def test_wrong_resource_type(self, tmp_path: Path) -> None:
-        from gdauto.tileset.validator import validate_tileset
+        from auto_godot.tileset.validator import validate_tileset
 
         tres = _build_invalid_type_tres(tmp_path / "sprites.tres")
         result = validate_tileset(tres)
@@ -97,14 +97,14 @@ class TestValidateTileset:
         assert any("SpriteFrames" in i or "resource type" in i.lower() for i in result["issues"])
 
     def test_checks_tile_size(self, tmp_path: Path) -> None:
-        from gdauto.tileset.validator import validate_tileset
+        from auto_godot.tileset.validator import validate_tileset
 
         tres = _build_valid_tres(tmp_path / "good.tres")
         result = validate_tileset(tres)
         assert "tile_size" in result
 
     def test_checks_atlas_source_present(self, tmp_path: Path) -> None:
-        from gdauto.tileset.validator import validate_tileset
+        from auto_godot.tileset.validator import validate_tileset
 
         tres = _build_no_atlas_tres(tmp_path / "no_atlas.tres")
         result = validate_tileset(tres)
@@ -112,7 +112,7 @@ class TestValidateTileset:
         assert any("atlas" in i.lower() for i in result["issues"])
 
     def test_missing_texture_reference(self, tmp_path: Path) -> None:
-        from gdauto.tileset.validator import validate_tileset
+        from auto_godot.tileset.validator import validate_tileset
 
         tres = _build_no_texture_tres(tmp_path / "no_tex.tres")
         result = validate_tileset(tres)
@@ -120,7 +120,7 @@ class TestValidateTileset:
         assert any("texture" in i.lower() for i in result["issues"])
 
     def test_terrain_set_mismatch(self, tmp_path: Path) -> None:
-        from gdauto.tileset.validator import validate_tileset
+        from auto_godot.tileset.validator import validate_tileset
 
         tres = _build_terrain_mismatch_tres(tmp_path / "mismatch.tres")
         result = validate_tileset(tres)
@@ -131,7 +131,7 @@ class TestValidateTileset:
         assert has_terrain_warning
 
     def test_counts_tiles_in_summary(self, tmp_path: Path) -> None:
-        from gdauto.tileset.validator import validate_tileset
+        from auto_godot.tileset.validator import validate_tileset
 
         tres = _build_valid_tres(tmp_path / "count.tres")
         result = validate_tileset(tres)
@@ -139,7 +139,7 @@ class TestValidateTileset:
         assert isinstance(result["atlas_sources"], list)
 
     def test_unparseable_file_returns_invalid(self, tmp_path: Path) -> None:
-        from gdauto.tileset.validator import validate_tileset
+        from auto_godot.tileset.validator import validate_tileset
 
         bad = tmp_path / "bad.tres"
         bad.write_text("this is not a valid tres file at all!!!")
@@ -157,7 +157,7 @@ class TestValidateTilesetHeadless:
     """Tests for validate_tileset_headless."""
 
     def test_headless_calls_backend(self, tmp_path: Path) -> None:
-        from gdauto.tileset.validator import validate_tileset_headless
+        from auto_godot.tileset.validator import validate_tileset_headless
 
         tres = _build_valid_tres(tmp_path / "headless.tres")
         mock_backend = MagicMock()

@@ -1,4 +1,4 @@
-# godauto
+# auto-godot
 
 Agent-native CLI for the Godot game engine. Wraps Godot's headless mode and directly manipulates Godot's text-based file formats (`.tscn`, `.tres`, `project.godot`) to automate workflows that normally require the editor GUI.
 
@@ -6,20 +6,20 @@ Agent-native CLI for the Godot game engine. Wraps Godot's headless mode and dire
 
 ## Why
 
-The Godot ecosystem has version managers, GDScript linters, CI Docker images, and MCP servers, but no headless CLI tool that bridges Aseprite exports to SpriteFrames or automates TileSet terrain configuration. godauto fills that gap.
+The Godot ecosystem has version managers, GDScript linters, CI Docker images, and MCP servers, but no headless CLI tool that bridges Aseprite exports to SpriteFrames or automates TileSet terrain configuration. auto-godot fills that gap.
 
 ## Ecosystem Position
 
-godauto fills a specific gap in Godot tooling: headless, editor-free file generation and manipulation.
+auto-godot fills a specific gap in Godot tooling: headless, editor-free file generation and manipulation.
 
-| Need | Existing Solutions | godauto |
+| Need | Existing Solutions | auto-godot |
 |------|-------------------|---------|
 | GDScript quality | Linters and formatters (GDScript-focused) | Not covered (different domain) |
-| CI/CD export | Docker images with headless Godot | `gdauto export` wraps headless binary with retry logic |
+| CI/CD export | Docker images with headless Godot | `auto-godot export` wraps headless binary with retry logic |
 | Editor automation | MCP servers (require running editor instance) | No editor needed; direct file manipulation |
-| Aseprite to SpriteFrames | None | `gdauto sprite import-aseprite` |
-| TileSet terrain automation | None (manual editor work) | `gdauto tileset auto-terrain` |
-| Resource inspection | Editor only | `gdauto resource inspect --json` |
+| Aseprite to SpriteFrames | None | `auto-godot sprite import-aseprite` |
+| TileSet terrain automation | None (manual editor work) | `auto-godot tileset auto-terrain` |
+| Resource inspection | Editor only | `auto-godot resource inspect --json` |
 
 No other tool generates SpriteFrames from Aseprite JSON or automates TileSet terrain peering bits without the Godot editor.
 
@@ -46,20 +46,20 @@ Convert Aseprite sprite sheet exports into valid Godot SpriteFrames `.tres` reso
 
 ```bash
 # Convert Aseprite JSON export to SpriteFrames .tres
-gdauto sprite import-aseprite character.json
-gdauto sprite import-aseprite character.json -o sprites/character.tres
-gdauto sprite import-aseprite character.json --res-path res://art/character.png
+auto-godot sprite import-aseprite character.json
+auto-godot sprite import-aseprite character.json -o sprites/character.tres
+auto-godot sprite import-aseprite character.json --res-path res://art/character.png
 
 # Split a sprite sheet into frames
-gdauto sprite split sheet.png --frame-size 32x32
-gdauto sprite split sheet.png --json-meta regions.json
+auto-godot sprite split sheet.png --frame-size 32x32
+auto-godot sprite split sheet.png --json-meta regions.json
 
 # Composite multiple sprites into an atlas
-gdauto sprite create-atlas frame1.png frame2.png frame3.png -o atlas.png
+auto-godot sprite create-atlas frame1.png frame2.png frame3.png -o atlas.png
 
 # Validate a generated SpriteFrames resource
-gdauto sprite validate character.tres
-gdauto sprite validate character.tres --godot  # also load in headless Godot
+auto-godot sprite validate character.tres
+auto-godot sprite validate character.tres --godot  # also load in headless Godot
 ```
 
 Supports all four Aseprite animation directions (forward, reverse, ping-pong, ping-pong reverse), variable-duration frames via GCD-based base FPS with per-frame multipliers, trimmed sprites with spriteSourceSize offsets, loop settings from repeat counts, and partial failure handling that skips invalid tags and continues.
@@ -70,27 +70,27 @@ Automate TileSet creation and terrain configuration that normally requires click
 
 ```bash
 # Create a TileSet from a sprite sheet
-gdauto tileset create tileset.png --tile-size 16x16
-gdauto tileset create tileset.png --tile-size 16x16 --margin 1 --separation 1
+auto-godot tileset create tileset.png --tile-size 16x16
+auto-godot tileset create tileset.png --tile-size 16x16 --margin 1 --separation 1
 
 # Auto-assign terrain peering bits
-gdauto tileset auto-terrain tileset.tres --layout blob-47
-gdauto tileset auto-terrain tileset.tres --layout minimal-16
-gdauto tileset auto-terrain tileset.tres --layout rpgmaker
+auto-godot tileset auto-terrain tileset.tres --layout blob-47
+auto-godot tileset auto-terrain tileset.tres --layout minimal-16
+auto-godot tileset auto-terrain tileset.tres --layout rpgmaker
 
 # Batch assign collision shapes
-gdauto tileset assign-physics tileset.tres --rules "0-15:full" "16-31:none"
+auto-godot tileset assign-physics tileset.tres --rules "0-15:full" "16-31:none"
 
 # Inspect a TileSet as structured JSON
-gdauto tileset inspect tileset.tres --json
+auto-godot tileset inspect tileset.tres --json
 
 # Import from Tiled
-gdauto tileset import-tiled map.tmj -o tileset.tres
-gdauto tileset import-tiled map.tmx -o tileset.tres
+auto-godot tileset import-tiled map.tmj -o tileset.tres
+auto-godot tileset import-tiled map.tmx -o tileset.tres
 
 # Validate a TileSet resource
-gdauto tileset validate tileset.tres
-gdauto tileset validate tileset.tres --godot  # headless Godot check
+auto-godot tileset validate tileset.tres
+auto-godot tileset validate tileset.tres --godot  # headless Godot check
 ```
 
 Supports 47-tile blob (Match Corners and Sides), 16-tile minimal (Match Sides), and RPG Maker A2 autotile layouts. Peering bits are generated algorithmically from bitmask combinatorics.
@@ -101,12 +101,12 @@ List and create Godot scenes from the command line.
 
 ```bash
 # List all scenes in a project with full node trees
-gdauto scene list /path/to/project
-gdauto scene list /path/to/project --depth 2
-gdauto scene list /path/to/project --json
+auto-godot scene list /path/to/project
+auto-godot scene list /path/to/project --depth 2
+auto-godot scene list /path/to/project --json
 
 # Create a scene from a JSON definition
-gdauto scene create definition.json -o level.tscn
+auto-godot scene create definition.json -o level.tscn
 ```
 
 Scene list shows node hierarchy, script references, instanced sub-scenes, and cross-scene dependency graphs. Scene create accepts JSON with full property passthrough for any Godot node type.
@@ -117,13 +117,13 @@ Headless Godot project export for CI/CD pipelines.
 
 ```bash
 # Export builds using named presets
-gdauto export release "Windows Desktop"
-gdauto export debug "Linux/X11"
-gdauto export pack "Web"
+auto-godot export release "Windows Desktop"
+auto-godot export debug "Linux/X11"
+auto-godot export pack "Web"
 
 # Force re-import (with retry logic for known Godot timing bugs)
-gdauto import
-gdauto import --max-retries 5
+auto-godot import
+auto-godot import --max-retries 5
 ```
 
 Export auto-runs import first when the import cache is missing. Import uses exponential backoff retry and `--quit-after` instead of `--quit` to avoid Godot race conditions.
@@ -132,30 +132,30 @@ Export auto-runs import first when the import cache is missing. Import uses expo
 
 ```bash
 # Show project metadata as JSON
-gdauto project info --json
+auto-godot project info --json
 
 # Validate project structure (missing resources, broken res:// paths)
-gdauto project validate
-gdauto project validate --godot  # also check script syntax
+auto-godot project validate
+auto-godot project validate --godot  # also check script syntax
 
 # Scaffold a new Godot project
-gdauto project create my-game
+auto-godot project create my-game
 ```
 
 ### Resource Inspection
 
 ```bash
 # Dump any .tres or .tscn as structured JSON
-gdauto resource inspect player.tres --json
-gdauto resource inspect level.tscn --json
+auto-godot resource inspect player.tres --json
+auto-godot resource inspect level.tscn --json
 ```
 
 ### AI Agent Discoverability
 
 ```bash
 # Auto-generate SKILL.md from the CLI command tree
-gdauto skill generate
-gdauto skill generate -o SKILL.md
+auto-godot skill generate
+auto-godot skill generate -o SKILL.md
 ```
 
 Walks the Click command tree via introspection and produces structured markdown with all command names, arguments, options, help text, and one usage example per command. Designed for LLM tool discovery.
@@ -189,7 +189,7 @@ All errors produce non-zero exit codes. With `--json`, errors return `{"error": 
 uv run pytest
 
 # Run with coverage
-uv run pytest --cov=gdauto
+uv run pytest --cov=auto_godot
 
 # Run E2E tests (requires Godot 4.5+ on PATH)
 uv run pytest tests/e2e/ -v

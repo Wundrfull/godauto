@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from gdauto.cli import cli
-from gdauto.errors import GdautoError, GodotBinaryError
-from gdauto.output import GlobalConfig
+from auto_godot.cli import cli
+from auto_godot.errors import AutoGodotError, GodotBinaryError
+from auto_godot.output import GlobalConfig
 
 
 @pytest.fixture()
@@ -43,7 +43,7 @@ class TestExportRelease:
         # Create import cache to skip auto-import
         (tmp_path / ".godot" / "imported").mkdir(parents=True)
 
-        with patch("gdauto.commands.export.GodotBackend", return_value=mock_backend):
+        with patch("auto_godot.commands.export.GodotBackend", return_value=mock_backend):
             result = runner.invoke(
                 cli,
                 ["export", "release", "MyPreset", "-o", "game.exe",
@@ -62,7 +62,7 @@ class TestExportRelease:
         """export release --json produces JSON output."""
         (tmp_path / ".godot" / "imported").mkdir(parents=True)
 
-        with patch("gdauto.commands.export.GodotBackend", return_value=mock_backend):
+        with patch("auto_godot.commands.export.GodotBackend", return_value=mock_backend):
             result = runner.invoke(
                 cli,
                 ["--json", "export", "release", "MyPreset", "-o", "game.exe",
@@ -88,7 +88,7 @@ class TestExportDebug:
         """export debug calls backend.run with --export-debug flag."""
         (tmp_path / ".godot" / "imported").mkdir(parents=True)
 
-        with patch("gdauto.commands.export.GodotBackend", return_value=mock_backend):
+        with patch("auto_godot.commands.export.GodotBackend", return_value=mock_backend):
             result = runner.invoke(
                 cli,
                 ["export", "debug", "MyPreset", "-o", "game.exe",
@@ -115,7 +115,7 @@ class TestExportPack:
         """export pack calls backend.run with --export-pack flag."""
         (tmp_path / ".godot" / "imported").mkdir(parents=True)
 
-        with patch("gdauto.commands.export.GodotBackend", return_value=mock_backend):
+        with patch("auto_godot.commands.export.GodotBackend", return_value=mock_backend):
             result = runner.invoke(
                 cli,
                 ["export", "pack", "MyPreset", "-o", "game.pck",
@@ -140,7 +140,7 @@ class TestNoImportFlag:
         self, runner: CliRunner, mock_backend: MagicMock, tmp_path: Path
     ) -> None:
         """export release --no-import skips auto-import even if cache is missing."""
-        with patch("gdauto.commands.export.GodotBackend", return_value=mock_backend):
+        with patch("auto_godot.commands.export.GodotBackend", return_value=mock_backend):
             result = runner.invoke(
                 cli,
                 ["export", "release", "MyPreset", "-o", "game.exe",
@@ -160,7 +160,7 @@ class TestImportCommand:
     """Tests for the root-level import command."""
 
     def test_import_command_exists(self, runner: CliRunner) -> None:
-        """gdauto import --help should work."""
+        """auto-godot import --help should work."""
         result = runner.invoke(cli, ["import", "--help"])
         assert result.exit_code == 0
         assert "--project" in result.output
@@ -170,8 +170,8 @@ class TestImportCommand:
         self, runner: CliRunner, mock_backend: MagicMock
     ) -> None:
         """import command with mocked backend calls import_with_retry."""
-        with patch("gdauto.cli.GodotBackend", return_value=mock_backend):
-            with patch("gdauto.cli.import_with_retry") as mock_retry:
+        with patch("auto_godot.cli.GodotBackend", return_value=mock_backend):
+            with patch("auto_godot.cli.import_with_retry") as mock_retry:
                 result = runner.invoke(
                     cli, ["import", "--project", "."]
                 )
@@ -183,8 +183,8 @@ class TestImportCommand:
         self, runner: CliRunner, mock_backend: MagicMock
     ) -> None:
         """import command passes --max-retries to import_with_retry."""
-        with patch("gdauto.cli.GodotBackend", return_value=mock_backend):
-            with patch("gdauto.cli.import_with_retry") as mock_retry:
+        with patch("auto_godot.cli.GodotBackend", return_value=mock_backend):
+            with patch("auto_godot.cli.import_with_retry") as mock_retry:
                 result = runner.invoke(
                     cli, ["import", "--max-retries", "5"]
                 )
@@ -214,7 +214,7 @@ class TestErrorHandling:
         )
         (tmp_path / ".godot" / "imported").mkdir(parents=True)
 
-        with patch("gdauto.commands.export.GodotBackend", return_value=mock_backend):
+        with patch("auto_godot.commands.export.GodotBackend", return_value=mock_backend):
             result = runner.invoke(
                 cli,
                 ["export", "release", "MyPreset", "-o", "game.exe",
@@ -229,9 +229,9 @@ class TestErrorHandling:
         """GodotBinaryError in import command produces proper error output."""
         mock_backend = MagicMock()
 
-        with patch("gdauto.cli.GodotBackend", return_value=mock_backend):
+        with patch("auto_godot.cli.GodotBackend", return_value=mock_backend):
             with patch(
-                "gdauto.cli.import_with_retry",
+                "auto_godot.cli.import_with_retry",
                 side_effect=GodotBinaryError(
                     message="Godot not found",
                     code="GODOT_NOT_FOUND",

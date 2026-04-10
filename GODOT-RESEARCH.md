@@ -1,10 +1,10 @@
-# Godot Engine Technical Research for gdauto
+# Godot Engine Technical Research for auto-godot
 
 This document consolidates all research on Godot's CLI capabilities, API surface, community tooling, and gaps. GSD subagents should reference this when making architectural decisions.
 
 ## Godot Overview
 
-Godot Engine is MIT-licensed, fully open source. The source lives at github.com/godotengine/godot. Current stable versions as of March 2026: Godot 4.6.1 stable (January 2026 release) and Godot 4.5.2 stable (March 2026 patch). gdauto targets Godot 4.5+.
+Godot Engine is MIT-licensed, fully open source. The source lives at github.com/godotengine/godot. Current stable versions as of March 2026: Godot 4.6.1 stable (January 2026 release) and Godot 4.5.2 stable (March 2026 patch). auto-godot targets Godot 4.5+.
 
 ## Headless Mode
 
@@ -75,7 +75,7 @@ region = Rect2(0, 0, 32, 32)
 animations = [{ ... }]
 ```
 
-Key resource types for gdauto:
+Key resource types for auto-godot:
 - SpriteFrames: animation name to frame array mapping with speed, loop settings
 - TileSet: atlas sources, terrain sets, peering bits, physics layers
 - ParticleProcessMaterial: emission, velocity, gravity, color ramps, turbulence
@@ -126,7 +126,7 @@ When you run `aseprite -b character.ase --sheet sheet.png --data sheet.json --fo
 }
 ```
 
-### What gdauto needs to do
+### What auto-godot needs to do
 
 1. Parse the Aseprite JSON metadata
 2. For each frameTag, create a named animation
@@ -164,9 +164,9 @@ Many tileset artists follow standard layouts:
 - **RPG Maker style**: specific grid positions map to specific terrain configurations
 - **Wang tiles**: mathematical tiling system with edge/corner matching
 
-If gdauto knows which layout convention a tileset follows, it can automatically assign all peering bits based on grid position alone. This eliminates hours of manual clicking in the editor.
+If auto-godot knows which layout convention a tileset follows, it can automatically assign all peering bits based on grid position alone. This eliminates hours of manual clicking in the editor.
 
-### What gdauto needs to do
+### What auto-godot needs to do
 
 1. Accept a sprite sheet image and tile size
 2. Detect or accept the layout convention (47-tile, 16-tile, RPG Maker, custom)

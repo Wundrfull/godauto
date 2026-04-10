@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from gdauto.backend import GodotBackend
-from gdauto.formats.tres import serialize_tres_file
-from gdauto.tileset.builder import build_tileset
-from gdauto.tileset.terrain import (
+from auto_godot.backend import GodotBackend
+from auto_godot.formats.tres import serialize_tres_file
+from auto_godot.tileset.builder import build_tileset
+from auto_godot.tileset.terrain import (
     LAYOUT_MAP,
     add_terrain_set_to_resource,
     apply_terrain_to_atlas,

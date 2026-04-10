@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from gdauto.backend import GodotBackend
+from auto_godot.backend import GodotBackend
 
 
 @pytest.fixture()
@@ -22,7 +22,7 @@ def backend() -> GodotBackend:
     return b
 
 
-@patch("gdauto.backend.subprocess.Popen")
+@patch("auto_godot.backend.subprocess.Popen")
 def test_launch_game_returns_popen(
     mock_popen: MagicMock,
     backend: GodotBackend,
@@ -42,7 +42,7 @@ def test_launch_game_returns_popen(
     assert "--path" in cmd
 
 
-@patch("gdauto.backend.subprocess.Popen")
+@patch("auto_godot.backend.subprocess.Popen")
 def test_launch_game_custom_port(
     mock_popen: MagicMock,
     backend: GodotBackend,
@@ -55,7 +55,7 @@ def test_launch_game_custom_port(
     assert "tcp://127.0.0.1:9999" in cmd
 
 
-@patch("gdauto.backend.subprocess.Popen")
+@patch("auto_godot.backend.subprocess.Popen")
 def test_launch_game_with_scene(
     mock_popen: MagicMock,
     backend: GodotBackend,
@@ -68,7 +68,7 @@ def test_launch_game_with_scene(
     assert "res://scenes/main.tscn" in cmd
 
 
-@patch("gdauto.backend.subprocess.Popen")
+@patch("auto_godot.backend.subprocess.Popen")
 def test_launch_game_no_headless(
     mock_popen: MagicMock,
     backend: GodotBackend,
@@ -81,7 +81,7 @@ def test_launch_game_no_headless(
     assert "--headless" not in cmd
 
 
-@patch("gdauto.backend.subprocess.Popen")
+@patch("auto_godot.backend.subprocess.Popen")
 def test_launch_game_calls_ensure_binary(
     mock_popen: MagicMock,
     tmp_path: Path,

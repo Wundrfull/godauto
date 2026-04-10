@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from gdauto.formats.tres import serialize_tres
-from gdauto.formats.values import PackedVector2Array, Vector2i, serialize_value
-from gdauto.tileset.builder import build_tileset
+from auto_godot.formats.tres import serialize_tres
+from auto_godot.formats.values import PackedVector2Array, Vector2i, serialize_value
+from auto_godot.tileset.builder import build_tileset
 
 
 # ---------------------------------------------------------------------------
@@ -69,7 +69,7 @@ class TestBuildTileset:
     def test_resource_properties_sources_ref(self) -> None:
         resource = build_tileset("res://sheet.png", 32, 32, 8, 6)
         source_ref = resource.resource_properties["sources/0"]
-        from gdauto.formats.values import SubResourceRef
+        from auto_godot.formats.values import SubResourceRef
         assert isinstance(source_ref, SubResourceRef)
         assert source_ref.id == resource.sub_resources[0].id
 

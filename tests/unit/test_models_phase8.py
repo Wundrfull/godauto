@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from gdauto.debugger.models import GameState, NodeProperty, SceneNode, SessionInfo
+from auto_godot.debugger.models import GameState, NodeProperty, SceneNode, SessionInfo
 
 
 class TestSceneNode:

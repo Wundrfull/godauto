@@ -12,10 +12,10 @@ from typing import Any
 
 import pytest
 
-from gdauto.debugger.errors import DebuggerConnectionError
-from gdauto.debugger.models import GameState
-from gdauto.debugger.protocol import encode_message
-from gdauto.debugger.session import DebugSession
+from auto_godot.debugger.errors import DebuggerConnectionError
+from auto_godot.debugger.models import GameState
+from auto_godot.debugger.protocol import encode_message
+from auto_godot.debugger.session import DebugSession
 
 
 def _get_session_port(session: DebugSession) -> int:

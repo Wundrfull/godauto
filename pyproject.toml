@@ -1,5 +1,5 @@
 [project]
-name = "gdauto"
+name = "auto-godot"
 version = "0.1.0"
 description = "Agent-native CLI for Godot Engine"
 license = "Apache-2.0"
@@ -20,14 +20,14 @@ dev = [
 ]
 
 [project.scripts]
-gdauto = "gdauto.cli:cli"
+auto-godot = "auto_godot.cli:cli"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/gdauto"]
+packages = ["src/auto_godot"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

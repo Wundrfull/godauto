@@ -1,9 +1,9 @@
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
 
-**gdauto**
+**auto-godot**
 
-gdauto is an agent-native command-line tool for the Godot game engine. Built in Python on Click, it wraps Godot's headless mode and directly manipulates Godot's text-based file formats (.tscn, .tres, project.godot) to automate workflows that currently require the Godot editor GUI. It operates in two modes: direct file manipulation (no Godot binary needed) and headless Godot invocation (for operations requiring the engine runtime).
+auto-godot is an agent-native command-line tool for the Godot game engine. Built in Python on Click, it wraps Godot's headless mode and directly manipulates Godot's text-based file formats (.tscn, .tres, project.godot) to automate workflows that currently require the Godot editor GUI. It operates in two modes: direct file manipulation (no Godot binary needed) and headless Godot invocation (for operations requiring the engine runtime).
 
 **Core Value:** The Aseprite-to-SpriteFrames bridge: read Aseprite's JSON export and generate valid Godot .tres SpriteFrames resources with named animations, correct frame durations, atlas texture regions, and loop settings, entirely in Python with no Godot binary required.
 
@@ -65,7 +65,7 @@ gdauto is an agent-native command-line tool for the Godot game engine. Built in 
 ## Alternatives Considered
 | Category | Recommended | Alternative | Why Not |
 |----------|-------------|-------------|---------|
-| CLI framework | Click 8.3 | Typer | PROJECT.md already specifies Click. Typer wraps Click anyway. Click gives more explicit control over command groups, pass_context patterns, and --json flag implementation. Typer's type-hint-based approach is elegant but less transparent for the complex subcommand structure gdauto needs. |
+| CLI framework | Click 8.3 | Typer | PROJECT.md already specifies Click. Typer wraps Click anyway. Click gives more explicit control over command groups, pass_context patterns, and --json flag implementation. Typer's type-hint-based approach is elegant but less transparent for the complex subcommand structure auto-godot needs. |
 | CLI framework | Click 8.3 | argparse | No command groups, no composability, verbose boilerplate. Not suitable for a CLI with 6+ command groups. |
 | .tscn/.tres parser | Custom parser | stevearc/godot_parser 0.1.7 | Inactive maintenance (no release in 12+ months). Open Godot 4 compatibility issue. Whitespace fidelity bugs. Performance issues with large files. Adds pyparsing dependency. Our format is well-specified; building our own gives us full control and zero maintenance risk from upstream abandonment. |
 | .tscn/.tres parser | Custom parser | lark-parser 1.3.1 | Lark is a general-purpose parser generator. Overkill for Godot's format which has no ambiguity and relatively flat structure. A hand-rolled parser is simpler, faster, and has no dependency. Lark would be justified if the format were complex (like GDScript itself), but bracket-section + key=value is straightforward. |
@@ -79,7 +79,7 @@ gdauto is an agent-native command-line tool for the Godot game engine. Built in 
 ## Dependency Classification
 ### Core (always installed)
 ### Optional (feature-gated)
-# Install with: pip install gdauto[image]
+# Install with: pip install auto-godot[image]
 ### Development
 ## Installation
 # With uv (recommended)
@@ -186,7 +186,7 @@ When running as an automated agent in CI (via `anthropics/claude-code-action`):
 
 ### Issue Auto-Fix Protocol
 1. Read the issue title, body, and labels carefully
-2. Search the codebase in `src/gdauto/` to find the relevant code
+2. Search the codebase in `src/auto_godot/` to find the relevant code
 3. Identify the root cause; do not guess
 4. Implement a minimal, focused fix; do not refactor surrounding code
 5. Run `python -m pytest tests/unit/ -x -q` and confirm all tests pass

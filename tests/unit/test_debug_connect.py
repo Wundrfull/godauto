@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from gdauto.debugger.connect import ConnectResult, async_connect
-from gdauto.debugger.errors import DebuggerConnectionError
+from auto_godot.debugger.connect import ConnectResult, async_connect
+from auto_godot.debugger.errors import DebuggerConnectionError
 
 
 def test_connect_result_to_dict() -> None:
@@ -60,7 +60,7 @@ async def test_async_connect_port_in_use(tmp_path: Path) -> None:
     try:
         # Patch DebugSession.start to raise OSError (port in use)
         with patch(
-            "gdauto.debugger.connect.DebugSession",
+            "auto_godot.debugger.connect.DebugSession",
         ) as mock_session_cls:
             mock_session = AsyncMock()
             mock_session.start = AsyncMock(side_effect=OSError(f"Address in use: port {port}"))
@@ -99,7 +99,7 @@ async def test_async_connect_game_crash(tmp_path: Path) -> None:
     backend = MagicMock()
     backend.launch_game.return_value = mock_process
 
-    with patch("gdauto.debugger.connect.DebugSession") as mock_session_cls:
+    with patch("auto_godot.debugger.connect.DebugSession") as mock_session_cls:
         mock_session = AsyncMock()
         mock_session.start = AsyncMock()
         mock_session.wait_for_connection = AsyncMock()
@@ -133,7 +133,7 @@ async def test_async_connect_cleanup_on_failure(tmp_path: Path) -> None:
     backend = MagicMock()
     backend.launch_game.return_value = mock_process
 
-    with patch("gdauto.debugger.connect.DebugSession") as mock_session_cls:
+    with patch("auto_godot.debugger.connect.DebugSession") as mock_session_cls:
         mock_session = AsyncMock()
         mock_session.start = AsyncMock()
         mock_session.wait_for_connection = AsyncMock(

@@ -7,7 +7,7 @@ import math
 
 import pytest
 
-from gdauto.formats.values import (
+from auto_godot.formats.values import (
     AABB,
     Color,
     ExtResourceRef,

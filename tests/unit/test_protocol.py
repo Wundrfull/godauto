@@ -11,15 +11,15 @@ import struct
 
 import pytest
 
-from gdauto.debugger.errors import ProtocolError
-from gdauto.debugger.protocol import (
+from auto_godot.debugger.errors import ProtocolError
+from auto_godot.debugger.protocol import (
     MAX_MESSAGE_SIZE,
     decode_message,
     encode_message,
     read_message,
     write_message,
 )
-from gdauto.debugger.variant import decode, encode
+from auto_godot.debugger.variant import decode, encode
 
 
 class TestEncodeMessage:

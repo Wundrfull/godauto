@@ -15,13 +15,13 @@ from pathlib import Path
 
 import pytest
 
-from gdauto.formats.aseprite import parse_aseprite_json
-from gdauto.formats.tres import serialize_tres
-from gdauto.formats.tscn import serialize_tscn
-from gdauto.scene.builder import build_scene
-from gdauto.sprite.spriteframes import build_spriteframes
-from gdauto.tileset.builder import build_tileset
-from gdauto.tileset.terrain import (
+from auto_godot.formats.aseprite import parse_aseprite_json
+from auto_godot.formats.tres import serialize_tres
+from auto_godot.formats.tscn import serialize_tscn
+from auto_godot.scene.builder import build_scene
+from auto_godot.sprite.spriteframes import build_spriteframes
+from auto_godot.tileset.builder import build_tileset
+from auto_godot.tileset.terrain import (
     LAYOUT_MAP,
     add_terrain_set_to_resource,
     apply_terrain_to_atlas,

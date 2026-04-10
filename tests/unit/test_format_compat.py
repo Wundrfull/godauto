@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from gdauto.formats.tscn import GdScene, SceneNode, parse_tscn, serialize_tscn
-from gdauto.formats.tres import GdResource, parse_tres, serialize_tres
-from gdauto.formats.values import PackedVector4Array, parse_value, serialize_value
+from auto_godot.formats.tscn import GdScene, SceneNode, parse_tscn, serialize_tscn
+from auto_godot.formats.tres import GdResource, parse_tres, serialize_tres
+from auto_godot.formats.values import PackedVector4Array, parse_value, serialize_value
 
 
 class TestUniqueIdRoundTrip:
@@ -157,7 +157,7 @@ class TestBackwardsCompat:
 
     def test_version_regex_accepts_46(self) -> None:
         """_VERSION_RE matches 4.6 version strings."""
-        from gdauto.backend import _VERSION_RE
+        from auto_godot.backend import _VERSION_RE
         match = _VERSION_RE.search("4.6.1.stable.official.abc123")
         assert match is not None
         assert match.group(1) == "4"
@@ -165,7 +165,7 @@ class TestBackwardsCompat:
 
     def test_version_regex_accepts_45(self) -> None:
         """_VERSION_RE matches 4.5 version strings."""
-        from gdauto.backend import _VERSION_RE
+        from auto_godot.backend import _VERSION_RE
         match = _VERSION_RE.search("4.5.0.stable.official.xyz789")
         assert match is not None
         assert match.group(1) == "4"
@@ -173,7 +173,7 @@ class TestBackwardsCompat:
 
     def test_version_check_accepts_46(self) -> None:
         """_check_version accepts Godot 4.6.x."""
-        from gdauto.backend import GodotBackend
+        from auto_godot.backend import GodotBackend
         backend = GodotBackend()
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
@@ -185,7 +185,7 @@ class TestBackwardsCompat:
 
     def test_version_check_accepts_45(self) -> None:
         """_check_version accepts Godot 4.5.x."""
-        from gdauto.backend import GodotBackend
+        from auto_godot.backend import GodotBackend
         backend = GodotBackend()
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(

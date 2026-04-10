@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from gdauto.debugger.errors import DebuggerError
-from gdauto.debugger.models import NodeProperty, SceneNode
+from auto_godot.debugger.errors import DebuggerError
+from auto_godot.debugger.models import NodeProperty, SceneNode
 
 
 # ---------------------------------------------------------------------------
@@ -20,7 +20,7 @@ class TestParseSceneTree:
 
     def test_single_root_node(self) -> None:
         """Single node with child_count=0 returns SceneNode with empty children."""
-        from gdauto.debugger.inspector import parse_scene_tree
+        from auto_godot.debugger.inspector import parse_scene_tree
 
         data = [0, "root", "Node", 1, "", 0]
         node, offset = parse_scene_tree(data, offset=0, parent_path="")
@@ -33,7 +33,7 @@ class TestParseSceneTree:
 
     def test_root_with_two_children(self) -> None:
         """Root with child_count=2 recursively parses 2 children."""
-        from gdauto.debugger.inspector import parse_scene_tree
+        from auto_godot.debugger.inspector import parse_scene_tree
 
         data = [
             2, "root", "Node", 1, "", 0,
@@ -53,7 +53,7 @@ class TestParseSceneTree:
 
     def test_deeply_nested_tree(self) -> None:
         """3-level tree parses with accumulated paths."""
-        from gdauto.debugger.inspector import parse_scene_tree
+        from auto_godot.debugger.inspector import parse_scene_tree
 
         data = [
             1, "root", "Node", 1, "", 0,
@@ -69,7 +69,7 @@ class TestParseSceneTree:
 
     def test_extended_fields_default_to_none(self) -> None:
         """Parsed nodes have class_name=None, script_path=None, groups=[]."""
-        from gdauto.debugger.inspector import parse_scene_tree
+        from auto_godot.debugger.inspector import parse_scene_tree
 
         data = [0, "root", "Node", 1, "", 0]
         node, _ = parse_scene_tree(data, offset=0, parent_path="")
@@ -79,7 +79,7 @@ class TestParseSceneTree:
 
     def test_empty_tree_single_node(self) -> None:
         """Single node with child_count=0 returns SceneNode with empty children list."""
-        from gdauto.debugger.inspector import parse_scene_tree
+        from auto_godot.debugger.inspector import parse_scene_tree
 
         data = [0, "Leaf", "Sprite2D", 42, "", 0]
         node, offset = parse_scene_tree(data, offset=0, parent_path="/root")
@@ -98,7 +98,7 @@ class TestParseObjectProperties:
 
     def test_basic_properties(self) -> None:
         """Parses two properties correctly from flat array."""
-        from gdauto.debugger.inspector import parse_object_properties
+        from auto_godot.debugger.inspector import parse_object_properties
 
         data = [
             42, "Label",
@@ -115,7 +115,7 @@ class TestParseObjectProperties:
 
     def test_skip_category_separators(self) -> None:
         """Properties with usage==128 are skipped (category separators)."""
-        from gdauto.debugger.inspector import parse_object_properties
+        from auto_godot.debugger.inspector import parse_object_properties
 
         data = [
             10, "Node",
@@ -127,7 +127,7 @@ class TestParseObjectProperties:
 
     def test_empty_property_array(self) -> None:
         """Empty property array returns empty list."""
-        from gdauto.debugger.inspector import parse_object_properties
+        from auto_godot.debugger.inspector import parse_object_properties
 
         data = [10, "Node", []]
         _, _, props = parse_object_properties(data)
@@ -143,7 +143,7 @@ class TestEnrichSceneTree:
 
     def test_populates_class_name_when_differs(self) -> None:
         """class_name is set when inspect_objects returns a different class than type_name."""
-        from gdauto.debugger.inspector import enrich_scene_tree
+        from auto_godot.debugger.inspector import enrich_scene_tree
 
         root = SceneNode(
             name="Player", type_name="CharacterBody2D",
@@ -160,7 +160,7 @@ class TestEnrichSceneTree:
 
     def test_class_name_none_when_matches_type(self) -> None:
         """class_name stays None when inspect_objects class matches type_name."""
-        from gdauto.debugger.inspector import enrich_scene_tree
+        from auto_godot.debugger.inspector import enrich_scene_tree
 
         root = SceneNode(
             name="Label", type_name="Label",
@@ -176,7 +176,7 @@ class TestEnrichSceneTree:
 
     def test_populates_script_path(self) -> None:
         """script_path is populated from 'script' property's resource_path."""
-        from gdauto.debugger.inspector import enrich_scene_tree
+        from auto_godot.debugger.inspector import enrich_scene_tree
 
         root = SceneNode(
             name="Main", type_name="Node2D",
@@ -194,7 +194,7 @@ class TestEnrichSceneTree:
 
     def test_groups_default_empty(self) -> None:
         """Groups stay empty (not available via inspect_objects)."""
-        from gdauto.debugger.inspector import enrich_scene_tree
+        from auto_godot.debugger.inspector import enrich_scene_tree
 
         root = SceneNode(
             name="Node", type_name="Node",
@@ -210,7 +210,7 @@ class TestEnrichSceneTree:
 
     def test_enriches_children(self) -> None:
         """enrich_scene_tree walks entire tree, calling inspect_objects per node."""
-        from gdauto.debugger.inspector import enrich_scene_tree
+        from auto_godot.debugger.inspector import enrich_scene_tree
 
         child = SceneNode(
             name="Child", type_name="Sprite2D",
@@ -240,7 +240,7 @@ class TestGetSceneTree:
 
     def test_basic_retrieval(self) -> None:
         """get_scene_tree sends scene:request_scene_tree and parses response."""
-        from gdauto.debugger.inspector import get_scene_tree
+        from auto_godot.debugger.inspector import get_scene_tree
 
         session = MagicMock()
         session.send_command = AsyncMock(return_value=[
@@ -256,7 +256,7 @@ class TestGetSceneTree:
 
     def test_with_max_depth(self) -> None:
         """get_scene_tree with max_depth prunes children."""
-        from gdauto.debugger.inspector import get_scene_tree
+        from auto_godot.debugger.inspector import get_scene_tree
 
         session = MagicMock()
         session.send_command = AsyncMock(return_value=[
@@ -268,7 +268,7 @@ class TestGetSceneTree:
 
     def test_with_full_calls_enrich(self) -> None:
         """get_scene_tree with full=True calls enrich_scene_tree."""
-        from gdauto.debugger.inspector import get_scene_tree
+        from auto_godot.debugger.inspector import get_scene_tree
 
         session = MagicMock()
         # First call: scene tree request
@@ -282,7 +282,7 @@ class TestGetSceneTree:
 
     def test_without_full_skips_enrich(self) -> None:
         """get_scene_tree with full=False skips enrichment (default)."""
-        from gdauto.debugger.inspector import get_scene_tree
+        from auto_godot.debugger.inspector import get_scene_tree
 
         session = MagicMock()
         session.send_command = AsyncMock(return_value=[
@@ -301,7 +301,7 @@ class TestGetProperty:
 
     def test_returns_property_value(self) -> None:
         """get_property returns the property value for a matching node and property."""
-        from gdauto.debugger.inspector import get_property
+        from auto_godot.debugger.inspector import get_property
 
         session = MagicMock()
         # First call: get scene tree
@@ -317,7 +317,7 @@ class TestGetProperty:
 
     def test_node_not_found(self) -> None:
         """get_property raises DebuggerError with code DEBUG_NODE_NOT_FOUND."""
-        from gdauto.debugger.inspector import get_property
+        from auto_godot.debugger.inspector import get_property
 
         session = MagicMock()
         session.send_command = AsyncMock(return_value=[
@@ -329,7 +329,7 @@ class TestGetProperty:
 
     def test_property_not_found(self) -> None:
         """get_property raises DebuggerError with code DEBUG_PROPERTY_NOT_FOUND."""
-        from gdauto.debugger.inspector import get_property
+        from auto_godot.debugger.inspector import get_property
 
         session = MagicMock()
         session.send_command = AsyncMock(side_effect=[
@@ -352,7 +352,7 @@ class TestFindNodeByPath:
 
     def test_find_root(self) -> None:
         """Find root node by its path."""
-        from gdauto.debugger.inspector import _find_node_by_path
+        from auto_godot.debugger.inspector import _find_node_by_path
 
         root = SceneNode(
             name="root", type_name="Node", instance_id=1,
@@ -362,7 +362,7 @@ class TestFindNodeByPath:
 
     def test_find_nested(self) -> None:
         """Find deeply nested node."""
-        from gdauto.debugger.inspector import _find_node_by_path
+        from auto_godot.debugger.inspector import _find_node_by_path
 
         player = SceneNode(
             name="Player", type_name="CharacterBody2D", instance_id=3,
@@ -382,7 +382,7 @@ class TestFindNodeByPath:
 
     def test_not_found_returns_none(self) -> None:
         """Returns None for non-existent path."""
-        from gdauto.debugger.inspector import _find_node_by_path
+        from auto_godot.debugger.inspector import _find_node_by_path
 
         root = SceneNode(
             name="root", type_name="Node", instance_id=1,
@@ -400,7 +400,7 @@ class TestFormatOutputMessages:
 
     def test_basic_output(self) -> None:
         """Formats output messages with type mapping."""
-        from gdauto.debugger.inspector import format_output_messages
+        from auto_godot.debugger.inspector import format_output_messages
 
         raw = [[["Score: 10", "Level 2"], [0, 0]]]
         result = format_output_messages(raw)
@@ -410,7 +410,7 @@ class TestFormatOutputMessages:
 
     def test_error_type(self) -> None:
         """Type 1 maps to 'error'."""
-        from gdauto.debugger.inspector import format_output_messages
+        from auto_godot.debugger.inspector import format_output_messages
 
         raw = [[["Something failed"], [1]]]
         result = format_output_messages(raw)
@@ -418,7 +418,7 @@ class TestFormatOutputMessages:
 
     def test_log_rich_type(self) -> None:
         """Type 2 maps to 'output' (LOG_RICH)."""
-        from gdauto.debugger.inspector import format_output_messages
+        from auto_godot.debugger.inspector import format_output_messages
 
         raw = [[["Rich text"], [2]]]
         result = format_output_messages(raw)
@@ -426,7 +426,7 @@ class TestFormatOutputMessages:
 
     def test_empty_buffer(self) -> None:
         """Empty buffer returns empty list."""
-        from gdauto.debugger.inspector import format_output_messages
+        from auto_godot.debugger.inspector import format_output_messages
 
         assert format_output_messages([]) == []
 
@@ -440,7 +440,7 @@ class TestFormatErrorMessages:
 
     def test_basic_error(self) -> None:
         """Formats error with source location."""
-        from gdauto.debugger.inspector import format_error_messages
+        from auto_godot.debugger.inspector import format_error_messages
 
         raw = [["NullRef", "Object is null", "main.gd", 42, "_ready", False, 0, 0, 0, 0, ""]]
         result = format_error_messages(raw)
@@ -451,6 +451,6 @@ class TestFormatErrorMessages:
 
     def test_empty_errors(self) -> None:
         """Empty error buffer returns empty list."""
-        from gdauto.debugger.inspector import format_error_messages
+        from auto_godot.debugger.inspector import format_error_messages
 
         assert format_error_messages([]) == []
