@@ -130,6 +130,11 @@ class TestAddTrack:
         text = lib.read_text()
         assert "tracks/0/type" in text
         assert "Sprite2D:modulate:a" in text
+        # Godot 4 dict format with separate times/transitions/values arrays
+        assert '"times"' in text
+        assert '"transitions"' in text
+        assert '"values"' in text
+        assert '"update"' in text
         assert "PackedFloat32Array" in text
 
     def test_add_multiple_tracks(self, tmp_path: Path) -> None:

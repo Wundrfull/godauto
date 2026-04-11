@@ -42,16 +42,21 @@ def _build_track_properties(
     interp_mode = _INTERP_MODES.get(interp, 1)
     prefix = f"tracks/{track_idx}"
 
-    # Build the packed keyframe array
-    # Format: [time, transition, value, time, transition, value, ...]
-    key_values: list[float] = []
+    # Godot 4 value track keys use a dictionary format with separate arrays
+    times: list[float] = []
+    transitions: list[float] = []
+    values: list[float] = []
     for time, value in keyframes:
-        key_values.append(float(time))
-        key_values.append(1.0)  # transition type (1 = linear)
-        if isinstance(value, (int, float)):
-            key_values.append(float(value))
-        else:
-            key_values.append(float(value))
+        times.append(float(time))
+        transitions.append(1.0)  # transition type (1 = linear)
+        values.append(float(value))
+
+    keys_dict: dict[str, Any] = {
+        "times": _packed_float32_array(times),
+        "transitions": _packed_float32_array(transitions),
+        "update": 0,
+        "values": values,
+    }
 
     return {
         f"{prefix}/type": "value",
@@ -60,7 +65,7 @@ def _build_track_properties(
         f"{prefix}/path": NodePath(node_path),
         f"{prefix}/interp": interp_mode,
         f"{prefix}/loop_wrap": True,
-        f"{prefix}/keys": _packed_float32_array(key_values),
+        f"{prefix}/keys": keys_dict,
     }
 
 
