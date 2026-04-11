@@ -44,7 +44,7 @@ tools/bin/
 
 # Agent state
 auto-godot-state/
-gametestoutput/
+test-output/*/
 AGENT-SETUP.md
 SKILL.md
 .claude/scheduled_tasks.lock
