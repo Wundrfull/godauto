@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +13,12 @@ from rich.table import Table
 
 from auto_godot.backend import GodotBackend
 from auto_godot.errors import GodotBinaryError, ProjectError
-from auto_godot.formats.project_cfg import parse_project_config, serialize_project_config
+from auto_godot.formats.project_cfg import (
+    _bracket_depth,
+    parse_project_config,
+    serialize_project_config,
+)
+
 from auto_godot.formats.tscn import parse_tscn_file
 from auto_godot.formats.tres import parse_tres_file
 from auto_godot.output import GlobalConfig, emit, emit_error
@@ -1175,6 +1181,247 @@ def add_input(
                 f"Added input action '{data['action']}' "
                 f"with {data['event_count']} binding(s): {', '.join(bindings)}"
             )
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# Reverse lookup tables for human-friendly input binding display
+# ---------------------------------------------------------------------------
+
+# Build reverse maps from keycode/button index to human name
+_REVERSE_KEY_CODES: dict[int, str] = {v: k for k, v in _KEY_CODES.items()}
+_REVERSE_MOUSE_BUTTONS: dict[int, str] = {v: k for k, v in _MOUSE_BUTTONS.items()}
+_REVERSE_JOY_BUTTONS: dict[int, str] = {v: k for k, v in _JOY_BUTTONS.items()}
+
+
+def _parse_input_bindings(
+    value: str,
+) -> list[dict[str, str]]:
+    """Extract binding info from a Godot input action value string.
+
+    Parses the Object() entries within the events array to identify
+    the event type and the relevant key/button value. Returns a list
+    of dicts with 'type' and 'value' keys.
+    """
+    bindings: list[dict[str, str]] = []
+
+    # Find all Object(...) entries in the value
+    for match in re.finditer(r'Object\((\w+),', value):
+        event_type = match.group(1)
+        # Extract the substring for this Object() entry
+        start = match.start()
+        # Find the matching closing paren, respecting nesting
+        depth = 0
+        end = start
+        for i in range(start, len(value)):
+            if value[i] == '(':
+                depth += 1
+            elif value[i] == ')':
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+        obj_str = value[start:end]
+
+        if event_type == "InputEventKey":
+            code_match = re.search(r'"physical_keycode":(\d+)', obj_str)
+            if code_match:
+                code = int(code_match.group(1))
+                name = _REVERSE_KEY_CODES.get(code, str(code))
+                bindings.append({"type": "key", "value": name})
+        elif event_type == "InputEventMouseButton":
+            btn_match = re.search(r'"button_index":(\d+)', obj_str)
+            if btn_match:
+                idx = int(btn_match.group(1))
+                name = _REVERSE_MOUSE_BUTTONS.get(idx, str(idx))
+                bindings.append({"type": "mouse", "value": name})
+        elif event_type == "InputEventJoypadButton":
+            btn_match = re.search(r'"button_index":(\d+)', obj_str)
+            if btn_match:
+                idx = int(btn_match.group(1))
+                name = _REVERSE_JOY_BUTTONS.get(idx, str(idx))
+                bindings.append({"type": "joypad", "value": name})
+
+    return bindings
+
+
+# ---------------------------------------------------------------------------
+# project list-inputs
+# ---------------------------------------------------------------------------
+
+
+@project.command("list-inputs")
+@click.argument("project_path", default=".", type=click.Path())
+@click.pass_context
+def list_inputs(
+    ctx: click.Context,
+    project_path: str,
+) -> None:
+    """List all input actions defined in project.godot.
+
+    Reads the [input] section and displays each action with its bindings.
+
+    Examples:
+
+      auto-godot project list-inputs
+
+      auto-godot --json project list-inputs ./my-game
+    """
+    try:
+        project_godot = _find_project_godot(project_path)
+        config_text = project_godot.read_text(encoding="utf-8")
+        cfg = parse_project_config(config_text)
+
+        input_section = cfg.sections.get("input", [])
+        actions: list[dict[str, Any]] = []
+        for action_name, raw_value in input_section:
+            bindings = _parse_input_bindings(raw_value)
+            actions.append({
+                "action": action_name,
+                "bindings": bindings,
+            })
+
+        data = {"actions": actions, "count": len(actions)}
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            if not data["actions"]:
+                click.echo("No input actions defined.")
+                return
+            for entry in data["actions"]:
+                binding_parts: list[str] = []
+                keys = [b["value"] for b in entry["bindings"] if b["type"] == "key"]
+                mouse = [b["value"] for b in entry["bindings"] if b["type"] == "mouse"]
+                joypad = [b["value"] for b in entry["bindings"] if b["type"] == "joypad"]
+                if keys:
+                    binding_parts.append(f"keys: {', '.join(keys)}")
+                if mouse:
+                    binding_parts.append(f"mouse: {', '.join(mouse)}")
+                if joypad:
+                    binding_parts.append(f"joypad: {', '.join(joypad)}")
+                summary = "; ".join(binding_parts) if binding_parts else "no bindings"
+                click.echo(f"{entry['action']} ({summary})")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# project remove-input
+# ---------------------------------------------------------------------------
+
+
+def _remove_section_entry(
+    project_godot: Path, section: str, key: str,
+) -> None:
+    """Remove a key and its (possibly multi-line) value from a section.
+
+    Reads project.godot line by line, skips the target key's lines
+    (including continuation lines for multi-line values with unbalanced
+    brackets), and writes the result back.
+    """
+    text = project_godot.read_text(encoding="utf-8")
+    lines = text.split("\n")
+
+    section_idx: int | None = None
+    for i, line in enumerate(lines):
+        if line.strip() == f"[{section}]":
+            section_idx = i
+            break
+
+    if section_idx is None:
+        raise ProjectError(
+            message=f"Section [{section}] not found in project.godot",
+            code="SECTION_NOT_FOUND",
+            fix=f"Ensure [{section}] exists in project.godot",
+        )
+
+    # Find the key within the section
+    key_start: int | None = None
+    key_end: int | None = None
+    i = section_idx + 1
+    while i < len(lines):
+        stripped = lines[i].strip()
+        # Stop if we hit the next section
+        if stripped.startswith("[") and stripped.endswith("]"):
+            break
+        if stripped.startswith(f"{key}="):
+            key_start = i
+            # Check if value spans multiple lines (unbalanced brackets)
+            value_part = stripped[len(key) + 1:]
+            depth = _bracket_depth(value_part)
+            key_end = i + 1
+            while depth > 0 and key_end < len(lines):
+                depth += _bracket_depth(lines[key_end])
+                key_end += 1
+            break
+        i += 1
+
+    if key_start is None:
+        raise ProjectError(
+            message=f"Input action '{key}' not found in [{section}]",
+            code="INPUT_NOT_FOUND",
+            fix="Use 'auto-godot project list-inputs' to see existing actions",
+        )
+
+    # Remove the key lines
+    del lines[key_start:key_end]
+
+    project_godot.write_text("\n".join(lines), encoding="utf-8")
+
+
+@project.command("remove-input")
+@click.option(
+    "--action", required=True,
+    help="Input action name to remove (e.g., move_up, jump)",
+)
+@click.argument("project_path", default=".", type=click.Path())
+@click.pass_context
+def remove_input(
+    ctx: click.Context,
+    action: str,
+    project_path: str,
+) -> None:
+    """Remove an input action from project.godot.
+
+    Deletes the specified action and all its bindings from the [input]
+    section.
+
+    Examples:
+
+      auto-godot project remove-input --action jump
+
+      auto-godot project remove-input --action move_up ./my-game
+    """
+    try:
+        project_godot = _find_project_godot(project_path)
+        config_text = project_godot.read_text(encoding="utf-8")
+        cfg = parse_project_config(config_text)
+
+        # Verify the action exists before attempting removal
+        input_section = cfg.sections.get("input", [])
+        found = False
+        for key, _val in input_section:
+            if key == action:
+                found = True
+                break
+
+        if not found:
+            raise ProjectError(
+                message=f"Input action '{action}' not found",
+                code="INPUT_NOT_FOUND",
+                fix="Use 'auto-godot project list-inputs' to see existing actions",
+            )
+
+        _remove_section_entry(project_godot, "input", action)
+
+        data = {"removed": True, "action": action}
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Removed input action '{data['action']}'")
 
         emit(data, _human, ctx)
     except ProjectError as exc:
