@@ -44,12 +44,12 @@ def _parse_tile_size(s: str) -> tuple[int, int]:
         )
     try:
         w, h = int(parts[0]), int(parts[1])
-    except ValueError:
+    except ValueError as err:
         raise ValidationError(
             message=f"Invalid tile size values: {s}",
             code="INVALID_TILE_SIZE",
             fix="Width and height must be integers (e.g., 32x32)",
-        )
+        ) from err
     if w <= 0 or h <= 0:
         raise ValidationError(
             message=f"Tile size must be positive: {s}",
@@ -295,7 +295,7 @@ def _print_inspect_human(data: dict[str, Any], verbose: bool = False) -> None:
     if data["physics_layers"]:
         click.echo(f"  Physics layers: {data['physics_layers']}")
     if data["ext_resources"]:
-        click.echo(f"  External resources:")
+        click.echo("  External resources:")
         for ext in data["ext_resources"]:
             click.echo(f"    {ext['type']}: {ext['path']}")
 

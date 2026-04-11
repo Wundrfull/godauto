@@ -8,14 +8,16 @@ from __future__ import annotations
 
 import json
 import sys
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import click
 
-from auto_godot.errors import AutoGodotError
+    from auto_godot.errors import AutoGodotError
+
 
 
 @dataclass

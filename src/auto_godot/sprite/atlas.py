@@ -10,13 +10,15 @@ Requires Pillow for image loading and compositing.
 from __future__ import annotations
 
 import math
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from auto_godot.errors import AutoGodotError, ValidationError
 from auto_godot.formats.tres import ExtResource, GdResource, SubResource
 from auto_godot.formats.uid import generate_resource_id, generate_uid, uid_to_text
 from auto_godot.formats.values import ExtResourceRef, Rect2, StringName, SubResourceRef
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 try:
     from PIL import Image
@@ -69,7 +71,7 @@ def create_atlas(
     atlas_w, atlas_h = _compute_atlas_dimensions(placements, power_of_two)
 
     atlas_img = Image.new("RGBA", (atlas_w, atlas_h), (0, 0, 0, 0))
-    for img, (x, y, _w, _h) in zip(source_images, placements):
+    for img, (x, y, _w, _h) in zip(source_images, placements, strict=False):
         atlas_img.paste(img, (x, y))
 
     for img in source_images:

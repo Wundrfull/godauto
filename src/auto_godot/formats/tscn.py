@@ -10,8 +10,7 @@ bracket-section parser from common.py and data models from tres.py.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from auto_godot.formats.common import (
     HeaderAttributes,
@@ -26,6 +25,9 @@ from auto_godot.formats.tres import (
     _extract_sub_resource,
 )
 from auto_godot.formats.values import serialize_value
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @dataclass

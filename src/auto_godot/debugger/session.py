@@ -14,6 +14,7 @@ The recv loop handles three message categories:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import socket
 from dataclasses import dataclass, field
@@ -86,12 +87,12 @@ class DebugSession:
         """
         try:
             await asyncio.wait_for(self._connected.wait(), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError as err:
             raise DebuggerTimeoutError(
                 message=f"No game connected within {timeout}s",
                 code="DEBUG_CONNECT_TIMEOUT",
                 fix=f"Check that the game launched successfully and can reach {self.host}:{self.port}",
-            )
+            ) from err
 
     async def _handle_connection(
         self,
@@ -187,13 +188,13 @@ class DebugSession:
         await write_message(self._writer, command, data or [], thread_id)
         try:
             result = await asyncio.wait_for(future, timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError as err:
             self._pending.pop(key, None)
             raise DebuggerTimeoutError(
                 message=f"Command '{command}' timed out after {timeout}s",
                 code="DEBUG_CMD_TIMEOUT",
                 fix=f"Command '{command}' did not receive a response within {timeout}s",
-            )
+            ) from err
         return result
 
     async def send_fire_and_forget(
@@ -240,17 +241,13 @@ class DebugSession:
         self._closed = True
         if self._recv_task is not None and not self._recv_task.done():
             self._recv_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._recv_task
-            except asyncio.CancelledError:
-                pass
             self._recv_task = None
         if self._writer is not None:
             self._writer.close()
-            try:
+            with contextlib.suppress(OSError, ConnectionError):
                 await self._writer.wait_closed()
-            except (OSError, ConnectionError):
-                pass
             self._writer = None
         self._reader = None
         if self._server is not None:

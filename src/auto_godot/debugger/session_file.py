@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from auto_godot.debugger.models import SessionInfo
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

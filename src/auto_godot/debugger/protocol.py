@@ -14,11 +14,14 @@ Functions:
 
 from __future__ import annotations
 
-import asyncio
 import struct
+from typing import TYPE_CHECKING
 
 from auto_godot.debugger.errors import ProtocolError
 from auto_godot.debugger.variant import decode, encode
+
+if TYPE_CHECKING:
+    import asyncio
 
 # Maximum message payload size: 8 MiB.
 # Messages exceeding this likely indicate protocol desynchronization.

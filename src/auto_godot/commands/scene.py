@@ -13,8 +13,8 @@ from rich.tree import Tree
 from auto_godot.errors import AutoGodotError, ProjectError, ValidationError
 from auto_godot.formats.tscn import SceneNode, parse_tscn, serialize_tscn, serialize_tscn_file
 from auto_godot.formats.uid import write_uid_file
-from auto_godot.formats.values import ExtResourceRef, StringName, parse_value
-from auto_godot.output import GlobalConfig, emit, emit_error
+from auto_godot.formats.values import ExtResourceRef, parse_value, serialize_value
+from auto_godot.output import emit, emit_error
 from auto_godot.scene.builder import build_scene
 from auto_godot.scene.lister import list_scenes
 
@@ -23,7 +23,6 @@ def _find_node(
     scene_data: Any, node_name: str, parent_path: str | None
 ) -> SceneNode | None:
     """Find a node by name and optional parent path."""
-    from auto_godot.formats.tscn import GdScene
 
     for node in scene_data.nodes:
         if node.name == node_name:
@@ -82,9 +81,8 @@ def _resolve_project_root(path: str) -> Path | None:
     p = Path(path)
     if p.is_file() and p.name == "project.godot":
         return p.parent
-    if p.is_dir():
-        if (p / "project.godot").exists():
-            return p
+    if p.is_dir() and (p / "project.godot").exists():
+        return p
     return None
 
 
@@ -431,10 +429,9 @@ def remove_node(
         # Find the node to remove
         target_idx = None
         for i, node in enumerate(scene_data.nodes):
-            if node.name == node_name:
-                if parent_path is None or node.parent == parent_path:
-                    target_idx = i
-                    break
+            if node.name == node_name and (parent_path is None or node.parent == parent_path):
+                target_idx = i
+                break
 
         if target_idx is None:
             raise ProjectError(
@@ -556,10 +553,9 @@ def set_property(
 
         target = None
         for node in scene_data.nodes:
-            if node.name == node_name:
-                if parent_path is None or node.parent == parent_path:
-                    target = node
-                    break
+            if node.name == node_name and (parent_path is None or node.parent == parent_path):
+                target = node
+                break
 
         if target is None:
             raise ProjectError(
@@ -747,9 +743,8 @@ def add_instance(
       auto-godot scene add-instance --scene scenes/level.tscn --name Enemy1 --instance res://scenes/enemy.tscn --property "position=Vector2(100, 50)"
     """
     try:
+
         from auto_godot.formats.tscn import ExtResource
-        from auto_godot.formats.values import ExtResourceRef
-        import re
 
         path = Path(scene_path)
         text = path.read_text(encoding="utf-8")
@@ -873,10 +868,9 @@ def add_group(
 
         target = None
         for node in scene_data.nodes:
-            if node.name == node_name:
-                if parent_path is None or node.parent == parent_path:
-                    target = node
-                    break
+            if node.name == node_name and (parent_path is None or node.parent == parent_path):
+                target = node
+                break
 
         if target is None:
             raise ProjectError(
@@ -1060,10 +1054,9 @@ def duplicate_node(
         # Find source node
         source = None
         for node in scene_data.nodes:
-            if node.name == node_name:
-                if parent_path is None or node.parent == parent_path:
-                    source = node
-                    break
+            if node.name == node_name and (parent_path is None or node.parent == parent_path):
+                source = node
+                break
 
         if source is None:
             raise ProjectError(
@@ -1201,7 +1194,6 @@ def count_nodes(ctx: click.Context, path: str) -> None:
       auto-godot scene count-nodes .
     """
     try:
-        from auto_godot.errors import ProjectError as ProjErr
         project_dir = Path(path)
         if not (project_dir / "project.godot").exists():
             if project_dir.name == "project.godot":
@@ -1631,10 +1623,7 @@ def move_node(
             )
 
         old_parent = target.parent
-        if old_parent and old_parent != ".":
-            old_path = f"{old_parent}/{node_name}"
-        else:
-            old_path = node_name
+        old_path = f"{old_parent}/{node_name}" if old_parent and old_parent != "." else node_name
 
         new_full = f"{new_parent}/{node_name}" if new_parent != "." else node_name
 
@@ -1954,10 +1943,7 @@ def _set_template_property(
         if node.get("name") == node_name:
             node.setdefault("properties", {})[prop] = value
             return True
-        for child in node.get("children", []):
-            if _walk(child):
-                return True
-        return False
+        return any(_walk(child) for child in node.get("children", []))
     _walk(definition.get("root", {}))
 
 
@@ -2085,24 +2071,20 @@ def validate_scene(ctx: click.Context, scene_path: str) -> None:
         # Check: all parent references resolve to existing nodes
         node_paths: set[str] = set()
         for node in scene_data.nodes:
-            if node.parent is None:
-                node_paths.add(node.name)
-            elif node.parent == ".":
+            if node.parent is None or node.parent == ".":
                 node_paths.add(node.name)
             else:
                 node_paths.add(f"{node.parent}/{node.name}")
 
         for node in scene_data.nodes:
-            if node.parent and node.parent != ".":
-                # Check parent path resolves
-                if node.parent not in node_paths:
-                    # Parent might be the root node name which has parent=None
-                    root_names = {n.name for n in scene_data.nodes if n.parent is None}
-                    if node.parent not in root_names:
-                        warnings.append(
-                            f"Node '{node.name}' references parent '{node.parent}' "
-                            f"which may not exist"
-                        )
+            if node.parent and node.parent != "." and node.parent not in node_paths:
+                # Parent might be the root node name which has parent=None
+                root_names = {n.name for n in scene_data.nodes if n.parent is None}
+                if node.parent not in root_names:
+                    warnings.append(
+                        f"Node '{node.name}' references parent '{node.parent}' "
+                        f"which may not exist"
+                    )
 
         # Check: ext_resource references in node properties resolve
         ext_ids = {ext.id for ext in scene_data.ext_resources}

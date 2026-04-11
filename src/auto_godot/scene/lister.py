@@ -7,12 +7,15 @@ dependency lists.
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from auto_godot.formats.tscn import GdScene, SceneNode, parse_tscn_file
-from auto_godot.formats.tres import ExtResource
 from auto_godot.formats.values import ExtResourceRef
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from auto_godot.formats.tres import ExtResource
 
 
 def list_scenes(

@@ -8,11 +8,13 @@ All protocol communication flows through DebugSession.send_command().
 from __future__ import annotations
 
 from collections import deque
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from auto_godot.debugger.errors import DebuggerError
 from auto_godot.debugger.models import NodeProperty, SceneNode
-from auto_godot.debugger.session import DebugSession
+
+if TYPE_CHECKING:
+    from auto_godot.debugger.session import DebugSession
 
 
 def parse_scene_tree(
@@ -255,7 +257,7 @@ def format_output_messages(
     for entry in raw_output:
         strings = entry[0]
         types = entry[1]
-        for text, msg_type in zip(strings, types):
+        for text, msg_type in zip(strings, types, strict=False):
             type_label = "error" if msg_type == 1 else "output"
             messages.append({"text": text, "type": type_label})
     return messages

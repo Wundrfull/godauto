@@ -8,13 +8,12 @@ from typing import Any
 import rich_click as click
 
 from auto_godot.errors import ProjectError
+from auto_godot.formats.tres import SubResource
 from auto_godot.formats.tscn import (
-    ExtResource,
     SceneNode,
     parse_tscn,
     serialize_tscn,
 )
-from auto_godot.formats.tres import SubResource
 from auto_godot.formats.values import Vector2
 from auto_godot.output import emit, emit_error
 
@@ -139,10 +138,7 @@ def add_body(
         from auto_godot.formats.values import SubResourceRef
         body_parent = f"{parent}/{node_name}" if parent != "." else node_name
         # Handle root-relative paths
-        if parent == ".":
-            body_parent = node_name
-        else:
-            body_parent = f"{parent}/{node_name}"
+        body_parent = node_name if parent == "." else f"{parent}/{node_name}"
 
         scene.nodes.append(SceneNode(
             name="CollisionShape2D",
@@ -193,7 +189,7 @@ def _parse_size(
             raise ProjectError(
                 message=f"Shape '{shape_type}' requires 'width,height' size format",
                 code="INVALID_SIZE",
-                fix=f"Use format 'width,height', e.g., '32,32'",
+                fix="Use format 'width,height', e.g., '32,32'",
             )
         return float(parts[0]), float(parts[1]), 0
     elif shape_type == "segment":

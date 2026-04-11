@@ -9,10 +9,12 @@ Peering bit values: 0 = expects neighbor with terrain, -1 = expects empty.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from auto_godot.formats.tres import SubResource
 from auto_godot.formats.values import Color
+
+if TYPE_CHECKING:
+    from auto_godot.formats.tres import SubResource
 
 # ---------------------------------------------------------------------------
 # CellNeighbor peering bit name constants
@@ -100,10 +102,9 @@ def _valid_blob_patterns() -> list[int]:
     for mask in range(256):
         valid = True
         for corner_bit, (side_a, side_b) in _CORNER_CONSTRAINTS.items():
-            if mask & (1 << corner_bit):
-                if not (mask & (1 << side_a)) or not (mask & (1 << side_b)):
-                    valid = False
-                    break
+            if mask & (1 << corner_bit) and (not (mask & (1 << side_a)) or not (mask & (1 << side_b))):
+                valid = False
+                break
         if valid:
             patterns.append(mask)
     return patterns

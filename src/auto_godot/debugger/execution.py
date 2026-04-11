@@ -10,9 +10,13 @@ All functions return a GameState snapshot suitable for --json output.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from auto_godot.debugger.errors import DebuggerError
 from auto_godot.debugger.models import GameState
-from auto_godot.debugger.session import DebugSession
+
+if TYPE_CHECKING:
+    from auto_godot.debugger.session import DebugSession
 
 
 async def pause_game(session: DebugSession) -> GameState:

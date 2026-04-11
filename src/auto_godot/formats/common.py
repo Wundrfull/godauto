@@ -15,7 +15,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from auto_godot.formats.values import parse_value, serialize_value
+from auto_godot.formats.values import parse_value
 
 # Pattern matching a section header: [tag key="value" key2=value2 ...]
 _HEADER_RE = re.compile(r"^\[(\w+)(.*)?\]\s*$")
@@ -271,7 +271,7 @@ def parse_sections(text: str) -> tuple[HeaderAttributes, list[Section]]:
         # Fallback: create an empty header
         file_header = HeaderAttributes(tag="unknown", attrs={})
     if sections:
-        file_header_section = sections[0]
+        sections[0]
         # The first section IS the file header; remaining are body sections
         return file_header, sections[1:]
     return file_header, []

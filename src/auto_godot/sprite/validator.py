@@ -9,12 +9,14 @@ runs it in Godot to confirm the resource loads correctly.
 from __future__ import annotations
 
 import tempfile
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from auto_godot.errors import GodotBinaryError, ParseError
 from auto_godot.formats.tres import GdResource, parse_tres_file
 from auto_godot.formats.values import ExtResourceRef, Rect2, StringName, SubResourceRef
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def validate_spriteframes(path: Path) -> dict[str, Any]:
@@ -190,12 +192,11 @@ def _check_frames(
             issues.append(
                 f"Animation '{anim_name}' frame {j} missing 'texture' key"
             )
-        elif isinstance(texture, SubResourceRef):
-            if texture.id not in sub_ids:
-                issues.append(
-                    f"Animation '{anim_name}' frame {j} references "
-                    f"unknown SubResource '{texture.id}'"
-                )
+        elif isinstance(texture, SubResourceRef) and texture.id not in sub_ids:
+            issues.append(
+                f"Animation '{anim_name}' frame {j} references "
+                f"unknown SubResource '{texture.id}'"
+            )
 
         duration = frame.get("duration")
         if duration is None:
@@ -214,12 +215,11 @@ def _check_sub_resources(
         if sub.type != "AtlasTexture":
             continue
         atlas = sub.properties.get("atlas")
-        if isinstance(atlas, ExtResourceRef):
-            if atlas.id not in ext_ids:
-                issues.append(
-                    f"SubResource '{sub.id}' atlas references "
-                    f"unknown ExtResource '{atlas.id}'"
-                )
+        if isinstance(atlas, ExtResourceRef) and atlas.id not in ext_ids:
+            issues.append(
+                f"SubResource '{sub.id}' atlas references "
+                f"unknown ExtResource '{atlas.id}'"
+            )
         region = sub.properties.get("region")
         if region is not None and not isinstance(region, Rect2):
             issues.append(

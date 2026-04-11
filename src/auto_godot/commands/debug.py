@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
-from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import rich_click as click
 
 from auto_godot.backend import GodotBackend
-from auto_godot.debugger.connect import ConnectResult, async_connect
+from auto_godot.debugger.connect import async_connect
 from auto_godot.debugger.errors import DebuggerError
 from auto_godot.debugger.execution import (
     get_speed,
@@ -26,15 +25,19 @@ from auto_godot.debugger.inspector import (
     get_property,
     get_scene_tree,
 )
-from auto_godot.debugger.models import GameState
 from auto_godot.debugger.session import DebugSession
 from auto_godot.errors import AutoGodotError
 from auto_godot.output import GlobalConfig, emit, emit_error
 
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from auto_godot.debugger.models import GameState
+
 T = TypeVar("T")
 
 
-async def _run_with_session(
+async def _run_with_session[T](
     project_path: Path,
     port: int,
     timeout: float,

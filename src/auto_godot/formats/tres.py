@@ -10,8 +10,7 @@ bracket-section parser from common.py.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from auto_godot.formats.common import (
     HeaderAttributes,
@@ -20,6 +19,9 @@ from auto_godot.formats.common import (
     serialize_sections,
 )
 from auto_godot.formats.values import serialize_value
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @dataclass

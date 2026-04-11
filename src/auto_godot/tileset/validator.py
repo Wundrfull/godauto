@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import re
 import tempfile
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from auto_godot.errors import GodotBinaryError, ParseError
 from auto_godot.formats.tres import GdResource, parse_tres_file
-from auto_godot.formats.values import ExtResourceRef, serialize_value
+from auto_godot.formats.values import serialize_value
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # Compiled patterns for tile coordinate matching
 _TILE_COORD_RE = re.compile(r"^(\d+:\d+)/")
@@ -173,9 +175,8 @@ def _check_terrain_consistency(
         if sub.type != "TileSetAtlasSource":
             continue
         for key, value in sub.properties.items():
-            if _TERRAIN_RE.match(key):
-                if isinstance(value, int):
-                    referenced_sets.add(value)
+            if _TERRAIN_RE.match(key) and isinstance(value, int):
+                referenced_sets.add(value)
 
     # Collect declared terrain_set indices
     declared_sets: set[int] = set()

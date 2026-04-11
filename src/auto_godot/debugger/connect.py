@@ -9,15 +9,19 @@ is loaded, and return a ConnectResult with connection metadata.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import subprocess
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
-from auto_godot.backend import GodotBackend
 from auto_godot.debugger.errors import DebuggerConnectionError, DebuggerTimeoutError
 from auto_godot.debugger.session import DebugSession
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from auto_godot.backend import GodotBackend
 
 logger = logging.getLogger(__name__)
 
@@ -152,10 +156,8 @@ async def _cleanup(
     process: subprocess.Popen[str] | None,
 ) -> None:
     """Best-effort cleanup of session and game process."""
-    try:
+    with contextlib.suppress(Exception):
         await session.close()
-    except Exception:
-        pass
 
     if process is not None and process.poll() is None:
         process.terminate()

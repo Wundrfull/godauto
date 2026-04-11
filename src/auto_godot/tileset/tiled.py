@@ -11,9 +11,12 @@ from __future__ import annotations
 import json
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from auto_godot.errors import ValidationError
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _REQUIRED_JSON_FIELDS = ("tilewidth", "tileheight", "columns", "tilecount", "image")
 

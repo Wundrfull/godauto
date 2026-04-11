@@ -7,7 +7,6 @@ and propagated to subcommands via Click's context object.
 
 from __future__ import annotations
 
-import io
 import os
 import sys
 from pathlib import Path

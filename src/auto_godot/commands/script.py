@@ -134,9 +134,7 @@ def _generate_script(
         methods.append(("_unhandled_input", "pass"))
 
     for i, (method_name, body) in enumerate(methods):
-        if method_name == "_process":
-            lines.append(f"func {method_name}(delta: float) -> void:")
-        elif method_name == "_physics_process":
+        if method_name == "_process" or method_name == "_physics_process":
             lines.append(f"func {method_name}(delta: float) -> void:")
         elif method_name == "_unhandled_input":
             lines.append(f"func {method_name}(event: InputEvent) -> void:")
@@ -281,9 +279,9 @@ def attach(
       auto-godot script attach --scene scenes/level.tscn --node Enemy --script res://scripts/enemy.gd --parent Enemies
     """
     try:
+
         from auto_godot.formats.tscn import ExtResource, parse_tscn, serialize_tscn
         from auto_godot.formats.values import ExtResourceRef
-        import re
 
         path = Path(scene_path)
         text = path.read_text(encoding="utf-8")
@@ -292,10 +290,9 @@ def attach(
         # Find target node
         target = None
         for node in scene.nodes:
-            if node.name == node_name:
-                if parent_path is None or node.parent == parent_path:
-                    target = node
-                    break
+            if node.name == node_name and (parent_path is None or node.parent == parent_path):
+                target = node
+                break
 
         if target is None:
             raise ProjectError(
@@ -425,9 +422,7 @@ def _find_insert_point(lines: list[str], section: str) -> int:
     insert_after = 0
     for i, line in enumerate(lines):
         stripped = line.strip()
-        if stripped.startswith("extends ") or stripped.startswith("class_name "):
-            insert_after = i + 1
-        elif stripped == "" and insert_after > 0:
+        if stripped.startswith("extends ") or stripped.startswith("class_name ") or stripped == "" and insert_after > 0:
             insert_after = i + 1
         elif stripped and insert_after > 0:
             break
@@ -644,10 +639,7 @@ def add_signal(
         path, text = _read_script(file_path)
         lines = text.split("\n")
 
-        if params:
-            new_line = f"signal {signal_name}({params})"
-        else:
-            new_line = f"signal {signal_name}"
+        new_line = f"signal {signal_name}({params})" if params else f"signal {signal_name}"
 
         insert_idx = _find_insert_point(lines, "signal")
         lines.insert(insert_idx, new_line)

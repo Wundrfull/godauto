@@ -548,12 +548,12 @@ def _parse_frame_size(frame_size: str) -> tuple[int, int]:
         )
     try:
         return (int(parts[0]), int(parts[1]))
-    except ValueError:
+    except ValueError as err:
         raise ValidationError(
             message=f"Invalid frame size values: {frame_size}",
             code="INVALID_FRAME_SIZE",
             fix="Width and height must be integers (e.g., 32x32)",
-        )
+        ) from err
 
 
 @sprite.command("create-atlas")
@@ -737,7 +737,6 @@ def list_animations(ctx: click.Context, tres_file: str) -> None:
       auto-godot sprite list-animations sprites/character.tres
     """
     from auto_godot.formats.tres import parse_tres_file
-    from auto_godot.formats.values import serialize_value
 
     try:
         path = Path(tres_file)
@@ -1028,7 +1027,7 @@ def export_all(
             dest = Path(output_dir) / name
             dest.mkdir(parents=True, exist_ok=True)
             # Invoke export for each file
-            sub_result = ctx.invoke(
+            ctx.invoke(
                 export_sprite,
                 aseprite_file=str(f),
                 output_dir=str(dest),

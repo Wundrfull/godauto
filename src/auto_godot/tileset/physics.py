@@ -7,9 +7,13 @@ apply collision shapes to TileSetAtlasSource sub-resources. Supports
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from auto_godot.errors import ValidationError
-from auto_godot.formats.tres import SubResource
 from auto_godot.formats.values import PackedVector2Array
+
+if TYPE_CHECKING:
+    from auto_godot.formats.tres import SubResource
 
 # Valid shape types per D-04: only 'full' and 'none'
 _VALID_SHAPES = ("full", "none")
@@ -51,12 +55,12 @@ def parse_physics_rule(rule: str) -> tuple[range, str]:
         else:
             idx = int(range_str)
             tile_range = range(idx, idx + 1)
-    except ValueError:
+    except ValueError as err:
         raise ValidationError(
             message=f"Invalid tile index range '{range_str}' in rule: {rule}",
             code="INVALID_PHYSICS_RULE",
             fix="Tile indices must be integers (e.g., 0-15:full or 5:none)",
-        )
+        ) from err
 
     return tile_range, shape_type
 

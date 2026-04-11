@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json as json_mod
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +13,6 @@ from auto_godot.formats.tres import (
     SubResource,
     serialize_tres_file,
 )
-from auto_godot.formats.uid import generate_uid
 from auto_godot.formats.values import NodePath, SubResourceRef
 from auto_godot.output import emit, emit_error
 
@@ -233,7 +231,7 @@ def add_track(
             raise ProjectError(
                 message=f"Animation '{anim_name}' not found in {library_path}",
                 code="ANIMATION_NOT_FOUND",
-                fix=f"Available animations: check with 'auto-godot animation list-tracks'",
+                fix="Available animations: check with 'auto-godot animation list-tracks'",
             )
 
         # Find next track index
@@ -287,12 +285,12 @@ def _parse_keyframes(keyframes: tuple[str, ...]) -> list[tuple[float, float]]:
         time_str, value_str = kf.split("=", 1)
         try:
             result.append((float(time_str), float(value_str)))
-        except ValueError:
+        except ValueError as err:
             raise ProjectError(
                 message=f"Invalid keyframe values: '{kf}'. Both time and value must be numbers",
                 code="INVALID_KEYFRAME",
                 fix="Use numeric values, e.g., '0.5=100.0'",
-            )
+            ) from err
     return result
 
 

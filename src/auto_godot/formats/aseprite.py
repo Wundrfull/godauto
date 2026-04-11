@@ -13,9 +13,12 @@ import json
 import warnings
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from auto_godot.errors import ValidationError
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class AniDirection(Enum):
@@ -219,12 +222,12 @@ def _parse_tag(raw_tag: dict) -> AsepriteTag:
     direction_str = raw_tag["direction"]
     try:
         direction = AniDirection(direction_str)
-    except ValueError:
+    except ValueError as err:
         raise ValidationError(
             message=f"Unknown animation direction: '{direction_str}'",
             code="ASEPRITE_INVALID_DIRECTION",
             fix=f"Valid directions: {', '.join(d.value for d in AniDirection)}",
-        )
+        ) from err
 
     # Repeat field is a string in Aseprite JSON (Pitfall 4)
     repeat = int(raw_tag.get("repeat", "0"))

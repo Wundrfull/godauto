@@ -8,17 +8,12 @@ from typing import Any
 import rich_click as click
 
 from auto_godot.errors import ProjectError
-from auto_godot.formats.project_cfg import parse_project_config
 from auto_godot.formats.tscn import (
     ExtResource,
     SceneNode,
     parse_tscn,
-    parse_tscn_file,
     serialize_tscn,
-    serialize_tscn_file,
 )
-from auto_godot.formats.tres import ExtResource as TresExtResource
-from auto_godot.formats.uid import generate_uid
 from auto_godot.output import emit, emit_error
 
 
@@ -144,11 +139,7 @@ def add_player(
             properties["autoplay"] = True
 
         # Determine parent path for the new node
-        if parent_path is None:
-            # Add as child of root node
-            parent = "."
-        else:
-            parent = parent_path
+        parent = "." if parent_path is None else parent_path
 
         # Add the node
         scene.nodes.append(SceneNode(

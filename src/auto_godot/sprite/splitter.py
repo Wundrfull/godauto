@@ -8,13 +8,15 @@ from __future__ import annotations
 
 import json
 import warnings
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from auto_godot.errors import AutoGodotError, ValidationError
 from auto_godot.formats.tres import ExtResource, GdResource, SubResource
 from auto_godot.formats.uid import generate_resource_id, generate_uid, uid_to_text
 from auto_godot.formats.values import ExtResourceRef, Rect2, StringName, SubResourceRef
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 try:
     from PIL import Image
@@ -61,7 +63,7 @@ def split_sheet_grid(
     if width % frame_w != 0 or height % frame_h != 0:
         warnings.warn(
             f"Image {width}x{height} not evenly divisible by "
-            f"{frame_w}x{frame_h}; partial edge frames ignored"
+            f"{frame_w}x{frame_h}; partial edge frames ignored", stacklevel=2
         )
 
     cols = width // frame_w

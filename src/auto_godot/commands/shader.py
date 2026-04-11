@@ -10,7 +10,6 @@ import rich_click as click
 from auto_godot.errors import ProjectError
 from auto_godot.formats.tres import (
     GdResource,
-    SubResource,
     serialize_tres_file,
 )
 from auto_godot.output import emit, emit_error

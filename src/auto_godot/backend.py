@@ -13,9 +13,12 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass, field
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from auto_godot.errors import AutoGodotError, GodotBinaryError
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # Minimum supported Godot version
 _MIN_MAJOR = 4

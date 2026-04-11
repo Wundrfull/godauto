@@ -10,8 +10,8 @@ from __future__ import annotations
 from typing import Any
 
 from auto_godot.errors import ValidationError
-from auto_godot.formats.tscn import GdScene, SceneNode
 from auto_godot.formats.tres import ExtResource
+from auto_godot.formats.tscn import GdScene, SceneNode
 from auto_godot.formats.uid import generate_resource_id, generate_uid, uid_to_text
 from auto_godot.formats.values import ExtResourceRef, parse_value
 
@@ -142,7 +142,7 @@ def _assign_resources(
 ) -> None:
     """Assign ExtResourceRef properties to target nodes."""
     node_map = {n.name: n for n in nodes}
-    for res_def, ext in zip(resources, ext_resources):
+    for res_def, ext in zip(resources, ext_resources, strict=False):
         target_name = res_def["assign_to"]
         prop_name = res_def["property"]
         if target_name in node_map:
