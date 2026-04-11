@@ -2144,3 +2144,115 @@ def validate_scene(ctx: click.Context, scene_path: str) -> None:
             ),
             ctx,
         )
+
+
+# ---------------------------------------------------------------------------
+# scene diff
+# ---------------------------------------------------------------------------
+
+
+def _node_full_path(node: SceneNode) -> str:
+    """Compute comparison key for a node."""
+    if node.parent is None or node.parent == "":
+        return node.name
+    if node.parent == ".":
+        return node.name
+    return f"{node.parent}/{node.name}"
+
+
+def _diff_properties(
+    old_props: dict[str, Any], new_props: dict[str, Any]
+) -> dict[str, Any]:
+    """Compare two property dicts. Returns changes as {key: {old, new}}."""
+    changes: dict[str, Any] = {}
+    for key in sorted(set(old_props) | set(new_props)):
+        old_val = old_props.get(key)
+        new_val = new_props.get(key)
+        if str(old_val) != str(new_val):
+            changes[key] = {
+                "old": str(old_val) if old_val is not None else None,
+                "new": str(new_val) if new_val is not None else None,
+            }
+    return changes
+
+
+@scene.command("diff")
+@click.argument("scene_a", type=click.Path(exists=True))
+@click.argument("scene_b", type=click.Path(exists=True))
+@click.pass_context
+def diff_scenes(ctx: click.Context, scene_a: str, scene_b: str) -> None:
+    """Structurally compare two .tscn scene files.
+
+    Reports added, removed, and modified nodes with property changes.
+    Ignores non-semantic differences like key ordering.
+
+    Examples:
+
+      auto-godot scene diff scenes/old.tscn scenes/new.tscn
+    """
+    try:
+        a_data = parse_tscn(Path(scene_a).read_text(encoding="utf-8"))
+        b_data = parse_tscn(Path(scene_b).read_text(encoding="utf-8"))
+
+        a_map = {_node_full_path(n): n for n in a_data.nodes}
+        b_map = {_node_full_path(n): n for n in b_data.nodes}
+        a_paths, b_paths = set(a_map), set(b_map)
+
+        added = sorted(b_paths - a_paths)
+        removed = sorted(a_paths - b_paths)
+        modified: list[dict[str, Any]] = []
+        for path in sorted(a_paths & b_paths):
+            prop_diff = _diff_properties(a_map[path].properties, b_map[path].properties)
+            type_changed = a_map[path].type != b_map[path].type
+            if prop_diff or type_changed:
+                entry: dict[str, Any] = {"path": path}
+                if type_changed:
+                    entry["type"] = {"old": a_map[path].type, "new": b_map[path].type}
+                if prop_diff:
+                    entry["properties"] = prop_diff
+                modified.append(entry)
+
+        a_conns = {(c.signal, c.from_node, c.to_node, c.method) for c in a_data.connections}
+        b_conns = {(c.signal, c.from_node, c.to_node, c.method) for c in b_data.connections}
+        added_conns = [{"signal": s, "from": f, "to": t, "method": m} for s, f, t, m in sorted(b_conns - a_conns)]
+        removed_conns = [{"signal": s, "from": f, "to": t, "method": m} for s, f, t, m in sorted(a_conns - b_conns)]
+
+        has_changes = bool(added or removed or modified or added_conns or removed_conns)
+        data: dict[str, Any] = {
+            "has_changes": has_changes,
+            "added_nodes": [{"path": p, "type": b_map[p].type} for p in added],
+            "removed_nodes": [{"path": p, "type": a_map[p].type} for p in removed],
+            "modified_nodes": modified,
+            "added_connections": added_conns,
+            "removed_connections": removed_conns,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            if not data["has_changes"]:
+                click.echo("Scenes are structurally identical.")
+                return
+            for n in data["added_nodes"]:
+                click.echo(f"  + {n['path']} [{n['type']}]")
+            for n in data["removed_nodes"]:
+                click.echo(f"  - {n['path']} [{n['type']}]")
+            for n in data["modified_nodes"]:
+                click.echo(f"  ~ {n['path']}")
+                if "type" in n:
+                    click.echo(f"      type: {n['type']['old']} -> {n['type']['new']}")
+                for prop, ch in n.get("properties", {}).items():
+                    click.echo(f"      {prop}: {ch['old'] or '(unset)'} -> {ch['new'] or '(unset)'}")
+            for c in data["added_connections"]:
+                click.echo(f"  + connection: {c['signal']} {c['from']} -> {c['to']}.{c['method']}")
+            for c in data["removed_connections"]:
+                click.echo(f"  - connection: {c['signal']} {c['from']} -> {c['to']}.{c['method']}")
+
+        emit(data, _human, ctx)
+    except Exception as exc:
+        emit_error(
+            ProjectError(
+                message=f"Failed to diff scenes: {exc}",
+                code="DIFF_ERROR",
+                fix="Ensure both files are valid .tscn scene files",
+            ),
+            ctx,
+        )
