@@ -303,3 +303,43 @@ class TestSetProperty:
         assert data["updated"] is True
         assert data["node"] == "Player"
         assert data["count"] == 1
+
+
+class TestMissingFileJsonContract:
+    """Missing files must produce JSON errors, not Click plain-text errors."""
+
+    def test_add_node_missing_scene_json(self, tmp_path: Path) -> None:
+        missing = tmp_path / "nonexistent.tscn"
+        result = CliRunner().invoke(cli, [
+            "-j", "scene", "add-node",
+            "--scene", str(missing),
+            "--name", "Timer", "--type", "Timer",
+        ])
+        assert result.exit_code != 0
+        data = json.loads(result.output)
+        assert "error" in data
+        assert "code" in data
+        assert data["code"] == "FILE_NOT_FOUND"
+
+    def test_remove_node_missing_scene_json(self, tmp_path: Path) -> None:
+        missing = tmp_path / "nonexistent.tscn"
+        result = CliRunner().invoke(cli, [
+            "-j", "scene", "remove-node",
+            "--scene", str(missing),
+            "--name", "Foo",
+        ])
+        assert result.exit_code != 0
+        data = json.loads(result.output)
+        assert data["code"] == "FILE_NOT_FOUND"
+
+    def test_set_property_missing_scene_json(self, tmp_path: Path) -> None:
+        missing = tmp_path / "nonexistent.tscn"
+        result = CliRunner().invoke(cli, [
+            "-j", "scene", "set-property",
+            "--scene", str(missing),
+            "--node", "Root", "--property", "visible=false",
+        ])
+        assert result.exit_code != 0
+        data = json.loads(result.output)
+        assert data["code"] == "FILE_NOT_FOUND"
+        assert "fix" in data

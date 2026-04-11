@@ -51,6 +51,30 @@ def emit(
         human_fn(data, verbose=config.verbose)
 
 
+def check_path(path: str, ctx: click.Context | Any, label: str = "file") -> bool:
+    """Verify a file exists, emitting a --json-safe error if not.
+
+    Returns True when the path exists. When it does not, emits the
+    error through emit_error (respecting --json) and returns False.
+    Commands should ``return`` when this returns False.
+    """
+    from pathlib import Path as _Path
+
+    from auto_godot.errors import ProjectError
+
+    if not _Path(path).exists():
+        emit_error(
+            ProjectError(
+                message=f"{label.title()} not found: {path}",
+                code="FILE_NOT_FOUND",
+                fix=f"Check that the {label} path is correct and the file exists",
+            ),
+            ctx,
+        )
+        return False
+    return True
+
+
 def emit_error(error: AutoGodotError, ctx: click.Context | Any) -> None:
     """Emit an error as JSON or human-readable format to stderr.
 

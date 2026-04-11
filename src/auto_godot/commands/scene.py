@@ -14,7 +14,7 @@ from auto_godot.errors import AutoGodotError, ProjectError, ValidationError
 from auto_godot.formats.tscn import SceneNode, parse_tscn, resolve_parent_path, serialize_tscn, serialize_tscn_file
 from auto_godot.formats.uid import write_uid_file
 from auto_godot.formats.values import ExtResourceRef, parse_value, serialize_value
-from auto_godot.output import emit, emit_error
+from auto_godot.output import check_path, emit, emit_error
 from auto_godot.scene.builder import build_scene
 from auto_godot.scene.lister import list_scenes
 
@@ -290,7 +290,7 @@ def _resolve_scene_output(output: str | None, json_path: Path) -> Path:
 @scene.command("add-node")
 @click.option(
     "--scene", "scene_path", required=True,
-    type=click.Path(exists=True),
+    type=click.Path(),
     help="Path to the .tscn scene file",
 )
 @click.option(
@@ -329,6 +329,7 @@ def add_node(
       auto-godot scene add-node --scene scenes/player.tscn --name Sprite --type Sprite2D --property "position=Vector2(0, -16)"
     """
     try:
+        if not check_path(scene_path, ctx, "scene"): return
         path = Path(scene_path)
         text = path.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
@@ -395,7 +396,7 @@ def add_node(
 @scene.command("remove-node")
 @click.option(
     "--scene", "scene_path", required=True,
-    type=click.Path(exists=True),
+    type=click.Path(),
     help="Path to the .tscn scene file",
 )
 @click.option(
@@ -422,6 +423,7 @@ def remove_node(
       auto-godot scene remove-node --scene scenes/main.tscn --name Sprite --parent Player
     """
     try:
+        if not check_path(scene_path, ctx, "scene"): return
         path = Path(scene_path)
         text = path.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
@@ -509,7 +511,7 @@ def remove_node(
 @scene.command("set-property")
 @click.option(
     "--scene", "scene_path", required=True,
-    type=click.Path(exists=True),
+    type=click.Path(),
     help="Path to the .tscn scene file",
 )
 @click.option(
@@ -547,6 +549,7 @@ def set_property(
       auto-godot scene set-property --scene scenes/main.tscn --node Sprite --parent Player --property "modulate=Color(1, 0, 0, 1)"
     """
     try:
+        if not check_path(scene_path, ctx, "scene"): return
         path = Path(scene_path)
         text = path.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
@@ -606,7 +609,7 @@ def set_property(
 @scene.command("add-timer")
 @click.option(
     "--scene", "scene_path", required=True,
-    type=click.Path(exists=True),
+    type=click.Path(),
     help="Path to the .tscn scene file",
 )
 @click.option("--name", "node_name", required=True, help="Timer node name")
@@ -635,6 +638,7 @@ def add_timer(
       auto-godot scene add-timer --scene scenes/player.tscn --name CooldownTimer --wait 0.5 --one-shot --parent Player
     """
     try:
+        if not check_path(scene_path, ctx, "scene"): return
         from auto_godot.formats.tscn import Connection
 
         path_obj = Path(scene_path)
@@ -706,7 +710,7 @@ def add_timer(
 @scene.command("add-instance")
 @click.option(
     "--scene", "scene_path", required=True,
-    type=click.Path(exists=True),
+    type=click.Path(),
     help="Path to the .tscn scene file to modify",
 )
 @click.option(
@@ -743,7 +747,7 @@ def add_instance(
       auto-godot scene add-instance --scene scenes/level.tscn --name Enemy1 --instance res://scenes/enemy.tscn --property "position=Vector2(100, 50)"
     """
     try:
-
+        if not check_path(scene_path, ctx, "scene"): return
         from auto_godot.formats.tscn import ExtResource
 
         path = Path(scene_path)
@@ -830,7 +834,7 @@ def add_instance(
 @scene.command("add-group")
 @click.option(
     "--scene", "scene_path", required=True,
-    type=click.Path(exists=True),
+    type=click.Path(),
     help="Path to the .tscn scene file",
 )
 @click.option(
@@ -862,6 +866,7 @@ def add_group(
       auto-godot scene add-group --scene scenes/coin.tscn --node Coin --group collectibles
     """
     try:
+        if not check_path(scene_path, ctx, "scene"): return
         path = Path(scene_path)
         text = path.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
@@ -915,7 +920,7 @@ def add_group(
 
 
 @scene.command("add-camera")
-@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True), help="Scene file")
+@click.option("--scene", "scene_path", required=True, type=click.Path(), help="Scene file")
 @click.option("--name", "node_name", default="Camera2D", help="Camera node name")
 @click.option("--zoom", default=1.0, type=float, help="Zoom level (1.0 = default, 2.0 = 2x)")
 @click.option("--smoothing/--no-smoothing", default=True, help="Position smoothing (default: on)")
@@ -950,6 +955,7 @@ def add_camera(
       auto-godot scene add-camera --scene scenes/main.tscn --limit-left 0 --limit-top 0 --limit-right 1920 --limit-bottom 1080
     """
     try:
+        if not check_path(scene_path, ctx, "scene"): return
         from auto_godot.formats.values import Vector2 as Vec2
 
         path_obj = Path(scene_path)
@@ -1024,7 +1030,7 @@ def add_camera(
 
 
 @scene.command("duplicate-node")
-@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True), help="Scene file")
+@click.option("--scene", "scene_path", required=True, type=click.Path(), help="Scene file")
 @click.option("--node", "node_name", required=True, help="Name of the node to duplicate")
 @click.option("--new-name", required=True, help="Name for the duplicated node")
 @click.option("--parent", "parent_path", default=None, help="Parent path to disambiguate source")
@@ -1047,6 +1053,7 @@ def duplicate_node(
       auto-godot scene duplicate-node --scene scenes/main.tscn --node Coin --new-name Coin2
     """
     try:
+        if not check_path(scene_path, ctx, "scene"): return
         path_obj = Path(scene_path)
         text = path_obj.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
@@ -1123,7 +1130,7 @@ def duplicate_node(
 
 
 @scene.command("list-nodes")
-@click.argument("scene_path", type=click.Path(exists=True))
+@click.argument("scene_path", type=click.Path())
 @click.pass_context
 def list_nodes(ctx: click.Context, scene_path: str) -> None:
     """List all nodes in a scene file with their types and parents.
@@ -1133,6 +1140,7 @@ def list_nodes(ctx: click.Context, scene_path: str) -> None:
       auto-godot scene list-nodes scenes/main.tscn
     """
     try:
+        if not check_path(scene_path, ctx, "scene"): return
         text = Path(scene_path).read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
 
@@ -1241,7 +1249,7 @@ def count_nodes(ctx: click.Context, path: str) -> None:
 
 
 @scene.command("rename-node")
-@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True),
+@click.option("--scene", "scene_path", required=True, type=click.Path(),
               help="Path to the .tscn scene file")
 @click.option("--node", "node_name", required=True, help="Current name of the node")
 @click.option("--parent", "parent_path", default=None, help="Parent node path to disambiguate")
@@ -1266,6 +1274,7 @@ def rename_node(
       auto-godot scene rename-node --scene scenes/main.tscn --node Label --parent HUD --new-name ScoreLabel
     """
     try:
+        if not check_path(scene_path, ctx, "scene"): return
         path = Path(scene_path)
         text = path.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
@@ -1324,7 +1333,7 @@ def rename_node(
 
 
 @scene.command("reorder-node")
-@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True),
+@click.option("--scene", "scene_path", required=True, type=click.Path(),
               help="Path to the .tscn scene file")
 @click.option("--node", "node_name", required=True, help="Name of the node to move")
 @click.option("--parent", "parent_path", default=None, help="Parent node path to disambiguate")
@@ -1347,6 +1356,7 @@ def reorder_node(
       auto-godot scene reorder-node --scene scenes/main.tscn --node ScoreLabel --parent HUD --index 0
     """
     try:
+        if not check_path(scene_path, ctx, "scene"): return
         path = Path(scene_path)
         text = path.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
@@ -1412,7 +1422,7 @@ def reorder_node(
 
 
 @scene.command("set-resource")
-@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True),
+@click.option("--scene", "scene_path", required=True, type=click.Path(),
               help="Path to the .tscn scene file")
 @click.option("--node", "node_name", required=True, help="Name of the node to modify")
 @click.option("--parent", "parent_path", default=None, help="Parent node path to disambiguate")
@@ -1446,6 +1456,7 @@ def set_resource(
     from auto_godot.formats.tres import ExtResource
 
     try:
+        if not check_path(scene_path, ctx, "scene"): return
         path = Path(scene_path)
         text = path.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
@@ -1514,7 +1525,7 @@ def set_resource(
 
 
 @scene.command("inspect-node")
-@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True),
+@click.option("--scene", "scene_path", required=True, type=click.Path(),
               help="Path to the .tscn scene file")
 @click.option("--node", "node_name", required=True, help="Name of the node to inspect")
 @click.option("--parent", "parent_path", default=None, help="Parent node path to disambiguate")
@@ -1534,6 +1545,7 @@ def inspect_node(
       auto-godot scene inspect-node --scene scenes/main.tscn --node Button --parent HUD
     """
     try:
+        if not check_path(scene_path, ctx, "scene"): return
         path = Path(scene_path)
         text = path.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
@@ -1590,7 +1602,7 @@ def inspect_node(
 
 
 @scene.command("move-node")
-@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True),
+@click.option("--scene", "scene_path", required=True, type=click.Path(),
               help="Path to the .tscn scene file")
 @click.option("--node", "node_name", required=True, help="Name of the node to move")
 @click.option("--parent", "parent_path", default=None, help="Current parent to disambiguate")
@@ -1610,6 +1622,7 @@ def move_node(
       auto-godot scene move-node --scene scenes/main.tscn --node Camera --new-parent Player
     """
     try:
+        if not check_path(scene_path, ctx, "scene"): return
         path = Path(scene_path)
         text = path.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
@@ -1657,7 +1670,7 @@ def move_node(
 
 
 @scene.command("list-types")
-@click.argument("scene_path", type=click.Path(exists=True))
+@click.argument("scene_path", type=click.Path())
 @click.pass_context
 def list_types(ctx: click.Context, scene_path: str) -> None:
     """List all node types used in a scene file with counts.
@@ -1667,6 +1680,7 @@ def list_types(ctx: click.Context, scene_path: str) -> None:
       auto-godot scene list-types scenes/main.tscn
     """
     try:
+        if not check_path(scene_path, ctx, "scene"): return
         path = Path(scene_path)
         text = path.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
@@ -1708,7 +1722,7 @@ def list_types(ctx: click.Context, scene_path: str) -> None:
 
 
 @scene.command("copy-properties")
-@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True),
+@click.option("--scene", "scene_path", required=True, type=click.Path(),
               help="Path to the .tscn scene file")
 @click.option("--from-node", required=True, help="Source node name")
 @click.option("--to-node", required=True, help="Destination node name")
@@ -1728,6 +1742,7 @@ def copy_properties(
       auto-godot scene copy-properties --scene scenes/main.tscn --from-node Button1 --to-node Button2 --parent HUD
     """
     try:
+        if not check_path(scene_path, ctx, "scene"): return
         path = Path(scene_path)
         text = path.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
@@ -1793,7 +1808,7 @@ _ANCHOR_PRESETS: dict[str, dict[str, float]] = {
 
 
 @scene.command("set-anchor")
-@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True),
+@click.option("--scene", "scene_path", required=True, type=click.Path(),
               help="Path to the .tscn scene file")
 @click.option("--node", "node_name", required=True, help="Control node name")
 @click.option("--parent", "parent_path", default=None, help="Parent path to disambiguate")
@@ -1814,6 +1829,7 @@ def set_anchor(
       auto-godot scene set-anchor --scene scenes/main.tscn --node Main --preset full_rect
     """
     try:
+        if not check_path(scene_path, ctx, "scene"): return
         path = Path(scene_path)
         text = path.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
@@ -1953,7 +1969,7 @@ def _set_template_property(
 
 
 @scene.command("find-nodes")
-@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True),
+@click.option("--scene", "scene_path", required=True, type=click.Path(),
               help="Path to the .tscn scene file")
 @click.option("--type", "node_type", default=None, help="Filter by node type")
 @click.option("--property", "prop_name", default=None, help="Filter by property name (nodes that have this property)")
@@ -1977,6 +1993,7 @@ def find_nodes(
       auto-godot scene find-nodes --scene scenes/main.tscn --group enemies
     """
     try:
+        if not check_path(scene_path, ctx, "scene"): return
         path = Path(scene_path)
         text = path.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
@@ -2038,7 +2055,7 @@ def find_nodes(
 
 
 @scene.command("validate")
-@click.argument("scene_path", type=click.Path(exists=True))
+@click.argument("scene_path", type=click.Path())
 @click.pass_context
 def validate_scene(ctx: click.Context, scene_path: str) -> None:
     """Validate a .tscn scene file structure.
@@ -2052,6 +2069,7 @@ def validate_scene(ctx: click.Context, scene_path: str) -> None:
       auto-godot scene validate scenes/main.tscn
     """
     try:
+        if not check_path(scene_path, ctx, "scene"): return
         path = Path(scene_path)
         text = path.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
