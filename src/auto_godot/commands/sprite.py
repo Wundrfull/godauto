@@ -152,6 +152,17 @@ def _do_import_aseprite(
             "will have no animation data"
         )
 
+    # Warn when frames have non-uniform sizes (causes animation jitter)
+    if len(aseprite_data.frames) > 1:
+        sizes = {(f.frame.w, f.frame.h) for f in aseprite_data.frames}
+        if len(sizes) > 1:
+            size_list = ", ".join(f"{w}x{h}" for w, h in sorted(sizes))
+            warnings_list.append(
+                f"Frames have non-uniform sizes ({size_list}); "
+                "this may cause animation jitter. "
+                "Re-export with --no-trim to fix."
+            )
+
     image_res_path = _resolve_image_path(
         res_path, aseprite_data.meta.image, output,
     )
@@ -293,11 +304,8 @@ def _print_import_result(data: dict[str, Any], verbose: bool = False) -> None:
     frames = data["frame_count"]
     click.echo(f"Created {output} with {anims} animation(s) ({frames} frames)")
     if data.get("warnings"):
-        click.echo(
-            f"  Warning: {len(data['warnings'])} animation(s) skipped"
-            " due to errors",
-            err=True,
-        )
+        for warning in data["warnings"]:
+            click.echo(f"  Warning: {warning}", err=True)
 
 
 def _emit_result(
@@ -824,7 +832,7 @@ _DEFAULT_ASEPRITE = r"C:\Program Files (x86)\Steam\steamapps\common\Aseprite\Ase
               help="Path to Aseprite binary. Default: ASEPRITE_PATH env or standard install.")
 @click.option("--sheet-type", type=click.Choice(["packed", "rows", "horizontal", "vertical"]),
               default="packed", help="Sprite sheet layout (default: packed).")
-@click.option("--trim/--no-trim", default=True, help="Trim transparent pixels (default: yes).")
+@click.option("--trim/--no-trim", default=False, help="Trim transparent pixels (default: no). Trimming can cause animation jitter from non-uniform frame sizes.")
 @click.option("--import-tres/--no-import-tres", "do_import", default=True,
               help="Also generate SpriteFrames .tres (default: yes).")
 @click.pass_context

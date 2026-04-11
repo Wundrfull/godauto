@@ -345,3 +345,50 @@ class TestImportAsepritePartialFailure:
             ["sprite", "import-aseprite", str(fixture), "-o", str(output)],
         )
         assert result.exit_code != 0
+
+
+class TestImportNonUniformFrameWarning:
+    """Verify warning when frames have different sizes."""
+
+    def test_non_uniform_frames_emit_warning(self, tmp_path: Path) -> None:
+        fixture = tmp_path / "non_uniform.json"
+        fixture.write_text(json.dumps({
+            "frames": [
+                {
+                    "filename": "frame 0",
+                    "frame": {"x": 0, "y": 0, "w": 8, "h": 13},
+                    "rotated": False,
+                    "trimmed": True,
+                    "spriteSourceSize": {"x": 0, "y": 0, "w": 8, "h": 13},
+                    "sourceSize": {"w": 8, "h": 16},
+                    "duration": 100,
+                },
+                {
+                    "filename": "frame 1",
+                    "frame": {"x": 8, "y": 0, "w": 8, "h": 14},
+                    "rotated": False,
+                    "trimmed": True,
+                    "spriteSourceSize": {"x": 0, "y": 0, "w": 8, "h": 14},
+                    "sourceSize": {"w": 8, "h": 16},
+                    "duration": 100,
+                },
+            ],
+            "meta": {
+                "app": "test",
+                "version": "1.0",
+                "image": "sheet.png",
+                "format": "RGBA8888",
+                "size": {"w": 16, "h": 16},
+                "scale": "1",
+                "frameTags": [],
+            },
+        }))
+        output = tmp_path / "non_uniform.tres"
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["sprite", "import-aseprite", str(fixture), "-o", str(output)],
+        )
+        assert result.exit_code == 0
+        combined = result.output + (result.stderr_bytes or b"").decode()
+        assert "non-uniform" in combined.lower()
