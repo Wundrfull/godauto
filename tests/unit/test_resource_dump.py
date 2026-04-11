@@ -122,3 +122,13 @@ class TestDumpErrors:
     def test_nonexistent_file(self) -> None:
         result = CliRunner().invoke(cli, ["resource", "dump", "/no/such/file.tscn"])
         assert result.exit_code != 0
+
+    def test_nonexistent_file_json_error_contract(self) -> None:
+        result = CliRunner().invoke(
+            cli, ["-j", "resource", "dump", "/no/such/file.tscn"]
+        )
+        assert result.exit_code != 0
+        data = json.loads(result.output)
+        assert "error" in data
+        assert data["code"] == "FILE_NOT_FOUND"
+        assert "fix" in data

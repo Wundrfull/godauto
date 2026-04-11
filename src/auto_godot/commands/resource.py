@@ -445,7 +445,7 @@ _TRES_SECTIONS = ("ext_resources", "sub_resources", "properties")
 
 
 @resource.command("dump")
-@click.argument("file", type=click.Path(exists=True))
+@click.argument("file", type=click.Path())
 @click.option(
     "--section",
     type=str,
@@ -468,6 +468,18 @@ def dump(ctx: click.Context, file: str, section: str | None) -> None:
       auto-godot resource dump spriteframes.tres --section properties
     """
     file_path = Path(file)
+
+    if not file_path.exists():
+        emit_error(
+            ProjectError(
+                message=f"File not found: {file}",
+                code="FILE_NOT_FOUND",
+                fix="Check the file path exists",
+            ),
+            ctx,
+        )
+        return
+
     suffix = file_path.suffix.lower()
 
     if suffix not in (".tres", ".tscn"):
