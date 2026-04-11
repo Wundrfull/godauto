@@ -1,4 +1,18 @@
 {
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/check_auto_godot_output.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
   "mcpServers": {
     "aseprite": {
       "command": "C:\\Users\\dared\\Documents\\Ai\\godot\\auto-godot\\tools\\bin\\pixel-mcp.exe",
