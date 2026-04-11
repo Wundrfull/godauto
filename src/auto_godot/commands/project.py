@@ -1563,6 +1563,10 @@ def remove_input(
     type=click.Choice(["nearest", "linear"]),
     help="Default texture filter (nearest for pixel art)",
 )
+@click.option(
+    "--pixel-art", "pixel_art", is_flag=True, default=False,
+    help="Apply all pixel-perfect settings at once (viewport stretch, nearest filter, snap, integer scaling)",
+)
 @click.argument("project_path", default=".", type=click.Path())
 @click.pass_context
 def set_display(
@@ -1574,6 +1578,7 @@ def set_display(
     stretch_mode: str | None,
     stretch_aspect: str | None,
     texture_filter: str | None,
+    pixel_art: bool,
     project_path: str,
 ) -> None:
     """Configure display/window settings in project.godot.
@@ -1582,12 +1587,21 @@ def set_display(
 
       auto-godot project set-display --width 320 --height 180 --window-width 1280 --window-height 720
 
-      auto-godot project set-display --stretch-mode viewport --stretch-aspect keep --texture-filter nearest
+      auto-godot project set-display --width 320 --height 240 --window-width 960 --window-height 720 --pixel-art
     """
     try:
         project_godot = _find_project_godot(project_path)
         changed: list[str] = []
         settings: list[tuple[str, str, str]] = []
+
+        # --pixel-art sets defaults that explicit options can override
+        if pixel_art:
+            if stretch_mode is None:
+                stretch_mode = "viewport"
+            if stretch_aspect is None:
+                stretch_aspect = "keep"
+            if texture_filter is None:
+                texture_filter = "nearest"
 
         if width is not None:
             settings.append(("display", "window/size/viewport_width", str(width)))
@@ -1612,11 +1626,20 @@ def set_display(
             settings.append(("rendering", "textures/canvas_textures/default_texture_filter", val))
             changed.append(f"texture_filter={texture_filter}")
 
+        # --pixel-art also sets snap and integer scaling
+        if pixel_art:
+            settings.append(("rendering", "2d/snap/snap_2d_transforms_to_pixel", "true"))
+            changed.append("snap_2d_transforms_to_pixel=true")
+            settings.append(("rendering", "2d/snap/snap_2d_vertices_to_pixel", "false"))
+            changed.append("snap_2d_vertices_to_pixel=false")
+            settings.append(("display", "window/stretch/scale_mode", '"integer"'))
+            changed.append('scale_mode=integer')
+
         if not settings:
             raise ProjectError(
                 message="No display settings specified",
                 code="NO_SETTINGS",
-                fix="Provide at least one display option (--width, --height, etc.)",
+                fix="Provide at least one display option (--width, --height, --pixel-art, etc.)",
             )
 
         for section, key, value in settings:
