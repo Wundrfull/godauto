@@ -426,5 +426,7 @@ def validate(ctx: click.Context, project_path: str) -> None:
             "warnings": warnings,
         }
         emit(data, _display_validate, ctx)
+        if warnings:
+            ctx.exit(1)
     except ProjectError as exc:
         emit_error(exc, ctx)

@@ -122,7 +122,7 @@ class TestPresetValidate:
         result = CliRunner().invoke(
             cli, ["-j", "preset", "validate", str(tmp_path)]
         )
-        assert result.exit_code == 0  # warnings are informational, not errors
+        assert result.exit_code == 1
         data = json.loads(result.output)
         assert data["valid"] is False
         issues = [w["issue"] for w in data["warnings"]]
@@ -134,7 +134,7 @@ class TestPresetValidate:
         result = CliRunner().invoke(
             cli, ["-j", "preset", "validate", str(tmp_path)]
         )
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         data = json.loads(result.output)
         assert data["valid"] is False
         issues = [w["issue"] for w in data["warnings"]]
@@ -146,7 +146,7 @@ class TestPresetValidate:
         result = CliRunner().invoke(
             cli, ["-j", "preset", "validate", str(tmp_path)]
         )
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         data = json.loads(result.output)
         assert data["valid"] is False
         issues = [w["issue"] for w in data["warnings"]]
@@ -157,7 +157,7 @@ class TestPresetValidate:
         result = CliRunner().invoke(
             cli, ["-j", "preset", "validate", str(tmp_path)]
         )
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         data = json.loads(result.output)
         assert data["valid"] is False
         issues = [w["issue"] for w in data["warnings"]]
