@@ -140,6 +140,13 @@ auto-godot project validate --godot  # also check script syntax
 
 # Scaffold a new Godot project
 auto-godot project create my-game
+
+# Configure display settings
+auto-godot project set-display --width 320 --height 180 --window-width 1280 --window-height 720
+
+# Apply all pixel-perfect settings at once (viewport stretch, nearest filter,
+# snap_2d_transforms_to_pixel, integer scaling)
+auto-godot project set-display --width 320 --height 240 --pixel-art
 ```
 
 ### Resource Inspection
