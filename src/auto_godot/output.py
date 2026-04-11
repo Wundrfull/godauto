@@ -31,6 +31,7 @@ class GlobalConfig:
     json_mode: bool = field(default=False)
     verbose: bool = field(default=False)
     quiet: bool = field(default=False)
+    dry_run: bool = field(default=False)
     godot_path: str | None = field(default=None)
 
 
@@ -49,6 +50,33 @@ def emit(
         sys.stdout.write(json.dumps(data, indent=2) + "\n")
     elif not config.quiet:
         human_fn(data, verbose=config.verbose)
+
+
+def maybe_write(
+    ctx: click.Context | Any,
+    path: Any,
+    content: str,
+) -> bool:
+    """Write content to path unless dry_run is active.
+
+    Returns True if the file was written, False if skipped (dry-run).
+    In dry-run mode, emits a preview message to stderr.
+    """
+    from pathlib import Path as _Path
+
+    config: GlobalConfig = ctx.obj
+    file_path = _Path(path)
+    if config.dry_run:
+        exists = file_path.exists()
+        action = "overwrite" if exists else "create"
+        if not config.json_mode and not config.quiet:
+            sys.stderr.write(
+                f"[dry-run] Would {action}: {file_path} "
+                f"({len(content)} bytes)\n"
+            )
+        return False
+    file_path.write_text(content, encoding="utf-8")
+    return True
 
 
 def emit_error(error: AutoGodotError, ctx: click.Context | Any) -> None:

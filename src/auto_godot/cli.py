@@ -52,6 +52,7 @@ from auto_godot.output import GlobalConfig, emit, emit_error
 @click.option("-v", "--verbose", is_flag=True, help="Show extra detail.")
 @click.option("-q", "--quiet", is_flag=True, help="Suppress all output except errors.")
 @click.option("--no-color", is_flag=True, help="Disable colored output.")
+@click.option("--dry-run", is_flag=True, help="Preview changes without writing files.")
 @click.option(
     "--godot-path",
     type=click.Path(),
@@ -66,6 +67,7 @@ def cli(
     verbose: bool,
     quiet: bool,
     no_color: bool,
+    dry_run: bool,
     godot_path: str | None,
 ) -> None:
     """auto-godot: Agent-native CLI for Godot Engine (Godot 4.5+).
@@ -82,6 +84,7 @@ def cli(
         json_mode=json_mode,
         verbose=verbose,
         quiet=quiet,
+        dry_run=dry_run,
         godot_path=godot_path,
     )
 
