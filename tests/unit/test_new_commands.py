@@ -1072,6 +1072,47 @@ class TestScriptAddMethod:
         assert data["added"] is True
         assert data["method"] == "heal"
 
+    def test_add_method_fixes_variant_inference(self, tmp_path: Path) -> None:
+        gd = _make_script(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "script", "add-method",
+            "--file", str(gd),
+            "--name", "load_data",
+            "--body", "var data := JSON.parse_string(some_text)",
+        ])
+        assert result.exit_code == 0, result.output
+        text = gd.read_text()
+        assert "var data: Variant = JSON.parse_string(some_text)" in text
+        assert ":=" not in text
+
+    def test_add_method_preserves_safe_walrus(self, tmp_path: Path) -> None:
+        gd = _make_script(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "script", "add-method",
+            "--file", str(gd),
+            "--name", "compute",
+            "--body", "var x := 5 + 3",
+        ])
+        assert result.exit_code == 0, result.output
+        text = gd.read_text()
+        # Non-Variant := should be preserved
+        assert "var x := 5 + 3" in text
+
+    def test_add_method_fixes_dict_get_variant(self, tmp_path: Path) -> None:
+        gd = _make_script(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "script", "add-method",
+            "--file", str(gd),
+            "--name", "get_value",
+            "--body", "var val := my_dict.get(key)",
+        ])
+        assert result.exit_code == 0, result.output
+        text = gd.read_text()
+        assert "var val: Variant = my_dict.get(key)" in text
+
 
 # ===================================================================
 # script add-var

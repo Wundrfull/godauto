@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,35 @@ import rich_click as click
 
 from auto_godot.errors import ProjectError
 from auto_godot.output import emit, emit_error
+
+# Functions/methods known to return Variant in GDScript. When := is used
+# with these, Godot 4.6 treats the inferred Variant type as an error.
+# Pattern: var name := <call> where <call> matches one of these.
+_VARIANT_RETURNING_CALLS: re.Pattern[str] = re.compile(
+    r"(JSON\.parse_string|\.pop_front|\.pop_back|\.pop_at|\.get\(|"
+    r"\.front\(\)|\.back\(\)|\.reduce\(|\.min\(\)|\.max\(\))"
+)
+
+# Matches: var <name> := <expression>
+_WALRUS_VAR: re.Pattern[str] = re.compile(
+    r"^(\s*var\s+\w+)\s*:=\s*(.+)$"
+)
+
+
+def _fix_variant_inference(line: str) -> str:
+    """Replace var x := expr with var x: Variant = expr for Variant-returning calls.
+
+    Godot 4.6 treats Variant inference via := as an error. This function
+    detects known Variant-returning expressions and adds an explicit
+    Variant annotation to prevent the compile error.
+    """
+    match = _WALRUS_VAR.match(line)
+    if not match:
+        return line
+    var_decl, expr = match.group(1), match.group(2)
+    if _VARIANT_RETURNING_CALLS.search(expr):
+        return f"{var_decl}: Variant = {expr}"
+    return line
 
 
 @click.group(invoke_without_command=True)
@@ -484,6 +514,7 @@ def add_method(
             f"func {method_name}({param_str}) -> {return_type}:",
         ]
         for body_line in body.replace("\\n", "\n").replace("\\t", "\t").split("\n"):
+            body_line = _fix_variant_inference(body_line)
             method_lines.append(f"\t{body_line}")
 
         insert_idx = _find_insert_point(lines, "method")
