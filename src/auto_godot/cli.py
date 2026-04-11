@@ -28,6 +28,7 @@ from auto_godot.commands.animation import animation
 from auto_godot.commands.audio import audio
 from auto_godot.commands.debug import debug
 from auto_godot.commands.export import export
+from auto_godot.commands.locale import locale
 from auto_godot.commands.particle import particle
 from auto_godot.commands.physics import physics
 from auto_godot.commands.preset import preset
@@ -212,6 +213,7 @@ def _detect_tool(name: str, candidates: list[str]) -> dict[str, Any]:
 cli.add_command(animation)
 cli.add_command(audio)
 cli.add_command(debug)
+cli.add_command(locale)
 cli.add_command(project)
 cli.add_command(resource)
 cli.add_command(export)
