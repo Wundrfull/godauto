@@ -1279,6 +1279,25 @@ def set_display(
         emit_error(exc, ctx)
 
 
+def _format_godot_value(value: str) -> str:
+    """Quote string values for project.godot if needed."""
+    if value.startswith('"') and value.endswith('"'):
+        return value
+    try:
+        float(value)
+        return value
+    except ValueError:
+        pass
+    if value in ("true", "false", "null"):
+        return value
+    if any(value.startswith(p) for p in (
+        "Vector2(", "Vector3(", "Color(", "Rect2(", "Transform",
+        "SubResource(", "ExtResource(", "PackedScene(",
+    )):
+        return value
+    return f'"{value}"'
+
+
 def _set_project_value(
     project_godot: Path, section: str, key: str, value: str
 ) -> None:
@@ -1302,7 +1321,8 @@ def _set_project_value(
                 key_idx = i
                 break
 
-    entry_line = f"{key}={value}"
+    formatted_value = _format_godot_value(value)
+    entry_line = f"{key}={formatted_value}"
 
     if key_idx is not None:
         lines[key_idx] = entry_line
