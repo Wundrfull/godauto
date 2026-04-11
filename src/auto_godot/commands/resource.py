@@ -434,3 +434,79 @@ def list_resources(ctx: click.Context, scene_path: str) -> None:
             ),
             ctx,
         )
+
+
+# ---------------------------------------------------------------------------
+# resource dump
+# ---------------------------------------------------------------------------
+
+_TSCN_SECTIONS = ("ext_resources", "sub_resources", "nodes", "connections")
+_TRES_SECTIONS = ("ext_resources", "sub_resources", "properties")
+
+
+@resource.command("dump")
+@click.argument("file", type=click.Path(exists=True))
+@click.option(
+    "--section",
+    type=str,
+    default=None,
+    help="Dump only a specific section (nodes, ext_resources, sub_resources, properties, connections).",
+)
+@click.pass_context
+def dump(ctx: click.Context, file: str, section: str | None) -> None:
+    """Dump parsed structure of a .tscn/.tres file as JSON.
+
+    Always outputs JSON regardless of --json flag. Use --section to
+    filter to a specific part of the parsed file.
+
+    Examples:
+
+      auto-godot resource dump scene.tscn
+
+      auto-godot resource dump scene.tscn --section nodes
+
+      auto-godot resource dump spriteframes.tres --section properties
+    """
+    file_path = Path(file)
+    suffix = file_path.suffix.lower()
+
+    if suffix not in (".tres", ".tscn"):
+        emit_error(
+            ProjectError(
+                message=f"Unsupported file format: {suffix}",
+                code="UNSUPPORTED_FORMAT",
+                fix="resource dump supports .tres and .tscn files",
+            ),
+            ctx,
+        )
+        return
+
+    valid_sections = _TSCN_SECTIONS if suffix == ".tscn" else _TRES_SECTIONS
+    if section is not None and section not in valid_sections:
+        emit_error(
+            ProjectError(
+                message=f"Invalid section '{section}' for {suffix} file",
+                code="INVALID_SECTION",
+                fix=f"Valid sections: {', '.join(valid_sections)}",
+            ),
+            ctx,
+        )
+        return
+
+    try:
+        if suffix == ".tscn":
+            parsed = parse_tscn_file(file_path).to_dict()
+        else:
+            parsed = parse_tres_file(file_path).to_dict()
+
+        output = parsed[section] if section else parsed
+        sys.stdout.write(json.dumps(output, cls=GodotJSONEncoder, indent=2) + "\n")
+    except Exception as exc:
+        emit_error(
+            ProjectError(
+                message=f"Failed to parse {file}: {exc}",
+                code="PARSE_ERROR",
+                fix="Ensure the file is a valid Godot resource or scene file",
+            ),
+            ctx,
+        )
