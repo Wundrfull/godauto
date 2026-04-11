@@ -430,7 +430,7 @@ def import_texturepacker(
         data: dict[str, Any] = {
             "output_path": str(output_path),
             "animation_count": len(animations),
-            "frame_count": len(all_sub_resources),
+            "frame_count": sum(len(fs) for fs in groups.values()),
             "image_path": image_res_path,
             "animations": [str(a.get("name", "")) for a in animations],
             "warnings": [],
