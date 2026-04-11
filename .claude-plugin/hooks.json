@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python ${CLAUDE_PLUGIN_ROOT}/.claude/hooks/check_auto_godot_output.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
