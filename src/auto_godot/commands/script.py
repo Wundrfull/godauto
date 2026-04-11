@@ -488,7 +488,7 @@ def add_method(
             "",
             f"func {method_name}({param_str}) -> {return_type}:",
         ]
-        for body_line in body.replace("\\n", "\n").split("\n"):
+        for body_line in body.replace("\\n", "\n").replace("\\t", "\t").split("\n"):
             method_lines.append(f"\t{body_line}")
 
         insert_idx = _find_insert_point(lines, "method")
