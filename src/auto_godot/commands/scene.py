@@ -2144,3 +2144,97 @@ def validate_scene(ctx: click.Context, scene_path: str) -> None:
             ),
             ctx,
         )
+
+
+# ---------------------------------------------------------------------------
+# scene lint
+# ---------------------------------------------------------------------------
+
+# Maps node types to required properties and human-readable warnings.
+_LINT_RULES: dict[str, list[tuple[str, str]]] = {
+    "Sprite2D": [("texture", "invisible without a texture")],
+    "Sprite3D": [("texture", "invisible without a texture")],
+    "AnimatedSprite2D": [("sprite_frames", "invisible without SpriteFrames")],
+    "AnimatedSprite3D": [("sprite_frames", "invisible without SpriteFrames")],
+    "TextureRect": [("texture", "invisible without a texture")],
+    "TextureButton": [("texture_normal", "invisible without a normal texture")],
+    "CollisionShape2D": [("shape", "has no effect without a shape")],
+    "CollisionShape3D": [("shape", "has no effect without a shape")],
+    "CollisionPolygon2D": [("polygon", "has no effect without a polygon")],
+    "AudioStreamPlayer": [("stream", "silent without a stream resource")],
+    "AudioStreamPlayer2D": [("stream", "silent without a stream resource")],
+    "AudioStreamPlayer3D": [("stream", "silent without a stream resource")],
+    "CPUParticles2D": [("texture", "invisible without a texture")],
+    "MeshInstance3D": [("mesh", "invisible without a mesh")],
+    "NavigationRegion2D": [("navigation_polygon", "has no effect without a polygon")],
+    "VideoStreamPlayer": [("stream", "silent without a stream")],
+}
+
+
+def _lint_node(node: SceneNode) -> list[dict[str, str]]:
+    """Check a single node against lint rules. Returns list of warnings."""
+    if node.type is None or node.type not in _LINT_RULES:
+        return []
+    warnings: list[dict[str, str]] = []
+    for prop, reason in _LINT_RULES[node.type]:
+        if prop not in node.properties:
+            warnings.append({
+                "node": node.name,
+                "type": node.type,
+                "property": prop,
+                "message": f"{node.type} '{node.name}' is {reason}",
+            })
+    return warnings
+
+
+@scene.command("lint")
+@click.argument("scene_path", type=click.Path(exists=True))
+@click.pass_context
+def lint_scene(ctx: click.Context, scene_path: str) -> None:
+    """Check nodes for commonly-missing required properties.
+
+    Warns when nodes are likely non-functional: invisible sprites without
+    textures, collision shapes without shapes, audio players without
+    streams, etc.
+
+    Examples:
+
+      auto-godot scene lint scenes/main.tscn
+
+      auto-godot --json scene lint scenes/player.tscn
+    """
+    try:
+        path = Path(scene_path)
+        text = path.read_text(encoding="utf-8")
+        scene_data = parse_tscn(text)
+
+        all_warnings: list[dict[str, str]] = []
+        for node in scene_data.nodes:
+            all_warnings.extend(_lint_node(node))
+
+        data: dict[str, Any] = {
+            "scene": scene_path,
+            "node_count": len(scene_data.nodes),
+            "warning_count": len(all_warnings),
+            "warnings": all_warnings,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            count = data["warning_count"]
+            if count == 0:
+                click.echo(f"No issues found in {data['scene']} ({data['node_count']} nodes)")
+            else:
+                click.echo(f"{count} issue(s) in {data['scene']}:")
+                for w in data["warnings"]:
+                    click.echo(f"  {w['message']}")
+
+        emit(data, _human, ctx)
+    except Exception as exc:
+        emit_error(
+            ProjectError(
+                message=f"Failed to lint scene: {exc}",
+                code="PARSE_ERROR",
+                fix="Ensure the file is a valid .tscn scene file",
+            ),
+            ctx,
+        )
