@@ -1,0 +1,15 @@
+{
+  "name": "auto-godot",
+  "version": "1.0.0",
+  "description": "Claude Code integration for auto-godot: Godot scene debugging, validation, and game build workflows",
+  "author": {
+    "name": "Wundrfull",
+    "url": "https://github.com/Wundrfull"
+  },
+  "repository": "https://github.com/Wundrfull/auto-godot",
+  "license": "Apache-2.0",
+  "keywords": ["godot", "gamedev", "automation", "scene-builder", "spriteframes"],
+  "skills": "./.claude/skills/",
+  "agents": "./.claude/agents/",
+  "hooks": "./.claude-plugin/hooks.json"
+}
