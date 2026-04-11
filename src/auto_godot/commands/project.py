@@ -2008,3 +2008,215 @@ def add_plugin(
         emit(data, _human, ctx)
     except ProjectError as exc:
         emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# project audit
+# ---------------------------------------------------------------------------
+
+# Asset file extensions that Godot recognizes as importable resources
+_ASSET_EXTENSIONS = {
+    ".png", ".jpg", ".jpeg", ".webp", ".svg", ".bmp",
+    ".tres", ".tscn",
+    ".gd", ".gdshader", ".gdshaderinc",
+    ".ogg", ".wav", ".mp3",
+    ".ttf", ".otf", ".woff", ".woff2",
+    ".obj", ".glb", ".gltf", ".fbx",
+    ".json", ".csv", ".cfg",
+}
+
+# Directories to exclude from audit scanning
+_AUDIT_EXCLUDE_DIRS = {".godot", ".import", ".git", "__pycache__", "addons"}
+
+
+def _collect_project_files(project_root: Path) -> set[str]:
+    """Walk project directory and return set of res:// paths for all asset files."""
+    files: set[str] = set()
+    for fpath in project_root.rglob("*"):
+        if not fpath.is_file():
+            continue
+        # Skip excluded directories
+        if any(part in _AUDIT_EXCLUDE_DIRS for part in fpath.parts):
+            continue
+        if fpath.suffix.lower() in _ASSET_EXTENSIONS:
+            rel = fpath.relative_to(project_root).as_posix()
+            files.add(f"res://{rel}")
+    return files
+
+
+def _check_oversized(
+    project_root: Path, on_disk: set[str], max_width: int, max_height: int
+) -> list[dict[str, Any]]:
+    """Find image files exceeding max dimensions. Requires Pillow."""
+    try:
+        from PIL import Image
+    except ImportError:
+        return []
+
+    image_exts = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+    oversized: list[dict[str, Any]] = []
+    for res_path in sorted(on_disk):
+        rel = res_path.replace("res://", "", 1)
+        fpath = project_root / rel
+        if fpath.suffix.lower() not in image_exts:
+            continue
+        try:
+            with Image.open(fpath) as img:
+                w, h = img.size
+                if w > max_width or h > max_height:
+                    oversized.append({
+                        "path": res_path,
+                        "width": w,
+                        "height": h,
+                    })
+        except (OSError, ValueError):
+            continue
+    return oversized
+
+
+def _display_audit_human(data: dict[str, Any], verbose: bool = False) -> None:
+    """Display audit report in human-readable format."""
+    console = Console()
+    console.print(f"\n[bold]Asset Audit: {data['project_path']}[/bold]")
+    console.print(f"Files on disk: {data['files_on_disk']}")
+    console.print(f"References found: {data['references_found']}")
+
+    unused = data.get("unused", [])
+    if unused:
+        console.print(f"\n[yellow]Unused assets ({len(unused)}):[/yellow]")
+        for p in unused:
+            console.print(f"  {p}")
+
+    missing = data.get("missing", [])
+    if missing:
+        console.print(f"\n[red]Missing assets ({len(missing)}):[/red]")
+        for p in missing:
+            console.print(f"  {p}")
+
+    oversized = data.get("oversized", [])
+    if oversized:
+        console.print(
+            f"\n[yellow]Oversized textures ({len(oversized)}):[/yellow]"
+        )
+        for item in oversized:
+            console.print(
+                f"  {item['path']} ({item['width']}x{item['height']})"
+            )
+
+    total = len(unused) + len(missing) + len(oversized)
+    if total == 0:
+        console.print("\n[green]No issues found.[/green]")
+    else:
+        console.print(f"\n[bold]{total} issue(s) found.[/bold]")
+
+
+@project.command("audit")
+@click.argument("path", default=".", type=click.Path())
+@click.option("--unused", is_flag=True, help="Show only unused assets.")
+@click.option("--missing", is_flag=True, help="Show only missing assets.")
+@click.option(
+    "--oversized", is_flag=True,
+    help="Check for oversized textures (requires Pillow).",
+)
+@click.option(
+    "--max-size", default="1024x1024",
+    help="Max texture dimensions for --oversized (WxH). Default: 1024x1024.",
+)
+@click.pass_context
+def audit(
+    ctx: click.Context,
+    path: str,
+    unused: bool,
+    missing: bool,
+    oversized: bool,
+    max_size: str,
+) -> None:
+    """Audit project assets: find unused, missing, and oversized resources.
+
+    Scans all .tscn and .tres files for res:// references, compares
+    against files on disk, and reports discrepancies.
+
+    Examples:
+
+      auto-godot project audit .
+
+      auto-godot project audit /path/to/project --unused
+
+      auto-godot project audit . --oversized --max-size 512x512
+
+      auto-godot --json project audit . --missing
+    """
+    try:
+        if not Path(path).exists():
+            raise ProjectError(
+                message=f"Path does not exist: {path}",
+                code="PROJECT_NOT_FOUND",
+                fix="Ensure the path points to a Godot project directory",
+            )
+        project_godot = _find_project_godot(path)
+        project_root = project_godot.parent
+
+        # If no filter flags set, show everything
+        show_all = not unused and not missing and not oversized
+
+        # Collect references from .tscn/.tres files
+        missing_refs, all_refs = _collect_res_paths(project_root)
+
+        # Also collect refs from project.godot
+        config_text = project_godot.read_text(encoding="utf-8")
+        cfg = parse_project_config(config_text)
+        _check_project_godot_refs(cfg, project_root, missing_refs)
+
+        # Include autoload paths in reference set
+        autoload_section = cfg.sections.get("autoload")
+        if autoload_section:
+            for _key, val in autoload_section:
+                clean = _strip_quotes(val).lstrip("*")
+                if clean.startswith("res://"):
+                    all_refs.add(clean)
+
+        # Collect files on disk
+        on_disk = _collect_project_files(project_root)
+
+        # Compute unused: on disk but not referenced
+        unused_assets = sorted(on_disk - all_refs)
+
+        report: dict[str, Any] = {
+            "project_path": str(path),
+            "files_on_disk": len(on_disk),
+            "references_found": len(all_refs),
+        }
+
+        if show_all or unused:
+            report["unused"] = unused_assets
+        if show_all or missing:
+            report["missing"] = missing_refs
+
+        if show_all or oversized:
+            # Parse max-size
+            try:
+                parts = max_size.lower().split("x")
+                max_w, max_h = int(parts[0]), int(parts[1])
+            except (ValueError, IndexError) as exc:
+                raise ProjectError(
+                    message=f"Invalid --max-size format: {max_size}",
+                    code="INVALID_OPTION",
+                    fix="Use WxH format, e.g., --max-size 1024x1024",
+                ) from exc
+            report["oversized"] = _check_oversized(
+                project_root, on_disk, max_w, max_h
+            )
+
+        total = (
+            len(report.get("unused", []))
+            + len(report.get("missing", []))
+            + len(report.get("oversized", []))
+        )
+        report["issues_found"] = total
+
+        emit(report, _display_audit_human, ctx)
+
+        if total > 0:
+            ctx.exit(1)
+    except ProjectError as exc:
+        emit_error(exc, ctx)

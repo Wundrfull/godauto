@@ -193,3 +193,121 @@ class TestProjectCreate:
         data = json.loads(result.output)
         assert data["created"] is True
         assert "path" in data
+
+
+def _make_audit_project(tmp_path: Path) -> Path:
+    """Create a minimal project for audit testing."""
+    project_dir = tmp_path / "audit_proj"
+    project_dir.mkdir()
+    (project_dir / "project.godot").write_text(
+        '; Engine configuration file.\n\n'
+        'config_version=5\n\n'
+        '[application]\n\n'
+        'config/name="AuditTest"\n'
+    )
+    scenes_dir = project_dir / "scenes"
+    scenes_dir.mkdir()
+    (scenes_dir / "main.tscn").write_text(
+        '[gd_scene format=3]\n\n'
+        '[ext_resource type="Script" path="res://scripts/player.gd" id="1_s"]\n'
+        '[ext_resource type="Texture2D" path="res://assets/sprites/hero.png" id="2_t"]\n\n'
+        '[node name="Root" type="Node2D"]\n'
+    )
+    # Create the referenced script but NOT the referenced texture
+    scripts_dir = project_dir / "scripts"
+    scripts_dir.mkdir()
+    (scripts_dir / "player.gd").write_text(
+        'extends Node2D\n\nfunc _ready() -> void:\n\tpass\n'
+    )
+    # Create an unreferenced asset (unused)
+    assets_dir = project_dir / "assets" / "sprites"
+    assets_dir.mkdir(parents=True)
+    (assets_dir / "old_sprite.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    return project_dir
+
+
+class TestProjectAudit:
+    """Verify project audit finds unused and missing assets."""
+
+    def test_audit_exits_with_issues(self, tmp_path: Path) -> None:
+        project_dir = _make_audit_project(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["project", "audit", str(project_dir)]
+        )
+        assert result.exit_code == 1  # issues found
+
+    def test_audit_json_structure(self, tmp_path: Path) -> None:
+        project_dir = _make_audit_project(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["-j", "project", "audit", str(project_dir)]
+        )
+        data = json.loads(result.output)
+        assert "files_on_disk" in data
+        assert "references_found" in data
+        assert "unused" in data
+        assert "missing" in data
+        assert "issues_found" in data
+
+    def test_audit_detects_unused_asset(self, tmp_path: Path) -> None:
+        project_dir = _make_audit_project(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["-j", "project", "audit", str(project_dir), "--unused"]
+        )
+        data = json.loads(result.output)
+        unused_paths = data.get("unused", [])
+        assert any("old_sprite.png" in p for p in unused_paths)
+
+    def test_audit_detects_missing_asset(self, tmp_path: Path) -> None:
+        project_dir = _make_audit_project(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["-j", "project", "audit", str(project_dir), "--missing"]
+        )
+        data = json.loads(result.output)
+        missing_paths = data.get("missing", [])
+        assert any("hero.png" in p for p in missing_paths)
+
+    def test_audit_clean_project_exits_zero(self, tmp_path: Path) -> None:
+        project_dir = tmp_path / "clean_proj"
+        project_dir.mkdir()
+        (project_dir / "project.godot").write_text(
+            '; Engine configuration file.\n\n'
+            'config_version=5\n\n'
+            '[application]\n\n'
+            'config/name="CleanProj"\n'
+        )
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["project", "audit", str(project_dir)]
+        )
+        assert result.exit_code == 0
+
+    def test_audit_filter_unused_only(self, tmp_path: Path) -> None:
+        project_dir = _make_audit_project(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["-j", "project", "audit", str(project_dir), "--unused"]
+        )
+        data = json.loads(result.output)
+        assert "unused" in data
+        assert "missing" not in data
+
+    def test_audit_filter_missing_only(self, tmp_path: Path) -> None:
+        project_dir = _make_audit_project(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["-j", "project", "audit", str(project_dir), "--missing"]
+        )
+        data = json.loads(result.output)
+        assert "missing" in data
+        assert "unused" not in data
+
+    def test_audit_nonexistent_path(self) -> None:
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["project", "audit", "/no/such/path"]
+        )
+        assert result.exit_code != 0
