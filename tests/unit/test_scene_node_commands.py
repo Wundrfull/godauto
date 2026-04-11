@@ -89,6 +89,39 @@ class TestAddNode:
         text = scene.read_text()
         assert 'parent="Player/Sprite"' in text
 
+    def test_add_with_root_parent(self, tmp_path: Path) -> None:
+        """--parent RootName resolves to '.' in the .tscn file."""
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "add-node",
+            "--scene", str(scene),
+            "--name", "Timer",
+            "--type", "Timer",
+            "--parent", "Main",
+        ])
+        assert result.exit_code == 0, result.output
+        text = scene.read_text()
+        assert 'name="Timer"' in text
+        assert 'parent="."' in text
+        assert 'parent="Main"' not in text
+
+    def test_add_with_root_prefixed_path(self, tmp_path: Path) -> None:
+        """--parent RootName/Child strips root and resolves to 'Child'."""
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "add-node",
+            "--scene", str(scene),
+            "--name", "SpriteChild",
+            "--type", "Node2D",
+            "--parent", "Main/Player",
+        ])
+        assert result.exit_code == 0, result.output
+        text = scene.read_text()
+        assert 'parent="Player"' in text
+        assert 'parent="Main/Player"' not in text
+
     def test_add_with_properties(self, tmp_path: Path) -> None:
         scene = _make_scene(tmp_path)
         runner = CliRunner()

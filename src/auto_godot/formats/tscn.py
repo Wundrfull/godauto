@@ -48,15 +48,33 @@ class SceneNode:
 def resolve_parent_path(nodes: list[SceneNode], parent_name: str) -> str:
     """Resolve a bare node name to its full path from the scene root.
 
-    If parent_name already contains '/' or is '.', return it as-is.
-    Otherwise search existing nodes for the name and build the full
-    path by prepending the matched node's own parent path.
+    Godot .tscn parent paths are relative to the root node: direct
+    children use ``parent="."``, grandchildren use ``parent="Child"``,
+    etc.  The root node name must never appear in a parent path.
     """
-    if "/" in parent_name or parent_name == ".":
+    if parent_name == ".":
         return parent_name
+
+    # Identify the root node so we can strip its name from paths.
+    root_name: str | None = None
+    for node in nodes:
+        if node.parent is None:
+            root_name = node.name
+            break
+
+    # Paths containing '/': strip leading root name if present.
+    if "/" in parent_name:
+        if root_name is not None and parent_name.startswith(f"{root_name}/"):
+            return parent_name[len(root_name) + 1:]
+        return parent_name
+
+    # Bare name: if it matches the root node, the caller wants a
+    # direct child of root, which is "." in .tscn format.
     for node in nodes:
         if node.name == parent_name:
-            if node.parent is None or node.parent == ".":
+            if node.parent is None:
+                return "."
+            if node.parent == ".":
                 return parent_name
             return f"{node.parent}/{parent_name}"
     return parent_name
