@@ -12,6 +12,7 @@ from auto_godot.formats.tres import SubResource
 from auto_godot.formats.tscn import (
     SceneNode,
     parse_tscn,
+    resolve_parent_path,
     serialize_tscn,
 )
 from auto_godot.formats.values import Vector2
@@ -101,7 +102,7 @@ def add_body(
         text = path.read_text(encoding="utf-8")
         scene = parse_tscn(text)
 
-        parent = parent_path or "."
+        parent = resolve_parent_path(scene.nodes, parent_path) if parent_path else "."
 
         # Check for duplicate
         for node in scene.nodes:

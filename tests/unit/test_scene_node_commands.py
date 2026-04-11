@@ -57,6 +57,38 @@ class TestAddNode:
         text = scene.read_text()
         assert 'parent="Player"' in text
 
+    def test_add_with_nested_parent(self, tmp_path: Path) -> None:
+        """Bare --parent resolves nested node to full path from root."""
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        # Sprite is at parent="Player", so a child of Sprite needs
+        # parent="Player/Sprite" in the .tscn file.
+        result = runner.invoke(cli, [
+            "scene", "add-node",
+            "--scene", str(scene),
+            "--name", "SpriteChild",
+            "--type", "Node2D",
+            "--parent", "Sprite",
+        ])
+        assert result.exit_code == 0, result.output
+        text = scene.read_text()
+        assert 'parent="Player/Sprite"' in text
+
+    def test_add_with_full_path_parent(self, tmp_path: Path) -> None:
+        """Full path --parent is used as-is without resolution."""
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "add-node",
+            "--scene", str(scene),
+            "--name", "SpriteChild",
+            "--type", "Node2D",
+            "--parent", "Player/Sprite",
+        ])
+        assert result.exit_code == 0, result.output
+        text = scene.read_text()
+        assert 'parent="Player/Sprite"' in text
+
     def test_add_with_properties(self, tmp_path: Path) -> None:
         scene = _make_scene(tmp_path)
         runner = CliRunner()

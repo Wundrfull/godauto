@@ -12,6 +12,7 @@ from auto_godot.formats.tres import SubResource
 from auto_godot.formats.tscn import (
     SceneNode,
     parse_tscn,
+    resolve_parent_path,
     serialize_tscn,
 )
 from auto_godot.formats.values import Color, SubResourceRef, Vector2
@@ -218,7 +219,7 @@ def add(
         text = path.read_text(encoding="utf-8")
         scene = parse_tscn(text)
 
-        parent = parent_path or "."
+        parent = resolve_parent_path(scene.nodes, parent_path) if parent_path else "."
 
         for node in scene.nodes:
             if node.name == node_name and node.parent == parent:

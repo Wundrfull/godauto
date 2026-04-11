@@ -11,7 +11,7 @@ from rich.console import Console
 from rich.tree import Tree
 
 from auto_godot.errors import AutoGodotError, ProjectError, ValidationError
-from auto_godot.formats.tscn import SceneNode, parse_tscn, serialize_tscn, serialize_tscn_file
+from auto_godot.formats.tscn import SceneNode, parse_tscn, resolve_parent_path, serialize_tscn, serialize_tscn_file
 from auto_godot.formats.uid import write_uid_file
 from auto_godot.formats.values import ExtResourceRef, parse_value, serialize_value
 from auto_godot.output import emit, emit_error
@@ -333,7 +333,7 @@ def add_node(
         text = path.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
 
-        parent = parent_path or "."
+        parent = resolve_parent_path(scene_data.nodes, parent_path) if parent_path else "."
 
         # Check for duplicate
         for node in scene_data.nodes:
@@ -641,7 +641,7 @@ def add_timer(
         text = path_obj.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
 
-        parent = parent_path or "."
+        parent = resolve_parent_path(scene_data.nodes, parent_path) if parent_path else "."
 
         for node in scene_data.nodes:
             if node.name == node_name and node.parent == parent:
@@ -750,7 +750,7 @@ def add_instance(
         text = path.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
 
-        parent = parent_path or "."
+        parent = resolve_parent_path(scene_data.nodes, parent_path) if parent_path else "."
 
         for node in scene_data.nodes:
             if node.name == node_name and node.parent == parent:
@@ -955,7 +955,7 @@ def add_camera(
         path_obj = Path(scene_path)
         text = path_obj.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
-        parent = parent_path or "."
+        parent = resolve_parent_path(scene_data.nodes, parent_path) if parent_path else "."
 
         for node in scene_data.nodes:
             if node.name == node_name and node.parent == parent:

@@ -45,6 +45,23 @@ class SceneNode:
     raw_section: Section | None = None
 
 
+def resolve_parent_path(nodes: list[SceneNode], parent_name: str) -> str:
+    """Resolve a bare node name to its full path from the scene root.
+
+    If parent_name already contains '/' or is '.', return it as-is.
+    Otherwise search existing nodes for the name and build the full
+    path by prepending the matched node's own parent path.
+    """
+    if "/" in parent_name or parent_name == ".":
+        return parent_name
+    for node in nodes:
+        if node.name == parent_name:
+            if node.parent is None or node.parent == ".":
+                return parent_name
+            return f"{node.parent}/{parent_name}"
+    return parent_name
+
+
 @dataclass
 class Connection:
     """A [connection] section."""
