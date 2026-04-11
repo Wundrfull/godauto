@@ -612,6 +612,122 @@ def add_autoload(
 
 
 # ---------------------------------------------------------------------------
+# project list-autoloads
+# ---------------------------------------------------------------------------
+
+
+@project.command("list-autoloads")
+@click.argument("project_path", default=".", type=click.Path())
+@click.pass_context
+def list_autoloads(
+    ctx: click.Context,
+    project_path: str,
+) -> None:
+    """List all autoload singletons defined in project.godot.
+
+    Reads the [autoload] section and displays each singleton with its
+    script path and enabled status.
+
+    Examples:
+
+      auto-godot project list-autoloads
+
+      auto-godot --json project list-autoloads ./my-game
+    """
+    try:
+        project_godot = _find_project_godot(project_path)
+        config_text = project_godot.read_text(encoding="utf-8")
+        cfg = parse_project_config(config_text)
+
+        autoload_section = cfg.sections.get("autoload", [])
+        autoloads: list[dict[str, Any]] = []
+        for name, raw_value in autoload_section:
+            clean = _strip_quotes(raw_value)
+            enabled = clean.startswith("*")
+            path = clean.lstrip("*")
+            autoloads.append({
+                "name": name,
+                "path": path,
+                "enabled": enabled,
+            })
+
+        data = {"autoloads": autoloads, "count": len(autoloads)}
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            if not data["autoloads"]:
+                click.echo("No autoload singletons defined.")
+                return
+            for entry in data["autoloads"]:
+                status = "enabled" if entry["enabled"] else "disabled"
+                click.echo(
+                    f"{entry['name']} -> {entry['path']} ({status})"
+                )
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# project remove-autoload
+# ---------------------------------------------------------------------------
+
+
+@project.command("remove-autoload")
+@click.option(
+    "--name", required=True,
+    help="Autoload singleton name to remove (e.g., GameManager)",
+)
+@click.argument("project_path", default=".", type=click.Path())
+@click.pass_context
+def remove_autoload(
+    ctx: click.Context,
+    name: str,
+    project_path: str,
+) -> None:
+    """Remove an autoload singleton from project.godot.
+
+    Deletes the specified autoload from the [autoload] section.
+
+    Examples:
+
+      auto-godot project remove-autoload --name GameManager
+
+      auto-godot project remove-autoload --name GameState ./my-game
+    """
+    try:
+        project_godot = _find_project_godot(project_path)
+        config_text = project_godot.read_text(encoding="utf-8")
+        cfg = parse_project_config(config_text)
+
+        # Verify the autoload exists before attempting removal
+        autoload_section = cfg.sections.get("autoload", [])
+        found = False
+        for key, _val in autoload_section:
+            if key == name:
+                found = True
+                break
+
+        if not found:
+            raise ProjectError(
+                message=f"Autoload '{name}' not found",
+                code="AUTOLOAD_NOT_FOUND",
+                fix="Use 'auto-godot project list-autoloads' to see existing autoloads",
+            )
+
+        _remove_section_entry(project_godot, "autoload", name)
+
+        data = {"removed": True, "name": name}
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(f"Removed autoload '{data['name']}'")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
 # project run
 # ---------------------------------------------------------------------------
 
