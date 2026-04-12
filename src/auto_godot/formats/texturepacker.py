@@ -61,6 +61,12 @@ def parse_texturepacker_json(
             fix="Export from TexturePacker with JSON data format",
         )
 
+    if fps <= 0:
+        raise ValidationError(
+            message="fps must be greater than zero",
+            code="TEXTUREPACKER_INVALID_FPS",
+            fix="Pass a positive --fps value, e.g. --fps 10",
+        )
     duration_ms = max(1, int(1000.0 / fps))
     frames: list[AsepriteFrame] = []
 
