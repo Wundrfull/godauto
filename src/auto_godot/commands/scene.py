@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.tree import Tree
 
 from auto_godot.errors import AutoGodotError, ProjectError, ValidationError
+from auto_godot.formats.godot_types import is_known_node_type, suggest_node_types
 from auto_godot.formats.tscn import SceneNode, parse_tscn, resolve_parent_path, serialize_tscn
 from auto_godot.formats.uid import write_uid_file
 from auto_godot.formats.values import ExtResourceRef, parse_value, serialize_value
@@ -310,6 +311,12 @@ def _resolve_scene_output(output: str | None, json_path: Path) -> Path:
     "--property", "properties", multiple=True,
     help="Node properties as 'key=value' (e.g., 'visible=false', 'position=Vector2(10, 20)')",
 )
+@click.option(
+    "--validate-type/--no-validate-type", "validate_type",
+    default=True,
+    help="Warn when --type is not a known Godot 4.6 node type (default: on). "
+         "Disable for class_name scripts, plugin classes, or custom types.",
+)
 @click.pass_context
 def add_node(
     ctx: click.Context,
@@ -318,6 +325,7 @@ def add_node(
     node_type: str,
     parent_path: str | None,
     properties: tuple[str, ...],
+    validate_type: bool,
 ) -> None:
     """Add a node to an existing scene file.
 
@@ -331,6 +339,19 @@ def add_node(
     """
     try:
         if not check_path(scene_path, ctx, "scene"): return
+        unknown_type_warning: str | None = None
+        if validate_type and not is_known_node_type(node_type):
+            suggestions = suggest_node_types(node_type)
+            if suggestions:
+                hint = "; did you mean " + ", ".join(suggestions) + "?"
+            else:
+                hint = ""
+            unknown_type_warning = (
+                f"Unknown Godot node type '{node_type}'{hint} "
+                f"Pass --no-validate-type for class_name scripts or plugin types."
+            )
+            click.echo(f"Warning: {unknown_type_warning}", err=True)
+
         path = Path(scene_path)
         text = path.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
@@ -377,6 +398,7 @@ def add_node(
             "parent": parent,
             "property_count": len(parsed_props),
             "scene": scene_path,
+            "warnings": [unknown_type_warning] if unknown_type_warning else [],
         }
 
         def _human(data: dict[str, Any], verbose: bool = False) -> None:

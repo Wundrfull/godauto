@@ -183,6 +183,100 @@ class TestAddNode:
             assert f'name="{name}"' in text
 
 
+class TestAddNodeTypeValidation:
+    """Verify --validate-type warns on unknown Godot node types."""
+
+    def test_known_type_no_warning(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "add-node",
+            "--scene", str(scene),
+            "--name", "Clock",
+            "--type", "Timer",
+        ])
+        assert result.exit_code == 0, result.output
+        combined = result.output + (result.stderr or "")
+        assert "Unknown Godot node type" not in combined
+
+    def test_unknown_type_warns_but_succeeds(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "add-node",
+            "--scene", str(scene),
+            "--name", "Hero",
+            "--type", "CharcterBody2D",  # typo
+        ])
+        # Warning only; the command still writes the node so workflows
+        # that use class_name scripts keep working.
+        assert result.exit_code == 0, result.output
+        combined = result.output + (result.stderr or "")
+        assert "Unknown Godot node type 'CharcterBody2D'" in combined
+        assert "CharacterBody2D" in combined
+        # Verify the node was still added
+        text = scene.read_text()
+        assert 'name="Hero"' in text
+
+    def test_did_you_mean_suggests_close_match(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "add-node",
+            "--scene", str(scene),
+            "--name", "X",
+            "--type", "Sprite3X",  # typo for Sprite3D
+        ])
+        assert result.exit_code == 0
+        combined = result.output + (result.stderr or "")
+        assert "did you mean" in combined.lower()
+        assert "Sprite3D" in combined
+
+    def test_no_validate_type_silences_warning(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "add-node",
+            "--scene", str(scene),
+            "--name", "Mine",
+            "--type", "MyCustomClass",
+            "--no-validate-type",
+        ])
+        assert result.exit_code == 0, result.output
+        combined = result.output + (result.stderr or "")
+        assert "Unknown Godot node type" not in combined
+        text = scene.read_text()
+        assert 'type="MyCustomClass"' in text
+
+    def test_json_output_includes_warning(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "--json", "scene", "add-node",
+            "--scene", str(scene),
+            "--name", "Y",
+            "--type", "Labl",  # typo for Label
+        ])
+        assert result.exit_code == 0, result.output
+        # CliRunner merges stderr+stdout; slice out the JSON blob starting at '{'
+        payload = json.loads(result.output[result.output.index("{"):])
+        assert payload["warnings"], "expected warnings in JSON output"
+        assert "Unknown" in payload["warnings"][0]
+
+    def test_json_output_no_warnings_when_known(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "--json", "scene", "add-node",
+            "--scene", str(scene),
+            "--name", "Z",
+            "--type", "Label",
+        ])
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output[result.output.index("{"):])
+        assert payload["warnings"] == []
+
+
 class TestRemoveNode:
     """Verify scene remove-node removes nodes from scenes."""
 
