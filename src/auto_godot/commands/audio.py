@@ -437,6 +437,15 @@ def generate(
         emit(data, _human, ctx)
     except ProjectError as exc:
         emit_error(exc, ctx)
+    except Exception as exc:
+        emit_error(
+            ProjectError(
+                message=f"Failed to generate sound: {exc}",
+                code="GENERATE_ERROR",
+                fix="Check parameters and output path",
+            ),
+            ctx,
+        )
 
 
 # ---------------------------------------------------------------------------
