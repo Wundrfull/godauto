@@ -914,6 +914,23 @@ def add_group(
 # ---------------------------------------------------------------------------
 
 
+def _find_project_godot_from_scene(scene_path: Path) -> Path | None:
+    """Walk up from a scene file to find project.godot."""
+    for parent in [scene_path.resolve().parent] + list(scene_path.resolve().parents):
+        candidate = parent / "project.godot"
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _read_stretch_mode(project_godot: Path) -> str | None:
+    """Read window/stretch/mode from project.godot, or None if unset."""
+    import re
+    text = project_godot.read_text(encoding="utf-8")
+    match = re.search(r'window/stretch/mode\s*=\s*"?(\w+)"?', text)
+    return match.group(1) if match else None
+
+
 @scene.command("add-camera")
 @click.option("--scene", "scene_path", required=True, type=click.Path(exists=True), help="Scene file")
 @click.option("--name", "node_name", default="Camera2D", help="Camera node name")
@@ -926,6 +943,7 @@ def add_group(
 @click.option("--limit-bottom", type=int, default=None, help="Bottom camera limit in pixels")
 @click.option("--current/--no-current", default=True, help="Set as current camera (default: yes)")
 @click.option("--parent", "parent_path", default=None, help="Parent node path")
+@click.option("--force", is_flag=True, default=False, help="Suppress zoom/stretch compatibility warning")
 @click.pass_context
 def add_camera(
     ctx: click.Context,
@@ -940,6 +958,7 @@ def add_camera(
     limit_bottom: int | None,
     current: bool,
     parent_path: str | None,
+    force: bool,
 ) -> None:
     """Add a Camera2D node with common settings to a scene.
 
@@ -964,6 +983,19 @@ def add_camera(
                     code="NODE_EXISTS",
                     fix="Choose a different name",
                 )
+
+        # Check zoom + stretch compatibility
+        warning: str | None = None
+        if zoom > 1.0 and not force:
+            project_godot = _find_project_godot_from_scene(path_obj)
+            if project_godot:
+                stretch = _read_stretch_mode(project_godot)
+                if stretch in ("viewport", "canvas_items"):
+                    warning = (
+                        f"Camera zoom {zoom}x combined with stretch_mode={stretch} "
+                        "may cause pixel art jitter. Consider zoom=1 and letting "
+                        "stretch handle scaling, or use --force to suppress."
+                    )
 
         props: dict[str, Any] = {}
         if current:
@@ -994,7 +1026,7 @@ def add_camera(
         output = serialize_tscn(scene_data)
         path_obj.write_text(output, encoding="utf-8")
 
-        data = {
+        data: dict[str, Any] = {
             "added": True,
             "name": node_name,
             "zoom": zoom,
@@ -1002,6 +1034,8 @@ def add_camera(
             "current": current,
             "has_limits": any(v is not None for v in [limit_left, limit_top, limit_right, limit_bottom]),
         }
+        if warning:
+            data["warning"] = warning
 
         def _human(data: dict[str, Any], verbose: bool = False) -> None:
             parts = [f"Camera2D '{data['name']}'"]
@@ -1012,6 +1046,8 @@ def add_camera(
             if data["has_limits"]:
                 parts.append("with limits")
             click.echo("Added " + ", ".join(parts))
+            if data.get("warning"):
+                click.echo(f"Warning: {data['warning']}", err=True)
 
         emit(data, _human, ctx)
     except ProjectError as exc:
