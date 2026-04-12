@@ -195,6 +195,117 @@ class TestProjectCreate:
         assert "path" in data
 
 
+class TestProjectCreatePixelArt:
+    """Verify project create --pixel-art applies the six pixel-perfect settings."""
+
+    def _create(self, tmp_path: Path, *extra_args: str) -> Path:
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["project", "create", "px-game", "-o", str(tmp_path),
+             "--pixel-art", *extra_args],
+        )
+        assert result.exit_code == 0, result.output
+        return tmp_path / "px-game" / "project.godot"
+
+    def test_default_viewport_is_320x240(self, tmp_path: Path) -> None:
+        content = self._create(tmp_path).read_text()
+        assert "window/size/viewport_width=320" in content
+        assert "window/size/viewport_height=240" in content
+
+    def test_snap_transforms_true(self, tmp_path: Path) -> None:
+        content = self._create(tmp_path).read_text()
+        assert "2d/snap/snap_2d_transforms_to_pixel=true" in content
+
+    def test_snap_vertices_false(self, tmp_path: Path) -> None:
+        content = self._create(tmp_path).read_text()
+        assert "2d/snap/snap_2d_vertices_to_pixel=false" in content
+
+    def test_scale_mode_integer(self, tmp_path: Path) -> None:
+        content = self._create(tmp_path).read_text()
+        assert 'window/stretch/scale_mode="integer"' in content
+
+    def test_stretch_mode_canvas_items(self, tmp_path: Path) -> None:
+        content = self._create(tmp_path).read_text()
+        assert 'window/stretch/mode="canvas_items"' in content
+
+    def test_stretch_aspect_keep(self, tmp_path: Path) -> None:
+        content = self._create(tmp_path).read_text()
+        assert 'window/stretch/aspect="keep"' in content
+
+    def test_texture_filter_nearest(self, tmp_path: Path) -> None:
+        content = self._create(tmp_path).read_text()
+        assert "textures/canvas_textures/default_texture_filter=0" in content
+
+    def test_physics_interpolation_true(self, tmp_path: Path) -> None:
+        content = self._create(tmp_path).read_text()
+        assert "common/physics_interpolation=true" in content
+
+    def test_without_flag_no_pixel_art_settings(self, tmp_path: Path) -> None:
+        runner = CliRunner()
+        runner.invoke(
+            cli, ["project", "create", "plain-game", "-o", str(tmp_path)]
+        )
+        content = (tmp_path / "plain-game" / "project.godot").read_text()
+        assert "snap_2d_transforms_to_pixel" not in content
+        assert "scale_mode" not in content
+        assert "physics_interpolation" not in content
+
+    def test_custom_viewport_dimensions(self, tmp_path: Path) -> None:
+        content = self._create(
+            tmp_path, "--pixel-art-width", "480", "--pixel-art-height", "270"
+        ).read_text()
+        assert "window/size/viewport_width=480" in content
+        assert "window/size/viewport_height=270" in content
+
+    def test_width_alone_implies_pixel_art(self, tmp_path: Path) -> None:
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["project", "create", "px-game", "-o", str(tmp_path),
+             "--pixel-art-width", "480"],
+        )
+        assert result.exit_code == 0, result.output
+        content = (tmp_path / "px-game" / "project.godot").read_text()
+        assert "window/size/viewport_width=480" in content
+        assert "window/size/viewport_height=240" in content
+        assert "snap_2d_transforms_to_pixel=true" in content
+
+    def test_json_reports_pixel_art_settings(self, tmp_path: Path) -> None:
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["-j", "project", "create", "px-game", "-o", str(tmp_path),
+             "--pixel-art"],
+        )
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert data["created"] is True
+        assert data.get("pixel_art") is True
+        settings = data.get("pixel_art_settings", [])
+        assert len(settings) == 9
+        joined = "\n".join(settings)
+        for expected in (
+            "viewport_width=320",
+            "viewport_height=240",
+            "mode=canvas_items",
+            "aspect=keep",
+            "scale_mode=integer",
+            "default_texture_filter=0",
+            "snap_2d_transforms_to_pixel=true",
+            "snap_2d_vertices_to_pixel=false",
+            "physics_interpolation=true",
+        ):
+            assert expected in joined, f"missing {expected} in {settings!r}"
+
+    def test_help_mentions_settings(self) -> None:
+        runner = CliRunner()
+        result = runner.invoke(cli, ["project", "create", "--help"])
+        assert result.exit_code == 0
+        assert "--pixel-art" in result.output
+        assert "snap_2d_transforms_to_pixel" in result.output
+
+
 def _make_audit_project(tmp_path: Path) -> Path:
     """Create a minimal project for audit testing."""
     project_dir = tmp_path / "audit_proj"

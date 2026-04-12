@@ -176,6 +176,11 @@ auto-godot project validate --godot  # also check script syntax
 
 # Scaffold a new Godot project
 auto-godot project create my-game
+
+# Scaffold a pixel-perfect project in one shot (sets stretch mode, nearest filter,
+# pixel snap, physics interpolation, and a 320x240 viewport)
+auto-godot project create my-pixel-game --pixel-art
+auto-godot project create my-pixel-game --pixel-art --pixel-art-width 480 --pixel-art-height 270
 ```
 
 ### Resource Commands

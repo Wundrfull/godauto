@@ -410,6 +410,14 @@ def _display_create_human(data: dict[str, Any], verbose: bool = False) -> None:
     """Display project creation result in human-readable format."""
     console = Console()
     console.print(f"[green]Created project at:[/green] {data['path']}")
+    if data.get("pixel_art"):
+        settings = data.get("pixel_art_settings", [])
+        console.print(
+            f"[cyan]Applied pixel-art defaults ({len(settings)} settings)[/cyan]"
+        )
+        if verbose:
+            for s in settings:
+                console.print(f"  {s}")
     if verbose:
         console.print("[bold]Files created:[/bold]")
         for f in data["files"]:
@@ -422,10 +430,37 @@ def _display_create_human(data: dict[str, Any], verbose: bool = False) -> None:
     "-o", "--output", default=".",
     type=click.Path(), help="Parent directory for new project",
 )
+@click.option(
+    "--pixel-art", "pixel_art", is_flag=True, default=False,
+    help=(
+        "Apply pixel-perfect defaults to project.godot: "
+        "viewport 320x240 (stretch canvas_items + keep aspect + integer scale), "
+        "default_texture_filter=0 (nearest), snap_2d_transforms_to_pixel=true, "
+        "snap_2d_vertices_to_pixel=false, physics_interpolation=true"
+    ),
+)
+@click.option(
+    "--pixel-art-width", "pixel_art_width", type=int, default=None,
+    help="Override pixel-art viewport width (default: 320). Implies --pixel-art.",
+)
+@click.option(
+    "--pixel-art-height", "pixel_art_height", type=int, default=None,
+    help="Override pixel-art viewport height (default: 240). Implies --pixel-art.",
+)
 @click.pass_context
-def create(ctx: click.Context, name: str, output: str) -> None:
+def create(
+    ctx: click.Context,
+    name: str,
+    output: str,
+    pixel_art: bool,
+    pixel_art_width: int | None,
+    pixel_art_height: int | None,
+) -> None:
     """Scaffold a new Godot project with recommended structure."""
     try:
+        if (pixel_art_width is not None or pixel_art_height is not None) and not pixel_art:
+            pixel_art = True
+
         target = Path(output) / name
         if target.exists():
             raise ProjectError(
@@ -436,14 +471,61 @@ def create(ctx: click.Context, name: str, output: str) -> None:
 
         created_files = _scaffold_project(target, name)
 
-        data = {
+        pixel_art_settings: list[str] = []
+        if pixel_art:
+            width = pixel_art_width if pixel_art_width is not None else 320
+            height = pixel_art_height if pixel_art_height is not None else 240
+            pixel_art_settings = _apply_pixel_art_defaults(
+                target / "project.godot", width, height
+            )
+
+        data: dict[str, Any] = {
             "created": True,
             "path": str(target.resolve()),
             "files": created_files,
         }
+        if pixel_art:
+            data["pixel_art"] = True
+            data["pixel_art_settings"] = pixel_art_settings
         emit(data, _display_create_human, ctx)
     except ProjectError as exc:
         emit_error(exc, ctx)
+
+
+_PIXEL_ART_SETTINGS: tuple[tuple[str, str, str], ...] = (
+    ("display", "window/stretch/mode", '"canvas_items"'),
+    ("display", "window/stretch/aspect", '"keep"'),
+    ("display", "window/stretch/scale_mode", '"integer"'),
+    ("rendering", "textures/canvas_textures/default_texture_filter", "0"),
+    ("rendering", "2d/snap/snap_2d_transforms_to_pixel", "true"),
+    ("rendering", "2d/snap/snap_2d_vertices_to_pixel", "false"),
+    ("physics", "common/physics_interpolation", "true"),
+)
+
+
+def _apply_pixel_art_defaults(
+    project_godot: Path, viewport_width: int, viewport_height: int
+) -> list[str]:
+    """Write the pixel-art settings block to project.godot.
+
+    Returns the list of applied setting keys in ``key=value`` form for reporting.
+    """
+    applied: list[str] = []
+    width_value = str(viewport_width)
+    height_value = str(viewport_height)
+    _set_project_value(
+        project_godot, "display", "window/size/viewport_width", width_value
+    )
+    applied.append(f"viewport_width={width_value}")
+    _set_project_value(
+        project_godot, "display", "window/size/viewport_height", height_value
+    )
+    applied.append(f"viewport_height={height_value}")
+    for section, key, value in _PIXEL_ART_SETTINGS:
+        _set_project_value(project_godot, section, key, value)
+        leaf = key.rsplit("/", 1)[-1]
+        applied.append(f"{leaf}={_strip_quotes(value)}")
+    return applied
 
 
 def _detect_godot_version() -> str:
