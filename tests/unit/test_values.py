@@ -346,6 +346,77 @@ class TestParseValue:
     def test_string_with_escaped_quotes(self) -> None:
         assert parse_value(r'"say \"hi\""') == 'say "hi"'
 
+    def test_string_escape_newline(self) -> None:
+        assert parse_value(r'"line1\nline2"') == "line1\nline2"
+
+    def test_string_escape_carriage_return(self) -> None:
+        assert parse_value(r'"a\rb"') == "a\rb"
+
+    def test_string_escape_tab(self) -> None:
+        assert parse_value(r'"a\tb"') == "a\tb"
+
+    def test_string_escape_backspace(self) -> None:
+        assert parse_value(r'"a\bb"') == "a\bb"
+
+    def test_string_escape_formfeed(self) -> None:
+        assert parse_value(r'"a\fb"') == "a\fb"
+
+    def test_string_escape_backslash(self) -> None:
+        assert parse_value(r'"a\\b"') == "a\\b"
+
+    def test_string_unicode_bmp(self) -> None:
+        assert parse_value(r'"caf\u00e9"') == "café"
+
+    def test_string_unicode_emoji_via_surrogate(self) -> None:
+        # BMP code for a music sheet section symbol
+        assert parse_value(r'"\u00a7"') == "§"
+
+    def test_string_unicode_surrogate_pair(self) -> None:
+        # U+1F600 emitted by Godot as UTF-16 pair D83D + DE00.
+        # Decoded independently that gives two lone surrogates; must
+        # combine into the astral code point.
+        assert parse_value(r'"\uD83D\uDE00"') == "\U0001F600"
+
+    def test_string_unicode_lone_high_surrogate(self) -> None:
+        # Lone high surrogate is invalid Unicode; fall through to
+        # literal passthrough so it round-trips unchanged.
+        assert parse_value(r'"\uD800"') == r"\uD800"
+
+    def test_string_unicode_lone_low_surrogate(self) -> None:
+        assert parse_value(r'"\uDC00"') == r"\uDC00"
+
+    def test_string_unicode_U_6digit(self) -> None:
+        # Extended 6-hex form: U+1F600 (grinning face)
+        assert parse_value(r'"\U01F600"') == "\U0001F600"
+
+    def test_string_unknown_escape_preserved(self) -> None:
+        # D-04: unknown escapes pass through as backslash + char
+        assert parse_value(r'"a\xb"') == r"a\xb"
+
+    def test_string_serialize_escapes_newline(self) -> None:
+        # Raw newline in property value corrupts .tscn line-based format
+        assert serialize_value("a\nb") == r'"a\nb"'
+
+    def test_string_serialize_escapes_tab_and_cr(self) -> None:
+        assert serialize_value("a\tb\rc") == r'"a\tb\rc"'
+
+    def test_string_serialize_escapes_backslash_first(self) -> None:
+        # Must escape backslash BEFORE adding its own escapes or we double
+        assert serialize_value("a\\nb") == r'"a\\nb"'
+
+    def test_string_round_trip_multiline(self) -> None:
+        original = "line1\nline2\tindented\r\n"
+        assert parse_value(serialize_value(original)) == original
+
+    def test_string_round_trip_unicode(self) -> None:
+        original = "héllo 世界"
+        # No forced unicode escape on emit — UTF-8 direct is fine in Godot
+        assert parse_value(serialize_value(original)) == original
+
+    def test_string_round_trip_quotes_and_backslash(self) -> None:
+        original = 'say "hi" \\ back'
+        assert parse_value(serialize_value(original)) == original
+
     def test_packed_string_array(self) -> None:
         result = parse_value('PackedStringArray("a", "b", "c")')
         assert result == ["a", "b", "c"]
