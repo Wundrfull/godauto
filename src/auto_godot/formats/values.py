@@ -468,6 +468,22 @@ class PackedVector2Array:
 
 
 # ---------------------------------------------------------------------------
+# PackedVector3Array
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True, slots=True)
+class PackedVector3Array:
+    """Packed array of 3D vector components as flat floats."""
+
+    values: tuple[float, ...]
+
+    def to_godot(self) -> str:
+        """Serialize to Godot text format."""
+        items = ", ".join(_fmt_float(v) for v in self.values)
+        return f"PackedVector3Array({items})"
+
+
+# ---------------------------------------------------------------------------
 # PackedVector4Array
 # ---------------------------------------------------------------------------
 
@@ -484,6 +500,22 @@ class PackedVector4Array:
 
 
 # ---------------------------------------------------------------------------
+# PackedColorArray
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True, slots=True)
+class PackedColorArray:
+    """Packed array of RGBA color components as flat floats (r,g,b,a,...)."""
+
+    values: tuple[float, ...]
+
+    def to_godot(self) -> str:
+        """Serialize to Godot text format."""
+        items = ", ".join(_fmt_float(v) for v in self.values)
+        return f"PackedColorArray({items})"
+
+
+# ---------------------------------------------------------------------------
 # All Godot value dataclasses for isinstance checks
 # ---------------------------------------------------------------------------
 
@@ -493,7 +525,8 @@ _GODOT_TYPES = (
     Transform2D, Transform3D, AABB,
     StringName, NodePath,
     ExtResourceRef, SubResourceRef,
-    PackedVector2Array, PackedVector4Array,
+    PackedVector2Array, PackedVector3Array, PackedVector4Array,
+    PackedColorArray,
 )
 
 
@@ -810,12 +843,26 @@ def _parse_constructor(type_name: str, inner: str, raw: str) -> Any:
         args = _split_args(inner)
         return PackedVector2Array(tuple(float(x) for x in args))
 
+    # PackedVector3Array
+    if type_name == "PackedVector3Array":
+        if not inner:
+            return PackedVector3Array(())
+        args = _split_args(inner)
+        return PackedVector3Array(tuple(float(x) for x in args))
+
     # PackedVector4Array
     if type_name == "PackedVector4Array":
         if not inner:
             return PackedVector4Array(())
         args = _split_args(inner)
         return PackedVector4Array(tuple(float(x) for x in args))
+
+    # PackedColorArray
+    if type_name == "PackedColorArray":
+        if not inner:
+            return PackedColorArray(())
+        args = _split_args(inner)
+        return PackedColorArray(tuple(float(x) for x in args))
 
     # PackedByteArray
     if type_name == "PackedByteArray":

@@ -11,7 +11,13 @@ from unittest.mock import MagicMock, patch
 
 from auto_godot.formats.tscn import GdScene, SceneNode, parse_tscn, serialize_tscn
 from auto_godot.formats.tres import GdResource, parse_tres, serialize_tres
-from auto_godot.formats.values import PackedVector4Array, parse_value, serialize_value
+from auto_godot.formats.values import (
+    PackedColorArray,
+    PackedVector3Array,
+    PackedVector4Array,
+    parse_value,
+    serialize_value,
+)
 
 
 class TestUniqueIdRoundTrip:
@@ -116,6 +122,66 @@ class TestFormat4Parsing:
         text = '[gd_resource type="Resource" format=4]\n\n[resource]\n'
         resource = parse_tres(text)
         assert resource.format == 4
+
+
+class TestPackedVector3Array:
+    """Parser coverage for PackedVector3Array (3D meshes, paths, curves)."""
+
+    def test_parse_packed_vector3(self) -> None:
+        v = parse_value("PackedVector3Array(1, 2, 3, 4, 5, 6)")
+        assert isinstance(v, PackedVector3Array)
+        assert v.values == (1.0, 2.0, 3.0, 4.0, 5.0, 6.0)
+
+    def test_parse_empty(self) -> None:
+        v = parse_value("PackedVector3Array()")
+        assert isinstance(v, PackedVector3Array)
+        assert v.values == ()
+
+    def test_serialize(self) -> None:
+        v = PackedVector3Array((1.0, 0.5, 0.0, 2.0, 3.0, 4.0))
+        assert serialize_value(v) == "PackedVector3Array(1, 0.5, 0, 2, 3, 4)"
+
+    def test_round_trip_in_tres(self) -> None:
+        text = (
+            '[gd_resource type="Curve3D" format=3]\n\n'
+            '[resource]\n'
+            'points = PackedVector3Array(0, 0, 0, 1, 2, 3)\n'
+        )
+        resource = parse_tres(text)
+        data = resource.resource_properties["points"]
+        assert isinstance(data, PackedVector3Array)
+        assert data.values == (0.0, 0.0, 0.0, 1.0, 2.0, 3.0)
+        assert "PackedVector3Array(0, 0, 0, 1, 2, 3)" in serialize_tres(resource)
+
+
+class TestPackedColorArray:
+    """Parser coverage for PackedColorArray (gradients, terrain colors)."""
+
+    def test_parse_packed_color(self) -> None:
+        v = parse_value("PackedColorArray(1, 0, 0, 1, 0, 1, 0, 1)")
+        assert isinstance(v, PackedColorArray)
+        assert v.values == (1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0)
+
+    def test_parse_empty(self) -> None:
+        v = parse_value("PackedColorArray()")
+        assert isinstance(v, PackedColorArray)
+        assert v.values == ()
+
+    def test_serialize(self) -> None:
+        v = PackedColorArray((1.0, 0.0, 0.0, 1.0))
+        assert serialize_value(v) == "PackedColorArray(1, 0, 0, 1)"
+
+    def test_round_trip_in_tres(self) -> None:
+        text = (
+            '[gd_resource type="Gradient" format=3]\n\n'
+            '[resource]\n'
+            'colors = PackedColorArray(1, 0, 0, 1, 0, 0, 1, 1)\n'
+        )
+        resource = parse_tres(text)
+        data = resource.resource_properties["colors"]
+        assert isinstance(data, PackedColorArray)
+        assert data.values == (1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0)
+        assert "PackedColorArray(1, 0, 0, 1, 0, 0, 1, 1)" in serialize_tres(resource)
 
 
 class TestLoadStepsRemoval:
