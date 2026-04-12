@@ -141,6 +141,29 @@ auto-godot --json script docs scripts/player.gd
 
 `script docs` parses `##` doc comments (Godot 4 syntax), signals, exports, functions, enums, and constants. Outputs Markdown or JSON. Accepts a single file or a directory (recursive).
 
+### Animation Commands
+
+Create and edit Godot animation resources without opening the editor.
+
+```bash
+# Build an AnimationLibrary .tres with named animations
+auto-godot animation create-library --name idle --name walk --loop linear --loop linear animations.tres
+
+# Add a property track with keyframes (time=value pairs)
+auto-godot animation add-track --library animations.tres --animation walk --property ".:position:x" --keyframe "0=0" --keyframe "0.5=16" --keyframe "1.0=0"
+
+# Scaffold an AnimationTree + AnimationNodeStateMachine on an existing scene
+auto-godot animation create-tree --scene scenes/player.tscn --name AnimTree \
+  --states idle,walk,run,jump,fall --player AnimPlayer \
+  --blend-times "idle->walk:0.15,walk->idle:0.15,any->jump:0.05"
+```
+
+`create-tree` adds one `AnimationNodeAnimation` sub-resource per state, one
+`AnimationNodeStateMachineTransition` per `--blend-times` pair (use `any` as a
+wildcard source), and wires the new `AnimationTree` node to the named
+`AnimationPlayer`. The `AnimationPlayer` must be a direct child of the scene
+root; the generated NodePath is `"../<player>"`.
+
 ### Export and Import Commands
 
 Headless Godot project export for CI/CD pipelines.

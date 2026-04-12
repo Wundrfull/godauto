@@ -13,8 +13,9 @@ from auto_godot.formats.tres import (
     SubResource,
     serialize_tres_file,
 )
-from auto_godot.formats.values import NodePath, SubResourceRef
-from auto_godot.output import emit, emit_error
+from auto_godot.formats.tscn import SceneNode, parse_tscn, serialize_tscn
+from auto_godot.formats.values import NodePath, StringName, SubResourceRef, Vector2
+from auto_godot.output import check_path, emit, emit_error, maybe_write
 
 
 @click.group(invoke_without_command=True)
@@ -360,6 +361,295 @@ def list_tracks(
                 )
                 for track in anim["tracks"]:
                     click.echo(f"    [{track['index']}] {track['type']}: {track['path']}")
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+
+
+# ---------------------------------------------------------------------------
+# animation create-tree
+# ---------------------------------------------------------------------------
+
+
+def _parse_state_list(states: str) -> list[str]:
+    """Split a comma-separated state list and validate names."""
+    names = [s.strip() for s in states.split(",") if s.strip()]
+    if not names:
+        raise ProjectError(
+            message="No states provided",
+            code="INVALID_STATES",
+            fix="Pass at least one state: --states idle,walk",
+        )
+    seen: set[str] = set()
+    for name in names:
+        if name in seen:
+            raise ProjectError(
+                message=f"Duplicate state '{name}' in --states",
+                code="DUPLICATE_STATE",
+                fix="Each state name must be unique",
+            )
+        seen.add(name)
+    return names
+
+
+def _parse_blend_times(
+    blend_times: str | None, state_names: list[str],
+) -> list[tuple[str, str, float]]:
+    """Parse 'from->to:seconds,...' into (from, to, xfade) triples.
+
+    'any' is treated as a wildcard expanding to every state except 'to'.
+    """
+    if not blend_times:
+        return []
+    state_set = set(state_names)
+    result: list[tuple[str, str, float]] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    for entry in blend_times.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        if "->" not in entry or ":" not in entry:
+            raise ProjectError(
+                message=f"Invalid blend-time entry: '{entry}'",
+                code="INVALID_BLEND_TIME",
+                fix="Use format 'from->to:seconds', e.g., 'idle->walk:0.15'",
+            )
+        pair, time_str = entry.rsplit(":", 1)
+        src, dst = pair.split("->", 1)
+        src = src.strip()
+        dst = dst.strip()
+        try:
+            xfade = float(time_str)
+        except ValueError as err:
+            raise ProjectError(
+                message=f"Invalid blend time in '{entry}': '{time_str}'",
+                code="INVALID_BLEND_TIME",
+                fix="Use a numeric seconds value, e.g., '0.15'",
+            ) from err
+        if dst not in state_set:
+            raise ProjectError(
+                message=f"Unknown target state '{dst}' in blend-time '{entry}'",
+                code="UNKNOWN_STATE",
+                fix=f"Known states: {', '.join(state_names)}",
+            )
+        sources = [s for s in state_names if s != dst] if src == "any" else [src]
+        if src != "any" and src not in state_set:
+            raise ProjectError(
+                message=f"Unknown source state '{src}' in blend-time '{entry}'",
+                code="UNKNOWN_STATE",
+                fix=f"Known states: {', '.join(state_names)} (or 'any')",
+            )
+        for source in sources:
+            key = (source, dst)
+            if key in seen_pairs:
+                raise ProjectError(
+                    message=f"Duplicate transition {source}->{dst}",
+                    code="DUPLICATE_TRANSITION",
+                    fix="Each (from, to) pair may only be given once",
+                )
+            seen_pairs.add(key)
+            result.append((source, dst, xfade))
+    return result
+
+
+def _build_state_sub_resources(
+    state_names: list[str],
+) -> tuple[list[SubResource], dict[str, str]]:
+    """Create one AnimationNodeAnimation sub-resource per state."""
+    sub_resources: list[SubResource] = []
+    state_to_id: dict[str, str] = {}
+    for name in state_names:
+        sub_id = f"AnimNodeAnimation_{name}"
+        sub_resources.append(SubResource(
+            type="AnimationNodeAnimation",
+            id=sub_id,
+            properties={"animation": StringName(name)},
+        ))
+        state_to_id[name] = sub_id
+    return sub_resources, state_to_id
+
+
+def _build_transition_sub_resources(
+    transitions: list[tuple[str, str, float]],
+) -> tuple[list[SubResource], list[str]]:
+    """Create AnimationNodeStateMachineTransition sub-resources."""
+    sub_resources: list[SubResource] = []
+    ids: list[str] = []
+    for src, dst, xfade in transitions:
+        sub_id = f"AnimNodeStateMachineTransition_{src}_{dst}"
+        sub_resources.append(SubResource(
+            type="AnimationNodeStateMachineTransition",
+            id=sub_id,
+            properties={"xfade_time": xfade},
+        ))
+        ids.append(sub_id)
+    return sub_resources, ids
+
+
+def _build_state_machine_sub_resource(
+    state_to_id: dict[str, str],
+    transitions: list[tuple[str, str, float]],
+    transition_ids: list[str],
+    tree_id: str,
+) -> SubResource:
+    """Create the root AnimationNodeStateMachine sub-resource."""
+    props: dict[str, Any] = {}
+    for idx, (name, sub_id) in enumerate(state_to_id.items()):
+        props[f"states/{name}/node"] = SubResourceRef(sub_id)
+        props[f"states/{name}/position"] = Vector2(200.0 + idx * 200.0, 100.0)
+    trans_array: list[Any] = []
+    for (src, dst, _), t_id in zip(transitions, transition_ids, strict=True):
+        trans_array.extend([src, dst, SubResourceRef(t_id)])
+    if trans_array:
+        props["transitions"] = trans_array
+    props["graph_offset"] = Vector2(0.0, 0.0)
+    return SubResource(
+        type="AnimationNodeStateMachine",
+        id=tree_id,
+        properties=props,
+    )
+
+
+def _locate_animation_player(
+    scene_data: Any, player_name: str,
+) -> SceneNode:
+    """Return the AnimationPlayer node matching player_name.
+
+    Requires the player to be a direct child of the scene root so that
+    the NodePath from a new sibling AnimationTree is "../<name>".
+    """
+    match: SceneNode | None = None
+    for node in scene_data.nodes:
+        if node.name != player_name:
+            continue
+        if node.type != "AnimationPlayer":
+            raise ProjectError(
+                message=f"Node '{player_name}' exists but is not an AnimationPlayer",
+                code="WRONG_NODE_TYPE",
+                fix=f"Found type '{node.type}'; pass the name of an AnimationPlayer node",
+            )
+        match = node
+        break
+    if match is None:
+        raise ProjectError(
+            message=f"AnimationPlayer '{player_name}' not found in scene",
+            code="ANIM_PLAYER_NOT_FOUND",
+            fix="Check --player matches an existing AnimationPlayer node name",
+        )
+    if match.parent != ".":
+        raise ProjectError(
+            message=f"AnimationPlayer '{player_name}' must be a direct child of the scene root",
+            code="ANIM_PLAYER_NOT_AT_ROOT",
+            fix="Move the AnimationPlayer to the scene root, or edit the generated AnimationTree anim_player NodePath manually",
+        )
+    return match
+
+
+@animation.command("create-tree")
+@click.option(
+    "--scene", "scene_path", required=True,
+    type=click.Path(),
+    help="Path to the .tscn scene to modify",
+)
+@click.option(
+    "--name", "tree_name", required=True,
+    help="Name for the new AnimationTree node",
+)
+@click.option(
+    "--states", required=True,
+    help="Comma-separated state names (e.g., 'idle,walk,run,jump,fall')",
+)
+@click.option(
+    "--player", "player_name", required=True,
+    help="Name of the existing AnimationPlayer node to drive",
+)
+@click.option(
+    "--blend-times", "blend_times", default=None,
+    help="Optional 'from->to:seconds,...' list (use 'any' as a wildcard source)",
+)
+@click.pass_context
+def create_tree(
+    ctx: click.Context,
+    scene_path: str,
+    tree_name: str,
+    states: str,
+    player_name: str,
+    blend_times: str | None,
+) -> None:
+    """Add an AnimationTree + AnimationNodeStateMachine to an existing scene.
+
+    Examples:
+
+      auto-godot animation create-tree --scene scenes/player.tscn --name AnimTree --states idle,walk,run --player AnimPlayer
+
+      auto-godot animation create-tree --scene scenes/boss.tscn --name AnimTree --states idle,attack,hurt --player AnimPlayer --blend-times idle->attack:0.1,attack->idle:0.2,any->hurt:0.05
+    """
+    try:
+        if not check_path(scene_path, ctx, "scene"):
+            return
+        path = Path(scene_path)
+        text = path.read_text(encoding="utf-8")
+        scene_data = parse_tscn(text)
+
+        for node in scene_data.nodes:
+            if node.name == tree_name and node.parent == ".":
+                raise ProjectError(
+                    message=f"Node '{tree_name}' already exists at scene root",
+                    code="NODE_EXISTS",
+                    fix="Choose a different --name or remove the existing node",
+                )
+
+        _locate_animation_player(scene_data, player_name)
+
+        state_names = _parse_state_list(states)
+        transitions = _parse_blend_times(blend_times, state_names)
+
+        state_subs, state_to_id = _build_state_sub_resources(state_names)
+        trans_subs, trans_ids = _build_transition_sub_resources(transitions)
+        tree_root_id = "AnimationNodeStateMachine_root"
+        sm_sub = _build_state_machine_sub_resource(
+            state_to_id, transitions, trans_ids, tree_root_id,
+        )
+
+        scene_data.sub_resources.extend(state_subs)
+        scene_data.sub_resources.extend(trans_subs)
+        scene_data.sub_resources.append(sm_sub)
+
+        tree_props: dict[str, Any] = {
+            "tree_root": SubResourceRef(tree_root_id),
+            "anim_player": NodePath(f"../{player_name}"),
+            "callback_mode_discrete": 2,
+            "active": True,
+        }
+        scene_data.nodes.append(SceneNode(
+            name=tree_name,
+            type="AnimationTree",
+            parent=".",
+            properties=tree_props,
+        ))
+
+        scene_data._raw_header = None
+        scene_data._raw_sections = None
+        output = serialize_tscn(scene_data)
+        maybe_write(ctx, path, output)
+
+        data = {
+            "created": True,
+            "scene": scene_path,
+            "tree_name": tree_name,
+            "states": state_names,
+            "state_count": len(state_names),
+            "transition_count": len(transitions),
+            "player": player_name,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            click.echo(
+                f"Added AnimationTree '{data['tree_name']}' to {data['scene']} "
+                f"({data['state_count']} states, {data['transition_count']} transitions, "
+                f"driving {data['player']})"
+            )
 
         emit(data, _human, ctx)
     except ProjectError as exc:
