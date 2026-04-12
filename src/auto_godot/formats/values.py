@@ -407,7 +407,7 @@ class StringName:
 
     def to_godot(self) -> str:
         """Serialize to Godot text format."""
-        return f'&"{self.value}"'
+        return f'&"{_escape_string_content(self.value)}"'
 
 
 # ---------------------------------------------------------------------------
@@ -591,31 +591,82 @@ def _split_args(text: str) -> list[str]:
 
 
 def _parse_string_content(text: str) -> str:
-    """Parse a quoted string, handling escape sequences."""
-    # Remove surrounding quotes
+    r"""Parse a quoted string, decoding Godot's escape sequences.
+
+    Mirrors the set emitted by Godot's variant_parser.cpp:
+    \\, \", \n, \r, \t, \b, \f, \uXXXX (4 hex), \UXXXXXX (6 hex).
+    Unknown escapes keep the backslash and following char so malformed
+    input round-trips unchanged.
+    """
     inner = text[1:-1]
-    # Process escape sequences
     result: list[str] = []
     i = 0
-    while i < len(inner):
-        if inner[i] == '\\' and i + 1 < len(inner):
+    length = len(inner)
+    while i < length:
+        if inner[i] == '\\' and i + 1 < length:
             next_ch = inner[i + 1]
             if next_ch == '"':
                 result.append('"')
+                i += 2
             elif next_ch == '\\':
                 result.append('\\')
+                i += 2
             elif next_ch == 'n':
                 result.append('\n')
+                i += 2
+            elif next_ch == 'r':
+                result.append('\r')
+                i += 2
             elif next_ch == 't':
                 result.append('\t')
+                i += 2
+            elif next_ch == 'b':
+                result.append('\b')
+                i += 2
+            elif next_ch == 'f':
+                result.append('\f')
+                i += 2
+            elif next_ch == 'u' and i + 5 < length + 1:
+                hex_digits = inner[i + 2:i + 6]
+                if len(hex_digits) == 4 and all(c in "0123456789abcdefABCDEF" for c in hex_digits):
+                    result.append(chr(int(hex_digits, 16)))
+                    i += 6
+                else:
+                    result.append('\\')
+                    result.append(next_ch)
+                    i += 2
+            elif next_ch == 'U' and i + 7 < length + 1:
+                hex_digits = inner[i + 2:i + 8]
+                if len(hex_digits) == 6 and all(c in "0123456789abcdefABCDEF" for c in hex_digits):
+                    code = int(hex_digits, 16)
+                    if code <= 0x10FFFF:
+                        result.append(chr(code))
+                        i += 8
+                        continue
+                result.append('\\')
+                result.append(next_ch)
+                i += 2
             else:
                 result.append('\\')
                 result.append(next_ch)
-            i += 2
+                i += 2
         else:
             result.append(inner[i])
             i += 1
     return "".join(result)
+
+
+def _escape_string_content(value: str) -> str:
+    """Escape a Python string for Godot text-format emission.
+
+    Mirrors the inverse of _parse_string_content: \\ first (so later
+    escapes are not double-escaped), then \", then control characters
+    that would otherwise corrupt the bracket-section line-based parser.
+    """
+    out = value.replace('\\', '\\\\').replace('"', '\\"')
+    out = out.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+    out = out.replace('\b', '\\b').replace('\f', '\\f')
+    return out
 
 
 def _parse_array(text: str) -> list[Any]:
@@ -860,8 +911,7 @@ def serialize_value(value: Any) -> str:
 
     # str
     if isinstance(value, str):
-        escaped = value.replace('\\', '\\\\').replace('"', '\\"')
-        return f'"{escaped}"'
+        return f'"{_escape_string_content(value)}"'
 
     # bytes
     if isinstance(value, bytes):
