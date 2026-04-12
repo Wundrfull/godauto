@@ -119,6 +119,20 @@ class TestImportTexturePackerCommand:
         assert data["animation_count"] == 2
         assert data["frame_count"] == 4
 
+    def test_frame_count_matches_actual_frames(self, tmp_path: Path) -> None:
+        """frame_count must reflect actual frames, not sub-resource count."""
+        out = tmp_path / "result.tres"
+        result = CliRunner().invoke(cli, [
+            "-j", "sprite", "import-texturepacker", str(FIXTURE), "-o", str(out),
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        # Fixture has 2 idle frames + 2 run frames = 4 total
+        frames, _ = parse_texturepacker_json(FIXTURE)
+        groups = group_frames_by_animation(frames)
+        expected = sum(len(fs) for fs in groups.values())
+        assert data["frame_count"] == expected
+
     def test_custom_fps(self, tmp_path: Path) -> None:
         out = tmp_path / "result.tres"
         result = CliRunner().invoke(cli, [
@@ -128,6 +142,16 @@ class TestImportTexturePackerCommand:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["animation_count"] == 2
+
+    def test_fps_zero_error(self, tmp_path: Path) -> None:
+        """--fps 0 must produce an actionable error, not ZeroDivisionError."""
+        out = tmp_path / "result.tres"
+        result = CliRunner().invoke(cli, [
+            "-j", "sprite", "import-texturepacker", str(FIXTURE),
+            "-o", str(out), "--fps", "0",
+        ])
+        assert result.exit_code != 0
+        assert "fps must be greater than zero" in result.output
 
     def test_default_output_path(self) -> None:
         result = CliRunner().invoke(cli, [

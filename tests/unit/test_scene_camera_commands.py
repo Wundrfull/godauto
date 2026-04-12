@@ -108,3 +108,80 @@ class TestAddCamera:
             "scene", "add-camera", "--scene", str(scene),
         ])
         assert result.exit_code != 0
+
+
+def _make_project_with_stretch(tmp_path: Path, mode: str) -> None:
+    (tmp_path / "project.godot").write_text(
+        'config_version=5\n\n[display]\n\n'
+        f'window/stretch/mode="{mode}"\n',
+        encoding="utf-8",
+    )
+
+
+class TestCameraZoomWarning:
+    """Verify zoom + stretch compatibility warning."""
+
+    def test_warns_zoom_with_viewport_stretch(self, tmp_path: Path) -> None:
+        _make_project_with_stretch(tmp_path, "viewport")
+        scene = _make_scene(tmp_path)
+        result = CliRunner().invoke(cli, [
+            "scene", "add-camera", "--scene", str(scene), "--zoom", "2",
+        ])
+        assert result.exit_code == 0
+        assert "jitter" in result.output
+
+    def test_warns_zoom_with_canvas_items_stretch(self, tmp_path: Path) -> None:
+        _make_project_with_stretch(tmp_path, "canvas_items")
+        scene = _make_scene(tmp_path)
+        result = CliRunner().invoke(cli, [
+            "scene", "add-camera", "--scene", str(scene), "--zoom", "3",
+        ])
+        assert result.exit_code == 0
+        assert "jitter" in result.output
+
+    def test_no_warning_zoom_1(self, tmp_path: Path) -> None:
+        _make_project_with_stretch(tmp_path, "viewport")
+        scene = _make_scene(tmp_path)
+        result = CliRunner().invoke(cli, [
+            "scene", "add-camera", "--scene", str(scene), "--zoom", "1",
+        ])
+        assert result.exit_code == 0
+        assert "jitter" not in result.output
+
+    def test_no_warning_disabled_stretch(self, tmp_path: Path) -> None:
+        _make_project_with_stretch(tmp_path, "disabled")
+        scene = _make_scene(tmp_path)
+        result = CliRunner().invoke(cli, [
+            "scene", "add-camera", "--scene", str(scene), "--zoom", "2",
+        ])
+        assert result.exit_code == 0
+        assert "jitter" not in result.output
+
+    def test_force_suppresses_warning(self, tmp_path: Path) -> None:
+        _make_project_with_stretch(tmp_path, "viewport")
+        scene = _make_scene(tmp_path)
+        result = CliRunner().invoke(cli, [
+            "scene", "add-camera", "--scene", str(scene), "--zoom", "2", "--force",
+        ])
+        assert result.exit_code == 0
+        assert "jitter" not in result.output
+
+    def test_json_includes_warning(self, tmp_path: Path) -> None:
+        _make_project_with_stretch(tmp_path, "viewport")
+        scene = _make_scene(tmp_path)
+        result = CliRunner().invoke(cli, [
+            "-j", "scene", "add-camera", "--scene", str(scene), "--zoom", "2",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "warning" in data
+        assert "jitter" in data["warning"]
+
+    def test_no_warning_without_project(self, tmp_path: Path) -> None:
+        scene = _make_scene(tmp_path)
+        # No project.godot in tmp_path
+        result = CliRunner().invoke(cli, [
+            "scene", "add-camera", "--scene", str(scene), "--zoom", "2",
+        ])
+        assert result.exit_code == 0
+        assert "jitter" not in result.output
