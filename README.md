@@ -51,6 +51,9 @@ Convert sprite sheet exports into valid Godot SpriteFrames `.tres` resources, en
 auto-godot sprite import-aseprite character.json
 auto-godot sprite import-aseprite character.json -o sprites/character.tres
 auto-godot sprite import-aseprite character.json --res-path res://art/character.png
+# By default the sheet PNG referenced in the Aseprite JSON is copied
+# next to the generated .tres so Godot can resolve it. Disable with:
+auto-godot sprite import-aseprite character.json -o sprites/character.tres --no-copy-sheet
 
 # Convert TexturePacker JSON atlas to SpriteFrames .tres
 auto-godot sprite import-texturepacker atlas.json

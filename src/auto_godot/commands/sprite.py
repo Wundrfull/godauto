@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import filecmp
 import json
+import shutil
 import warnings
 from pathlib import Path
 from typing import Any
@@ -48,12 +50,21 @@ def sprite(ctx: click.Context) -> None:
     help="Godot res:// path for the sprite sheet texture. "
          "Default: res://<image filename from JSON>.",
 )
+@click.option(
+    "--copy-sheet/--no-copy-sheet",
+    "copy_sheet",
+    default=True,
+    help="Copy the sheet PNG referenced in the Aseprite JSON next to the "
+         "generated .tres so Godot can resolve it (default: --copy-sheet). "
+         "Disabled automatically when --res-path is set.",
+)
 @click.pass_context
 def import_aseprite(
     ctx: click.Context,
     json_file: str,
     output: str | None,
     res_path: str | None,
+    copy_sheet: bool,
 ) -> None:
     r"""Convert Aseprite JSON sprite sheet exports to Godot SpriteFrames .tres resources.
 
@@ -86,7 +97,7 @@ def import_aseprite(
       auto-godot sprite import-aseprite character.json --res-path res://art/character.png
     """
     try:
-        _do_import_aseprite(ctx, json_file, output, res_path)
+        _do_import_aseprite(ctx, json_file, output, res_path, copy_sheet)
     except Exception as exc:
         emit_error(
             AutoGodotError(
@@ -103,6 +114,7 @@ def _do_import_aseprite(
     json_file: str,
     output: str | None,
     res_path: str | None,
+    copy_sheet: bool,
 ) -> None:
     """Inner implementation of import-aseprite, wrapped for error handling."""
     json_path = Path(json_file)
@@ -174,9 +186,16 @@ def _do_import_aseprite(
     resource, successful_animations, all_sub_resources = result
     output_path = _resolve_output_path(output, json_path)
     serialize_tres_file(resource, output_path)
+
+    copied_sheet: str | None = None
+    if copy_sheet and res_path is None:
+        copied_sheet = _copy_sheet_adjacent(
+            json_path, aseprite_data.meta.image, output_path, warnings_list,
+        )
+
     _emit_result(
         ctx, output_path, successful_animations,
-        all_sub_resources, image_res_path, warnings_list,
+        all_sub_resources, image_res_path, warnings_list, copied_sheet,
     )
 
 
@@ -232,6 +251,47 @@ def _resolve_output_path(output: str | None, json_path: Path) -> Path:
     if output is not None:
         return Path(output)
     return json_path.with_suffix(".tres")
+
+
+def _copy_sheet_adjacent(
+    json_path: Path,
+    meta_image: str,
+    output_path: Path,
+    warnings_list: list[str],
+) -> str | None:
+    """Copy the sheet PNG next to the generated .tres.
+
+    Returns the destination path (as posix string) if a copy or skip-same
+    happened, None if the source was missing or the copy was refused
+    because a different file already exists at the target.
+    """
+    # meta_image may be a bare filename or a relative path. Resolve it
+    # against the Aseprite JSON's directory (where Aseprite wrote it).
+    src = (json_path.parent / meta_image).resolve()
+    dst = (output_path.parent / Path(meta_image).name).resolve()
+
+    if not src.exists():
+        warnings_list.append(
+            f"Sheet PNG not found at {src}; skipping --copy-sheet. "
+            f"Either export the PNG alongside the JSON or pass --res-path."
+        )
+        return None
+
+    if src == dst:
+        return dst.as_posix()
+
+    if dst.exists():
+        if filecmp.cmp(src, dst, shallow=False):
+            return dst.as_posix()
+        warnings_list.append(
+            f"Sheet PNG already exists at {dst} and differs from source; "
+            f"not overwriting. Remove the existing file or pass --no-copy-sheet."
+        )
+        return None
+
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dst)
+    return dst.as_posix()
 
 
 def _build_resource(
@@ -303,6 +363,8 @@ def _print_import_result(data: dict[str, Any], verbose: bool = False) -> None:
     anims = data["animation_count"]
     frames = data["frame_count"]
     click.echo(f"Created {output} with {anims} animation(s) ({frames} frames)")
+    if data.get("copied_sheet"):
+        click.echo(f"  Copied sheet to {data['copied_sheet']}")
     if data.get("warnings"):
         for warning in data["warnings"]:
             click.echo(f"  Warning: {warning}", err=True)
@@ -315,6 +377,7 @@ def _emit_result(
     all_sub_resources: list[Any],
     image_res_path: str,
     warnings_list: list[str],
+    copied_sheet: str | None = None,
 ) -> None:
     """Emit the import result in JSON or human format."""
     data: dict[str, Any] = {
@@ -322,6 +385,7 @@ def _emit_result(
         "animation_count": len(successful_animations),
         "frame_count": len(all_sub_resources),
         "image_path": image_res_path,
+        "copied_sheet": copied_sheet,
         "warnings": warnings_list,
     }
     emit(data, _print_import_result, ctx)
