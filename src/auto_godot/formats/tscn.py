@@ -325,6 +325,8 @@ def _build_tscn_from_model(scene: GdScene) -> str:
             f'to="{conn.to_node}"',
             f'method="{conn.method}"',
         ]
+        if conn.flags is not None:
+            parts.append(f"flags={conn.flags}")
         lines.append("[connection " + " ".join(parts) + "]")
 
     return "\n".join(lines) + "\n"
