@@ -202,6 +202,21 @@ class TestParseTscnConnections:
         scene = parse_tscn(text)
         assert scene.connections[0].unbinds is None
 
+    def test_nested_binds_truncated_dropped_not_garbled(self) -> None:
+        # The header-attr regex _ATTR_ARRAY_RE stops at the first ']',
+        # so binds=[[1,2],[3]] arrives truncated as '[[1,2]'. Without
+        # a balance check, parse_value returns a list containing the
+        # partial string '[1,2'. Guard with _count_bracket_depth so
+        # truncations drop to None rather than land as model garbage.
+        text = (
+            '[gd_scene format=3]\n\n'
+            '[node name="Main" type="Control"]\n\n'
+            '[connection signal="pressed" from="." to="." '
+            'method="_on_pressed" binds=[[1,2],[3]]]\n'
+        )
+        scene = parse_tscn(text)
+        assert scene.connections[0].binds is None
+
 
 # ---------------------------------------------------------------------------
 # Round-trip fidelity

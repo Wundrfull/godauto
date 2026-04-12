@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 from auto_godot.formats.common import (
     HeaderAttributes,
     Section,
+    _count_bracket_depth,
     parse_sections,
     serialize_sections,
 )
@@ -198,8 +199,17 @@ def _extract_connection(section: Section) -> Connection:
     unbinds_str = attrs.get("unbinds")
     binds: list[Any] | None = None
     if binds_str:
-        parsed = parse_value(binds_str)
-        binds = parsed if isinstance(parsed, list) else None
+        # The header-attr regex (_ATTR_ARRAY_RE) uses `[^\]]*` which
+        # stops at the first `]`, so nested array values like
+        # `binds=[[1,2],[3]]` arrive truncated as `[[1,2]`. parse_value
+        # still returns a list for that input (containing a partial
+        # string element). Guard with a bracket-balance check so a
+        # truncated capture is rejected rather than stored as garbled
+        # list contents.
+        if _count_bracket_depth(binds_str) == 0:
+            parsed = parse_value(binds_str)
+            if isinstance(parsed, list):
+                binds = parsed
     # Integer attrs on [connection] tolerate malformed input: a
     # hand-edited scene with a non-integer flags= or unbinds= should
     # drop to None rather than crash the whole parse.
