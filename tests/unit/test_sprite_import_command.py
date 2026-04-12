@@ -392,3 +392,156 @@ class TestImportNonUniformFrameWarning:
         assert result.exit_code == 0
         combined = result.output + (result.stderr_bytes or b"").decode()
         assert "non-uniform" in combined.lower()
+
+
+class TestCopySheetFlag:
+    """Verify --copy-sheet copies the sheet PNG next to the output .tres."""
+
+    _PNG_CONTENT = b"\x89PNG\r\n\x1a\nfake-png-bytes-v1"
+    _PNG_CONTENT_ALT = b"\x89PNG\r\n\x1a\nfake-png-bytes-v2"
+
+    def _write_fixture(self, dir_: Path, image_name: str = "gem_sheet.png") -> Path:
+        """Write a minimal aseprite JSON + adjacent PNG into dir_."""
+        fixture = dir_ / "gem_sheet.json"
+        fixture.write_text(json.dumps({
+            "frames": [{
+                "filename": "gem 0.ase",
+                "frame": {"x": 0, "y": 0, "w": 8, "h": 8},
+                "rotated": False, "trimmed": False,
+                "spriteSourceSize": {"x": 0, "y": 0, "w": 8, "h": 8},
+                "sourceSize": {"w": 8, "h": 8},
+                "duration": 100,
+            }],
+            "meta": {
+                "app": "test", "version": "1.0", "image": image_name,
+                "format": "RGBA8888", "size": {"w": 8, "h": 8},
+                "scale": "1", "frameTags": [],
+            },
+        }))
+        (dir_ / image_name).write_bytes(self._PNG_CONTENT)
+        return fixture
+
+    def test_default_copies_sheet_adjacent(self, tmp_path: Path) -> None:
+        src_dir = tmp_path / "assets" / "gem"
+        src_dir.mkdir(parents=True)
+        fixture = self._write_fixture(src_dir)
+        output = tmp_path / "sprites" / "gem.tres"
+        output.parent.mkdir(parents=True, exist_ok=True)
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["sprite", "import-aseprite", str(fixture), "-o", str(output)],
+        )
+        assert result.exit_code == 0, result.output
+
+        copied = output.parent / "gem_sheet.png"
+        assert copied.exists(), "sheet PNG should be copied next to the .tres"
+        assert copied.read_bytes() == self._PNG_CONTENT
+
+    def test_no_copy_sheet_skips_copy(self, tmp_path: Path) -> None:
+        src_dir = tmp_path / "assets" / "gem"
+        src_dir.mkdir(parents=True)
+        fixture = self._write_fixture(src_dir)
+        output = tmp_path / "sprites" / "gem.tres"
+        output.parent.mkdir(parents=True, exist_ok=True)
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["sprite", "import-aseprite", str(fixture), "-o", str(output),
+             "--no-copy-sheet"],
+        )
+        assert result.exit_code == 0, result.output
+
+        assert not (output.parent / "gem_sheet.png").exists()
+
+    def test_res_path_override_disables_copy(self, tmp_path: Path) -> None:
+        src_dir = tmp_path / "assets" / "gem"
+        src_dir.mkdir(parents=True)
+        fixture = self._write_fixture(src_dir)
+        output = tmp_path / "sprites" / "gem.tres"
+        output.parent.mkdir(parents=True, exist_ok=True)
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["sprite", "import-aseprite", str(fixture), "-o", str(output),
+             "--res-path", "res://art/explicit.png"],
+        )
+        assert result.exit_code == 0, result.output
+        # User pointed res:// elsewhere; don't copy into sprites/.
+        assert not (output.parent / "gem_sheet.png").exists()
+
+    def test_missing_source_png_warns_does_not_fail(self, tmp_path: Path) -> None:
+        fixture = tmp_path / "gem_sheet.json"
+        fixture.write_text(json.dumps({
+            "frames": [{
+                "filename": "gem 0.ase",
+                "frame": {"x": 0, "y": 0, "w": 8, "h": 8},
+                "rotated": False, "trimmed": False,
+                "spriteSourceSize": {"x": 0, "y": 0, "w": 8, "h": 8},
+                "sourceSize": {"w": 8, "h": 8},
+                "duration": 100,
+            }],
+            "meta": {
+                "app": "test", "version": "1.0", "image": "gem_sheet.png",
+                "format": "RGBA8888", "size": {"w": 8, "h": 8},
+                "scale": "1", "frameTags": [],
+            },
+        }))
+        output = tmp_path / "sprites" / "gem.tres"
+        output.parent.mkdir(parents=True, exist_ok=True)
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["--json", "sprite", "import-aseprite", str(fixture), "-o", str(output)],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["copied_sheet"] is None
+        assert any("not found" in w.lower() for w in payload["warnings"])
+
+    def test_existing_identical_target_is_a_noop(self, tmp_path: Path) -> None:
+        src_dir = tmp_path / "assets" / "gem"
+        src_dir.mkdir(parents=True)
+        fixture = self._write_fixture(src_dir)
+
+        out_dir = tmp_path / "sprites"
+        out_dir.mkdir()
+        (out_dir / "gem_sheet.png").write_bytes(self._PNG_CONTENT)
+        output = out_dir / "gem.tres"
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["--json", "sprite", "import-aseprite", str(fixture), "-o", str(output)],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["copied_sheet"] is not None
+        # No warning about existing/differing file
+        assert not any("differs" in w.lower() for w in payload["warnings"])
+
+    def test_existing_differing_target_warns(self, tmp_path: Path) -> None:
+        src_dir = tmp_path / "assets" / "gem"
+        src_dir.mkdir(parents=True)
+        fixture = self._write_fixture(src_dir)
+
+        out_dir = tmp_path / "sprites"
+        out_dir.mkdir()
+        (out_dir / "gem_sheet.png").write_bytes(self._PNG_CONTENT_ALT)
+        output = out_dir / "gem.tres"
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["--json", "sprite", "import-aseprite", str(fixture), "-o", str(output)],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["copied_sheet"] is None
+        assert any("differs" in w.lower() for w in payload["warnings"])
+        # The original differing file is preserved
+        assert (out_dir / "gem_sheet.png").read_bytes() == self._PNG_CONTENT_ALT
