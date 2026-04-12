@@ -187,7 +187,7 @@ class TestSetDisplayUpdateExisting:
 class TestPixelArtSetup:
     """Integration test: configure for pixel art game."""
 
-    def test_pixel_art_config(self, tmp_path: Path) -> None:
+    def test_pixel_art_config_manual(self, tmp_path: Path) -> None:
         _make_project(tmp_path)
         runner = CliRunner()
         result = runner.invoke(cli, [
@@ -204,3 +204,66 @@ class TestPixelArtSetup:
         assert "viewport_width=480" in text
         assert "viewport_height=270" in text
         assert "default_texture_filter=0" in text
+
+
+class TestPixelArtFlag:
+    """Verify --pixel-art flag sets all pixel-perfect settings."""
+
+    def test_pixel_art_flag_sets_all(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "project", "set-display",
+            "--width", "320", "--height", "240",
+            "--window-width", "960", "--window-height", "720",
+            "--pixel-art",
+            str(tmp_path),
+        ])
+        assert result.exit_code == 0, result.output
+        text = (tmp_path / "project.godot").read_text()
+        assert "viewport_width=320" in text
+        assert "viewport_height=240" in text
+        assert 'window/stretch/mode="viewport"' in text
+        assert 'window/stretch/aspect="keep"' in text
+        assert "default_texture_filter=0" in text
+        assert "snap_2d_transforms_to_pixel=true" in text
+        assert "snap_2d_vertices_to_pixel=false" in text
+        assert 'window/stretch/scale_mode="integer"' in text
+
+    def test_pixel_art_flag_alone(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "project", "set-display", "--pixel-art", str(tmp_path),
+        ])
+        assert result.exit_code == 0, result.output
+        text = (tmp_path / "project.godot").read_text()
+        assert 'window/stretch/mode="viewport"' in text
+        assert "snap_2d_transforms_to_pixel=true" in text
+
+    def test_pixel_art_with_stretch_override(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "project", "set-display",
+            "--pixel-art", "--stretch-mode", "canvas_items",
+            str(tmp_path),
+        ])
+        assert result.exit_code == 0
+        text = (tmp_path / "project.godot").read_text()
+        # Explicit override wins over --pixel-art default
+        assert 'window/stretch/mode="canvas_items"' in text
+        # But other pixel-art settings still apply
+        assert "snap_2d_transforms_to_pixel=true" in text
+
+    def test_pixel_art_json_output(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "-j", "project", "set-display", "--pixel-art", str(tmp_path),
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["updated"] is True
+        # stretch_mode, stretch_aspect, texture_filter, snap_transforms, snap_vertices, scale_mode
+        assert data["count"] == 6
