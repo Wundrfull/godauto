@@ -117,6 +117,21 @@ auto-godot scene create definition.json -o level.tscn
 
 Scene list shows node hierarchy, script references, instanced sub-scenes, and cross-scene dependency graphs. Scene create accepts JSON with full property passthrough for any Godot node type.
 
+### UI Commands
+
+Static analysis for UI-layout bugs that Godot only exposes at runtime.
+
+```bash
+# Catch container/anchor mistakes, invisible PanelContainers, mouse_filter
+# errors, size_flags bitfield nonsense, theme override type mismatches, etc.
+auto-godot ui validate scenes/main.tscn
+auto-godot --json ui validate scenes/hud.tscn
+```
+
+`ui validate` returns findings with `severity`, `code`, `node` path, a
+`message`, and a suggested `fix`. Exit code is `0` for clean, `1` for
+warnings only, `2` when any finding is an error.
+
 ### Script Commands
 
 Generate, inspect, and document GDScript files.

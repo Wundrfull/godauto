@@ -42,6 +42,7 @@ from auto_godot.commands.skill import skill
 from auto_godot.commands.sprite import sprite
 from auto_godot.commands.theme import theme
 from auto_godot.commands.tileset import tileset
+from auto_godot.commands.ui import ui
 from auto_godot.errors import AutoGodotError, GodotBinaryError
 from auto_godot.export.pipeline import import_with_retry
 from auto_godot.output import GlobalConfig, emit, emit_error
@@ -251,6 +252,7 @@ cli.add_command(script)
 cli.add_command(shader)
 cli.add_command(signal)
 cli.add_command(theme)
+cli.add_command(ui)
 cli.add_command(import_cmd, name="import")
 cli.add_command(setup_cmd, name="setup")
 cli.add_command(skill)
