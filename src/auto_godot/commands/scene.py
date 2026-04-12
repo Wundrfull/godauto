@@ -11,10 +11,10 @@ from rich.console import Console
 from rich.tree import Tree
 
 from auto_godot.errors import AutoGodotError, ProjectError, ValidationError
-from auto_godot.formats.tscn import SceneNode, parse_tscn, resolve_parent_path, serialize_tscn, serialize_tscn_file
+from auto_godot.formats.tscn import SceneNode, parse_tscn, resolve_parent_path, serialize_tscn
 from auto_godot.formats.uid import write_uid_file
 from auto_godot.formats.values import ExtResourceRef, parse_value, serialize_value
-from auto_godot.output import emit, emit_error
+from auto_godot.output import emit, emit_error, maybe_write
 from auto_godot.scene.builder import build_scene
 from auto_godot.scene.lister import list_scenes
 
@@ -193,9 +193,9 @@ def scene_create(ctx: click.Context, json_file: str, output: str | None) -> None
         return
 
     output_path = _resolve_scene_output(output, json_path)
-    serialize_tscn_file(gd_scene, output_path)
+    maybe_write(ctx, output_path, serialize_tscn(gd_scene))
 
-    if gd_scene.uid:
+    if gd_scene.uid and not ctx.obj.dry_run:
         write_uid_file(output_path, gd_scene.uid)
 
     def _human(data: dict[str, Any], verbose: bool = False) -> None:
@@ -240,10 +240,11 @@ def create_simple(
         }
         gd_scene = build_scene(definition)
         output_path = Path(output)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        serialize_tscn_file(gd_scene, output_path)
+        if not ctx.obj.dry_run:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+        maybe_write(ctx, output_path, serialize_tscn(gd_scene))
 
-        if gd_scene.uid:
+        if gd_scene.uid and not ctx.obj.dry_run:
             write_uid_file(output_path, gd_scene.uid)
 
         data = {"path": str(output_path), "root_type": root_type, "root_name": root_name}
@@ -366,7 +367,7 @@ def add_node(
         scene_data._raw_header = None
         scene_data._raw_sections = None
         output = serialize_tscn(scene_data)
-        path.write_text(output, encoding="utf-8")
+        maybe_write(ctx, path, output)
 
         data = {
             "added": True,
@@ -482,7 +483,7 @@ def remove_node(
         scene_data._raw_header = None
         scene_data._raw_sections = None
         output = serialize_tscn(scene_data)
-        path.write_text(output, encoding="utf-8")
+        maybe_write(ctx, path, output)
 
         data = {
             "removed": True,
@@ -580,7 +581,7 @@ def set_property(
         scene_data._raw_header = None
         scene_data._raw_sections = None
         output = serialize_tscn(scene_data)
-        path.write_text(output, encoding="utf-8")
+        maybe_write(ctx, path, output)
 
         data = {
             "updated": True,
@@ -676,7 +677,7 @@ def add_timer(
         scene_data._raw_header = None
         scene_data._raw_sections = None
         output = serialize_tscn(scene_data)
-        path_obj.write_text(output, encoding="utf-8")
+        maybe_write(ctx, path_obj, output)
 
         data = {
             "added": True,
@@ -802,7 +803,7 @@ def add_instance(
         scene_data._raw_header = None
         scene_data._raw_sections = None
         output = serialize_tscn(scene_data)
-        path.write_text(output, encoding="utf-8")
+        maybe_write(ctx, path, output)
 
         data = {
             "added": True,
@@ -891,7 +892,7 @@ def add_group(
         scene_data._raw_header = None
         scene_data._raw_sections = None
         output = serialize_tscn(scene_data)
-        path.write_text(output, encoding="utf-8")
+        maybe_write(ctx, path, output)
 
         data = {
             "updated": True,
@@ -1024,7 +1025,7 @@ def add_camera(
         scene_data._raw_header = None
         scene_data._raw_sections = None
         output = serialize_tscn(scene_data)
-        path_obj.write_text(output, encoding="utf-8")
+        maybe_write(ctx, path_obj, output)
 
         data: dict[str, Any] = {
             "added": True,
@@ -1136,7 +1137,7 @@ def duplicate_node(
         scene_data._raw_header = None
         scene_data._raw_sections = None
         output = serialize_tscn(scene_data)
-        path_obj.write_text(output, encoding="utf-8")
+        maybe_write(ctx, path_obj, output)
 
         data = {
             "duplicated": True,
@@ -1434,7 +1435,7 @@ def rename_node(
 
         scene_data._raw_header = None
         scene_data._raw_sections = None
-        path.write_text(serialize_tscn(scene_data), encoding="utf-8")
+        maybe_write(ctx, path, serialize_tscn(scene_data))
 
         data = {"renamed": True, "old_name": old_name, "new_name": new_name, "scene": scene_path}
 
@@ -1522,7 +1523,7 @@ def reorder_node(
 
         scene_data._raw_header = None
         scene_data._raw_sections = None
-        path.write_text(serialize_tscn(scene_data), encoding="utf-8")
+        maybe_write(ctx, path, serialize_tscn(scene_data))
 
         data = {"reordered": True, "name": node_name, "index": target_index, "scene": scene_path}
 
@@ -1615,7 +1616,7 @@ def set_resource(
 
         scene_data._raw_header = None
         scene_data._raw_sections = None
-        path.write_text(serialize_tscn(scene_data), encoding="utf-8")
+        maybe_write(ctx, path, serialize_tscn(scene_data))
 
         data = {
             "set": True,
@@ -1767,7 +1768,7 @@ def move_node(
 
         scene_data._raw_header = None
         scene_data._raw_sections = None
-        path.write_text(serialize_tscn(scene_data), encoding="utf-8")
+        maybe_write(ctx, path, serialize_tscn(scene_data))
 
         data = {"moved": True, "name": node_name, "from": old_parent, "to": new_parent, "scene": scene_path}
 
@@ -1884,7 +1885,7 @@ def copy_properties(
 
         scene_data._raw_header = None
         scene_data._raw_sections = None
-        path.write_text(serialize_tscn(scene_data), encoding="utf-8")
+        maybe_write(ctx, path, serialize_tscn(scene_data))
 
         data = {"copied": copied, "from": from_node, "to": to_node, "scene": scene_path}
 
@@ -1960,7 +1961,7 @@ def set_anchor(
 
         scene_data._raw_header = None
         scene_data._raw_sections = None
-        path.write_text(serialize_tscn(scene_data), encoding="utf-8")
+        maybe_write(ctx, path, serialize_tscn(scene_data))
 
         data = {"set": True, "node": node_name, "preset": preset, "scene": scene_path}
 
@@ -2047,10 +2048,11 @@ def from_template(
 
         gd_scene = build_scene(definition)
         output_path = Path(output)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        serialize_tscn_file(gd_scene, output_path)
+        if not ctx.obj.dry_run:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+        maybe_write(ctx, output_path, serialize_tscn(gd_scene))
 
-        if gd_scene.uid:
+        if gd_scene.uid and not ctx.obj.dry_run:
             write_uid_file(output_path, gd_scene.uid)
 
         data = {"path": str(output_path), "template": template}

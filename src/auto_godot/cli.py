@@ -52,6 +52,7 @@ from auto_godot.output import GlobalConfig, emit, emit_error
 @click.option("-v", "--verbose", is_flag=True, help="Show extra detail.")
 @click.option("-q", "--quiet", is_flag=True, help="Suppress all output except errors.")
 @click.option("--no-color", is_flag=True, help="Disable colored output.")
+@click.option("--dry-run", is_flag=True, help="Preview changes without writing files.")
 @click.option(
     "--godot-path",
     type=click.Path(),
@@ -66,6 +67,7 @@ def cli(
     verbose: bool,
     quiet: bool,
     no_color: bool,
+    dry_run: bool,
     godot_path: str | None,
 ) -> None:
     """auto-godot: Agent-native CLI for Godot Engine (Godot 4.5+).
@@ -82,11 +84,33 @@ def cli(
         json_mode=json_mode,
         verbose=verbose,
         quiet=quiet,
+        dry_run=dry_run,
         godot_path=godot_path,
     )
 
+    if dry_run:
+        ctx.call_on_close(lambda: _warn_if_dry_run_unacknowledged(ctx))
+
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
+
+
+def _warn_if_dry_run_unacknowledged(ctx: click.Context) -> None:
+    """Warn users when --dry-run was set but no maybe_write() was called.
+
+    Closes the data-safety trap where commands outside scene group silently
+    write files despite the flag. Supported commands call maybe_write()
+    which sets dry_run_acknowledged=True. If the flag remains False after
+    the command runs, no write was intercepted and the user may have
+    unintentionally modified files.
+    """
+    config: GlobalConfig = ctx.obj
+    if config.dry_run and not config.dry_run_acknowledged:
+        sys.stderr.write(
+            "Warning: --dry-run is not yet implemented for this command.\n"
+            "Files may have been written. See issue #110 for supported "
+            "commands.\n"
+        )
 
 
 @click.command("import")
