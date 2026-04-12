@@ -310,6 +310,145 @@ def _parse_bus_layout(text: str) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
+# audio generate (sfxr-style retro sound synthesis)
+# ---------------------------------------------------------------------------
+
+_SFXR_WAVE_TYPES = ["square", "sawtooth", "sine", "noise", "triangle"]
+
+
+@audio.command("generate")
+@click.option(
+    "--preset", "preset_name",
+    type=click.Choice([
+        "coin-pickup", "powerup", "explosion", "laser",
+        "jump", "hit", "blip", "success",
+    ]),
+    default=None,
+    help="Named preset for common retro sounds.",
+)
+@click.option(
+    "--seed", type=int, default=None,
+    help="Random seed for reproducible variation.",
+)
+@click.option(
+    "--wave", "wave_type",
+    type=click.Choice(_SFXR_WAVE_TYPES),
+    default=None,
+    help="Waveform type (overrides preset).",
+)
+@click.option("--frequency", type=float, default=None, help="Base frequency in Hz.")
+@click.option("--attack", type=float, default=None, help="Attack time in seconds.")
+@click.option("--sustain", type=float, default=None, help="Sustain time in seconds.")
+@click.option("--decay", type=float, default=None, help="Decay time in seconds.")
+@click.option("--freq-slide", type=float, default=None, help="Frequency slide in Hz/s.")
+@click.option(
+    "--sample-rate", type=int, default=22050,
+    help="Sample rate (default: 22050).",
+)
+@click.argument("output_path", type=click.Path())
+@click.pass_context
+def generate(
+    ctx: click.Context,
+    preset_name: str | None,
+    seed: int | None,
+    wave_type: str | None,
+    frequency: float | None,
+    attack: float | None,
+    sustain: float | None,
+    decay: float | None,
+    freq_slide: float | None,
+    sample_rate: int,
+    output_path: str,
+) -> None:
+    """Generate retro sfxr-style sound effects.
+
+    Uses sfxr-inspired synthesis with presets for common game sounds.
+    Each preset can be varied with --seed for unique variations.
+
+    Examples:
+
+      auto-godot audio generate --preset coin-pickup assets/audio/coin.wav
+
+      auto-godot audio generate --preset explosion --seed 42 assets/audio/boom.wav
+
+      auto-godot audio generate --wave square --frequency 880 --decay 0.3 assets/audio/custom.wav
+    """
+    from auto_godot.sfxr import SfxrParams, make_preset, synthesize, write_wav
+
+    try:
+        if preset_name:
+            params = make_preset(preset_name, seed)
+        elif wave_type or frequency is not None:
+            params = SfxrParams(
+                wave_type=wave_type or "sine",
+                base_freq=frequency or 440.0,
+                attack=attack or 0.0,
+                sustain=sustain if sustain is not None else 0.1,
+                decay=decay if decay is not None else 0.3,
+                freq_slide=freq_slide or 0.0,
+            )
+        else:
+            raise ProjectError(
+                message="Specify --preset or --wave/--frequency for custom synthesis",
+                code="MISSING_PARAMS",
+                fix="Use --preset coin-pickup or --wave square --frequency 440",
+            )
+
+        # Apply per-parameter overrides on top of preset
+        if preset_name:
+            if wave_type is not None:
+                params.wave_type = wave_type
+            if frequency is not None:
+                params.base_freq = frequency
+            if attack is not None:
+                params.attack = attack
+            if sustain is not None:
+                params.sustain = sustain
+            if decay is not None:
+                params.decay = decay
+            if freq_slide is not None:
+                params.freq_slide = freq_slide
+
+        params.sample_rate = sample_rate
+        samples = synthesize(params, seed)
+        out = Path(output_path)
+        file_size = write_wav(samples, out, sample_rate)
+
+        data = {
+            "created": True,
+            "path": str(out),
+            "preset": preset_name,
+            "wave_type": params.wave_type,
+            "frequency": params.base_freq,
+            "duration_ms": int(params.duration * 1000),
+            "sample_rate": sample_rate,
+            "seed": seed,
+            "file_size": file_size,
+        }
+
+        def _human(data: dict[str, Any], verbose: bool = False) -> None:
+            label = data["preset"] or data["wave_type"]
+            click.echo(
+                f"Generated {label} sound: {data['path']} "
+                f"({data['duration_ms']}ms, {data['frequency']:.0f}Hz, "
+                f"{data['file_size']} bytes)"
+            )
+
+        emit(data, _human, ctx)
+    except ProjectError as exc:
+        emit_error(exc, ctx)
+    except Exception as exc:
+        emit_error(
+            ProjectError(
+                message=f"Failed to generate sound: {exc}",
+                code="GENERATE_ERROR",
+                fix="Check parameters and output path",
+            ),
+            ctx,
+        )
+
+
+# ---------------------------------------------------------------------------
 # audio generate-placeholder
 # ---------------------------------------------------------------------------
 
