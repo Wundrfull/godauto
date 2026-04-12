@@ -95,7 +95,52 @@ class TestSignalConnect:
             "--flags", "4",
         ])
         assert result.exit_code == 0
-        # Flags should appear only if serializer supports it
+        text = scene.read_text()
+        assert "flags=4" in text
+
+    def test_connect_persist_flag_preserved(self, tmp_path: Path) -> None:
+        # CONNECT_PERSIST = 2. Dropping this bit makes editor treat the
+        # connection as transient and silently discard it on next save.
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "signal", "connect",
+            "--scene", str(scene),
+            "--signal", "pressed",
+            "--from", "Button",
+            "--to", ".",
+            "--method", "_on_button_pressed",
+            "--flags", "2",
+        ])
+        assert result.exit_code == 0
+        assert "flags=2" in scene.read_text()
+
+    def test_connect_flags_zero_not_emitted(self, tmp_path: Path) -> None:
+        # Default flags=0: omit attribute rather than clutter output.
+        scene = _make_scene(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "signal", "connect",
+            "--scene", str(scene),
+            "--signal", "pressed",
+            "--from", "Button",
+            "--to", ".",
+            "--method", "_on_button_pressed",
+        ])
+        assert result.exit_code == 0
+        assert "flags=" not in scene.read_text()
+
+    def test_connect_flags_round_trip(self, tmp_path: Path) -> None:
+        from auto_godot.formats.tscn import parse_tscn, serialize_tscn
+        source = (
+            '[gd_scene format=3]\n\n'
+            '[node name="Main" type="Control"]\n\n'
+            '[node name="Button" type="Button" parent="."]\n\n'
+            '[connection signal="pressed" from="Button" to="." '
+            'method="_on_pressed" flags=2]\n'
+        )
+        rebuilt = serialize_tscn(parse_tscn(source))
+        assert "flags=2" in rebuilt
 
     def test_connect_multiple_signals(self, tmp_path: Path) -> None:
         scene = _make_scene(tmp_path)
