@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -1550,6 +1551,71 @@ def reorder_node(
 # ---------------------------------------------------------------------------
 
 
+_TRES_TYPE_RE = re.compile(r'\[gd_resource[^\]]*\btype="([^"]+)"')
+
+
+def _find_project_root_for(path: Path) -> Path | None:
+    """Walk up from path to find a directory containing project.godot."""
+    start = path.resolve()
+    for candidate in [start] + list(start.parents):
+        if (candidate / "project.godot").exists():
+            return candidate
+    return None
+
+
+def _read_tres_header_type(tres_path: Path) -> str | None:
+    """Return the type attribute from a .tres gd_resource header, or None.
+
+    Reads a small chunk from the file head (headers are a single short
+    line at the start). Returns None if the file isn't parseable as a
+    .tres or the header can't be found.
+    """
+    try:
+        with tres_path.open("r", encoding="utf-8", errors="replace") as fh:
+            chunk = fh.read(512)
+    except OSError:
+        return None
+    match = _TRES_TYPE_RE.search(chunk)
+    return match.group(1) if match else None
+
+
+def _verify_resource_type(scene_path: Path, resource: str, res_type: str) -> None:
+    """Error if the referenced .tres's header type disagrees with res_type.
+
+    Skips silently when: the resource doesn't start with res://, the scene
+    isn't inside a Godot project (no project.godot found), the target .tres
+    doesn't exist yet, or the header is unreadable. Raises ProjectError
+    with code RESOURCE_TYPE_MISMATCH when a definitive disagreement is
+    detected so users can fix typos before Godot load time.
+    """
+    if not resource.startswith("res://"):
+        return
+    project_root = _find_project_root_for(scene_path)
+    if project_root is None:
+        return
+    rel = resource[len("res://"):]
+    local = project_root / rel
+    if not local.exists():
+        click.echo(
+            f"Warning: resource {resource} does not exist at {local}; "
+            f"skipping --verify-type. Pass --no-verify-type to silence.",
+            err=True,
+        )
+        return
+    actual = _read_tres_header_type(local)
+    if actual is None:
+        return
+    if actual != res_type:
+        raise ProjectError(
+            message=(
+                f"Resource type mismatch: --type {res_type} but "
+                f"{resource} is a {actual}"
+            ),
+            code="RESOURCE_TYPE_MISMATCH",
+            fix=f"Pass --type {actual} or --no-verify-type if intentional",
+        )
+
+
 @scene.command("set-resource")
 @click.option("--scene", "scene_path", required=True, type=click.Path(),
               help="Path to the .tscn scene file")
@@ -1561,6 +1627,13 @@ def reorder_node(
               help="res:// path to the resource (e.g., res://theme/game_theme.tres)")
 @click.option("--type", "res_type", required=True,
               help="Resource type (e.g., Theme, ShaderMaterial, Texture2D)")
+@click.option(
+    "--verify-type/--no-verify-type", "verify_type",
+    default=True,
+    help="When the referenced .tres exists locally, read its gd_resource "
+         "header and error if --type does not match the actual resource "
+         "type (default: on). Disable for files generated later.",
+)
 @click.pass_context
 def set_resource(
     ctx: click.Context,
@@ -1570,6 +1643,7 @@ def set_resource(
     prop_name: str,
     resource: str,
     res_type: str,
+    verify_type: bool,
 ) -> None:
     """Assign an external resource to a node property.
 
@@ -1587,6 +1661,10 @@ def set_resource(
     try:
         if not check_path(scene_path, ctx, "scene"): return
         path = Path(scene_path)
+
+        if verify_type:
+            _verify_resource_type(path, resource, res_type)
+
         text = path.read_text(encoding="utf-8")
         scene_data = parse_tscn(text)
 

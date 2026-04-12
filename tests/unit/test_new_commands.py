@@ -482,6 +482,155 @@ class TestSceneSetResource:
         assert data["resource"] == "res://materials/flash.tres"
 
 
+# ---------------------------------------------------------------------------
+# scene set-resource --verify-type
+# ---------------------------------------------------------------------------
+
+
+def _make_project_with_scene(tmp_path: Path) -> Path:
+    """Create a minimal Godot project with a scene and return the scene path."""
+    (tmp_path / "project.godot").write_text(STANDARD_PROJECT_GODOT, encoding="utf-8")
+    scenes_dir = tmp_path / "scenes"
+    scenes_dir.mkdir()
+    scene = scenes_dir / "main.tscn"
+    scene.write_text(MINIMAL_TSCN, encoding="utf-8")
+    return scene
+
+
+def _write_tres(path: Path, type_name: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f'[gd_resource type="{type_name}" load_steps=1 format=3]\n\n'
+        f'[resource]\n',
+        encoding="utf-8",
+    )
+
+
+class TestSceneSetResourceVerifyType:
+    """Verify --verify-type catches mismatched resource types."""
+
+    def test_matching_type_passes_silently(self, tmp_path: Path) -> None:
+        scene = _make_project_with_scene(tmp_path)
+        _write_tres(tmp_path / "theme" / "t.tres", "Theme")
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "set-resource",
+            "--scene", str(scene),
+            "--node", "Main",
+            "--property", "theme",
+            "--resource", "res://theme/t.tres",
+            "--type", "Theme",
+        ])
+        assert result.exit_code == 0, result.output
+        combined = result.output + (result.stderr or "")
+        assert "mismatch" not in combined.lower()
+
+    def test_mismatched_type_errors(self, tmp_path: Path) -> None:
+        scene = _make_project_with_scene(tmp_path)
+        # Actually a Theme, but user claims it's SpriteFrames
+        _write_tres(tmp_path / "assets" / "ui_theme.tres", "Theme")
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "set-resource",
+            "--scene", str(scene),
+            "--node", "Main",
+            "--property", "sprite_frames",
+            "--resource", "res://assets/ui_theme.tres",
+            "--type", "SpriteFrames",
+        ])
+        assert result.exit_code != 0
+        combined = result.output + (result.stderr or "")
+        assert "mismatch" in combined.lower()
+        assert "Theme" in combined  # Suggests the actual type
+        # Scene was not modified
+        assert "ui_theme.tres" not in scene.read_text()
+
+    def test_no_verify_type_bypasses(self, tmp_path: Path) -> None:
+        scene = _make_project_with_scene(tmp_path)
+        _write_tres(tmp_path / "assets" / "ui_theme.tres", "Theme")
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "set-resource",
+            "--scene", str(scene),
+            "--node", "Main",
+            "--property", "sprite_frames",
+            "--resource", "res://assets/ui_theme.tres",
+            "--type", "SpriteFrames",
+            "--no-verify-type",
+        ])
+        assert result.exit_code == 0, result.output
+        assert "ui_theme.tres" in scene.read_text()
+
+    def test_missing_resource_warns_and_continues(self, tmp_path: Path) -> None:
+        scene = _make_project_with_scene(tmp_path)
+        # No file at res://assets/future.tres yet
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "set-resource",
+            "--scene", str(scene),
+            "--node", "Main",
+            "--property", "sprite_frames",
+            "--resource", "res://assets/future.tres",
+            "--type", "SpriteFrames",
+        ])
+        assert result.exit_code == 0, result.output
+        combined = result.output + (result.stderr or "")
+        assert "does not exist" in combined.lower()
+        assert "future.tres" in scene.read_text()
+
+    def test_outside_project_skips_verification(self, tmp_path: Path) -> None:
+        # Scene not inside a Godot project (no project.godot anywhere)
+        scenes_dir = tmp_path / "adhoc"
+        scenes_dir.mkdir()
+        scene = scenes_dir / "main.tscn"
+        scene.write_text(MINIMAL_TSCN, encoding="utf-8")
+
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "scene", "set-resource",
+            "--scene", str(scene),
+            "--node", "Main",
+            "--property", "theme",
+            "--resource", "res://anything.tres",
+            "--type", "Theme",
+        ])
+        assert result.exit_code == 0, result.output
+        # No mismatch noise when we can't resolve res:// paths
+        assert "mismatch" not in (result.output + (result.stderr or "")).lower()
+
+    def test_non_res_path_skipped(self, tmp_path: Path) -> None:
+        scene = _make_project_with_scene(tmp_path)
+        runner = CliRunner()
+        # User passes a built-in like @GlobalScope (unusual but allowed)
+        result = runner.invoke(cli, [
+            "scene", "set-resource",
+            "--scene", str(scene),
+            "--node", "Main",
+            "--property", "theme",
+            "--resource", "builtin://something",
+            "--type", "Theme",
+        ])
+        assert result.exit_code == 0, result.output
+
+    def test_mismatch_fix_suggests_no_verify_type(self, tmp_path: Path) -> None:
+        scene = _make_project_with_scene(tmp_path)
+        _write_tres(tmp_path / "x.tres", "Theme")
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "-j", "scene", "set-resource",
+            "--scene", str(scene),
+            "--node", "Main",
+            "--property", "sprite_frames",
+            "--resource", "res://x.tres",
+            "--type", "SpriteFrames",
+        ])
+        assert result.exit_code != 0
+        # Error JSON payload includes the suggestion
+        payload = json.loads(result.output[result.output.index("{"):])
+        assert payload["code"] == "RESOURCE_TYPE_MISMATCH"
+        assert "no-verify-type" in payload["fix"]
+
+
 # ===================================================================
 # scene create-simple
 # ===================================================================
